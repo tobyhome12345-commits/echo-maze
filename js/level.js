@@ -25,7 +25,8 @@ function levelConfig(n) {
     obstacles: Math.min(2 + n, 22),
     enemies: n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8),
     enemySpeed: Math.min(70 + n * 8, 145), // px/s while hunting
-    searchTime: Math.min(3 + n * 0.5, 8),
+    searchTime: 5, // seconds a monster listens after reaching the spot it was sent to
+    footstepRadius: 130, // px: how close your footsteps must be for a listening monster to hear them
     rippleRadius: Math.max(640 - n * 24, 360),
     cooldown: Math.min(0.7 + n * 0.07, 1.5),
   };

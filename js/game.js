@@ -32,13 +32,14 @@
     2: 'You are not alone. Red means something alive. Its growl is your only warning.',
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
     4: 'Move after every ripple - a monster you hit will hunt the spot you rippled from.',
-    5: 'Listen for growls and clicking steps. That is how you find monsters without waking them.',
+    5: 'A monster listens for 5 seconds after it arrives. Stand still, or keep your footsteps far from it.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
     'Echoes arrive later the farther away something is.',
     'Sleepers do nothing until a ripple hits them. Keep your waves away.',
     'A monster only goes where you were. Once you move on, it has no idea where you went.',
+    'Listen for growls and clicking steps. That is how you find monsters without waking them.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -386,11 +387,12 @@
   }
 
   /**
-   * A ripple wave has just hit this monster. It learns exactly where the
-   * ripple was sent from (ox,oy) - where you were at that moment - and goes
-   * there. It is NOT told where you are now, so if you have moved on it will
-   * not know. This is the only way a monster ever learns anything about you
-   * (apart from touching you, which kills you outright).
+   * A monster learns of a sound at (ox,oy) - exactly where it was made - and
+   * goes there. It is NOT told where you are now, so if you have moved on it
+   * will not know. Two things can trigger this, and only these two (apart from
+   * touching you, which kills you outright):
+   *   1. your ripple wave hits it (see updateRipples), or
+   *   2. it is listening (see hearFootstep) and you walk too close.
    */
   function alertEnemy(e, ox, oy) {
     const wasHunting = e.state === 'hunt';
@@ -400,6 +402,19 @@
       const sp = spatial(e.x, e.y, 950);
       audio.enemyAlert(sp.pan, sp.g);
       e.alertCd = 2;
+    }
+  }
+
+  /**
+   * A footstep of yours at (x,y). Only a monster that has just reached the spot
+   * a ripple sent it to (state 'search', i.e. for searchTime seconds) is
+   * listening, and only within footstepRadius. Standing still makes no sound.
+   */
+  function hearFootstep(x, y) {
+    for (const e of enemies) {
+      if (e.state !== 'search') continue;
+      if (Math.hypot(e.x - x, e.y - y) > cfg.footstepRadius) continue;
+      alertEnemy(e, x, y);
     }
   }
 
@@ -429,8 +444,9 @@
     if (e.state === 'hunt') {
       moved = followPath(e, speed, dt);
       if (!e.path) {
-        // Reached the spot the ripple came from. It does not know where you
-        // went, so it just stands there a moment before giving up.
+        // Reached the spot the sound came from. It does not know where you
+        // went, so it stands there and listens for searchTime seconds (see
+        // hearFootstep) before giving up.
         e.state = 'search';
         e.timer = cfg.searchTime;
       }
@@ -609,6 +625,7 @@
       if (player.stepDist >= 30) {
         player.stepDist = 0;
         audio.footstep(1);
+        hearFootstep(player.x, player.y);
       }
     }
     if (contact && !player.blocked && player.bumpCd <= 0) {
