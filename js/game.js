@@ -6,7 +6,6 @@
   const PLAYER_R = 9;
   const ENEMY_R = 14;
   const WALK_SPEED = 170;
-  const SNEAK_SPEED = 78;
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R - 3;
@@ -30,16 +29,16 @@
 
   const HINTS = {
     1: 'SPACE sends a ripple. Blue is wall, amber is an obstacle. Follow the green chime.',
-    2: 'You are not alone. Red means something alive - and it listens.',
-    3: 'Hold SHIFT to sneak: silent steps. Ripples are always loud.',
-    4: 'Monsters hear ripples from far beyond what you can see.',
-    5: 'A monster that heard you moves fast, and its steps click. Listen.',
+    2: 'You are not alone. Red means something alive. Its growl is your only warning.',
+    3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
+    4: 'Move after every ripple - a monster you hit will hunt the spot you rippled from.',
+    5: 'Listen for growls and clicking steps. That is how you find monsters without waking them.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
     'Echoes arrive later the farther away something is.',
-    'Sleepers stir only for loud noise. Do not wake them.',
-    'Your own footsteps can be heard up close.',
+    'Sleepers do nothing until a ripple hits them. Keep your waves away.',
+    'A monster that loses your trail searches nearby, then wanders off.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -375,7 +374,6 @@
       pause: 1 + Math.random() * 2,
       stepDist: 0,
       alertCd: 0,
-      hear: spec.sleeper ? 0.6 : 1,
       voice: audio.ready ? audio.createEnemyVoice(spec.pitch) : null,
     };
   }
@@ -387,27 +385,23 @@
     }
   }
 
-  /** Something made noise at (x,y). Every monster in earshot starts hunting it. */
-  function broadcastSound(x, y, radius, err) {
-    for (const e of enemies) {
-      const d = Math.hypot(e.x - x, e.y - y);
-      if (d > radius * e.hear) continue;
-      let tx = x;
-      let ty = y;
-      if (err > 0) {
-        const a = Math.random() * TAU;
-        const m = Math.random() * err * d;
-        tx += Math.cos(a) * m;
-        ty += Math.sin(a) * m;
-      }
-      const wasHunting = e.state === 'hunt';
-      if (!setPathTo(e, tx, ty)) continue;
-      e.state = 'hunt';
-      if (!wasHunting && e.alertCd <= 0) {
-        const sp = spatial(e.x, e.y, 950);
-        audio.enemyAlert(sp.pan, sp.g);
-        e.alertCd = 2;
-      }
+  /**
+   * A ripple wave has just hit this monster. It now knows roughly where the
+   * ripple came from (ox,oy) - and therefore where you were - and hunts there.
+   * This is the only way a monster ever learns where you are (apart from
+   * touching you, which catches you outright).
+   */
+  function alertEnemy(e, ox, oy) {
+    const d = Math.hypot(e.x - ox, e.y - oy);
+    const a = Math.random() * TAU;
+    const m = Math.random() * cfg.trackError * d;
+    const wasHunting = e.state === 'hunt';
+    if (!setPathTo(e, ox + Math.cos(a) * m, oy + Math.sin(a) * m)) return;
+    e.state = 'hunt';
+    if (!wasHunting && e.alertCd <= 0) {
+      const sp = spatial(e.x, e.y, 950);
+      audio.enemyAlert(sp.pan, sp.g);
+      e.alertCd = 2;
     }
   }
 
@@ -432,17 +426,6 @@
   function updateEnemy(e, dt) {
     e.alertCd = Math.max(0, e.alertCd - dt);
     const speed = cfg.enemySpeed;
-    const dp = Math.hypot(player.x - e.x, player.y - e.y);
-
-    // Anything this close can sense you even when you are silent.
-    if (dp < 42 && e.state !== 'hunt') {
-      if (setPathTo(e, player.x, player.y)) {
-        e.state = 'hunt';
-        const sp = spatial(e.x, e.y, 950);
-        audio.enemyAlert(sp.pan, sp.g);
-        e.alertCd = 2;
-      }
-    }
 
     let moved = 0;
     if (e.state === 'hunt') {
@@ -512,7 +495,7 @@
       if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE });
     });
     enemies.forEach((e) => {
-      if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) circles.push({ x: e.x, y: e.y, r: e.r, type: T_ENEMY });
+      if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) circles.push({ x: e.x, y: e.y, r: e.r, type: T_ENEMY, enemy: e });
     });
     const ex = level.exit;
     if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push({ x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
@@ -572,10 +555,19 @@
     }
     echoes.sort((a, b) => a.t - b.t);
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, echoes, ei: 0, life: (2 * R) / RIPPLE_SPEED + 2.6 });
+    // A monster only learns of you if a ray of the wave actually reaches it
+    // (line of sight, within range). It reacts when the wave arrives.
+    const alerts = [];
+    for (const bin of objBins.keys()) {
+      if (circles[bin].type !== T_ENEMY) continue;
+      const b = objBins.get(bin);
+      alerts.push({ t: b.sd / b.n / RIPPLE_SPEED, e: circles[bin].enemy });
+    }
+    alerts.sort((a, b) => a.t - b.t);
+
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, echoes, ei: 0, alerts, ai: 0, life: (2 * R) / RIPPLE_SPEED + 2.6 });
 
     audio.ping();
-    broadcastSound(ox, oy, cfg.hearRadius, cfg.trackError);
   }
 
   function playEcho(ev, R) {
@@ -592,6 +584,10 @@
     for (const rp of ripples) {
       rp.t += dt;
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
+      while (rp.ai < rp.alerts.length && rp.alerts[rp.ai].t <= rp.t) {
+        const a = rp.alerts[rp.ai++];
+        if (state === 'play') alertEnemy(a.e, rp.x, rp.y);
+      }
     }
     ripples = ripples.filter((rp) => rp.t < rp.life);
     for (const m of marks) m.t += dt;
@@ -610,31 +606,22 @@
     // --- player movement
     const ix = (down('KeyD', 'ArrowRight') ? 1 : 0) - (down('KeyA', 'ArrowLeft') ? 1 : 0);
     const iy = (down('KeyS', 'ArrowDown') ? 1 : 0) - (down('KeyW', 'ArrowUp') ? 1 : 0);
-    player.sneaking = down('ShiftLeft', 'ShiftRight');
     let contact = null;
     if (ix || iy) {
       const len = Math.hypot(ix, iy);
-      const sp = player.sneaking ? SNEAK_SPEED : WALK_SPEED;
       const px = player.x;
       const py = player.y;
-      contact = moveCircle(player, (ix / len) * sp * dt, (iy / len) * sp * dt);
+      contact = moveCircle(player, (ix / len) * WALK_SPEED * dt, (iy / len) * WALK_SPEED * dt);
       player.stepDist += Math.hypot(player.x - px, player.y - py);
-      const stride = player.sneaking ? 38 : 30;
-      if (player.stepDist >= stride) {
+      if (player.stepDist >= 30) {
         player.stepDist = 0;
-        if (player.sneaking) {
-          audio.footstep(0.18);
-        } else {
-          audio.footstep(1);
-          broadcastSound(player.x, player.y, 130, 0);
-        }
+        audio.footstep(1);
       }
     }
     if (contact && !player.blocked && player.bumpCd <= 0) {
       player.bumpCd = 0.3;
-      audio.bump(player.sneaking ? 0.5 : 1);
+      audio.bump(1);
       marks.push({ x: contact.x, y: contact.y, t: 0, life: 0.9, c: COLORS[T_WALL] });
-      if (!player.sneaking) broadcastSound(player.x, player.y, 90, 0);
     }
     player.blocked = !!contact;
 
@@ -798,15 +785,14 @@
     }
 
     // the player: a small pale dot with a faint halo
-    const dim = player.sneaking ? 0.55 : 1;
     const g = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 30);
-    g.addColorStop(0, `rgba(200,235,255,${0.16 * dim})`);
+    g.addColorStop(0, 'rgba(200,235,255,0.16)');
     g.addColorStop(1, 'rgba(200,235,255,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(player.x, player.y, 30, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = `rgba(235,248,255,${0.95 * dim})`;
+    ctx.fillStyle = 'rgba(235,248,255,0.95)';
     ctx.beginPath();
     ctx.arc(player.x, player.y, 4.5, 0, TAU);
     ctx.fill();
@@ -893,7 +879,7 @@
     levelNum = n;
     level = generateLevel(n, runSeed);
     cfg = level.cfg;
-    player = { x: level.start.x, y: level.start.y, r: PLAYER_R, stepDist: 0, bumpCd: 0, blocked: false, sneaking: false };
+    player = { x: level.start.x, y: level.start.y, r: PLAYER_R, stepDist: 0, bumpCd: 0, blocked: false };
     enemies = level.enemies.map(makeEnemy);
     ripples = [];
     marks = [];
