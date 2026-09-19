@@ -11,13 +11,14 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 1. Save the committed tree as a **new** folder `C:\Claude\Echo Maze\vN - short description` (e.g. `git archive --format=zip -o x.zip HEAD`, extract it, delete `CLAUDE.md` and `.gitignore` from the copy). Never edit or delete earlier `vN` folders.
 2. Re-point the shortcut `C:\Claude\Play Echo Maze.lnk` at the new folder's `index.html`.
 
-Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
+Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
 
 ## Monster rules (owner's design - don't loosen)
 
 - Touching a monster (circles overlapping) kills you.
 - A monster learns something only when a ripple ray hits it, and then goes to the *exact spot the ripple was sent from*. It never learns where the player is now.
-- After arriving it stands still and **listens for `searchTime` (5s)**. Only during that window (state `search`) does it hear the player's footsteps, and only within `footstepRadius` (130px); it then goes to the exact spot of that footstep. Standing still is silent. After the window it goes idle and is deaf again.
+- After arriving it stands still and **listens for `searchTime` (5s)**. Only during that window (state `search`) does it hear the player's footsteps, and only within `footstepRadius` (130px). Standing still is silent. If nothing is heard it goes idle and is deaf again.
+- If it hears a footstep it **locks on** (state `track`): it knows the player's live position and follows it with no time limit for as long as the player stays within `footstepRadius`. The moment the player is farther away it loses them, goes idle and is deaf; it can only be re-alerted by another ripple hit. (A ripple hit on a tracking monster is ignored.)
 - Everything else is ignored: no hearing while idle/hunting/sleeping, no bump hearing, no proximity sense.
 
 ## Constraints

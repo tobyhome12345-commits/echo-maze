@@ -32,7 +32,7 @@
     2: 'You are not alone. Red means something alive. Its growl is your only warning.',
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
     4: 'Move after every ripple - a monster you hit will hunt the spot you rippled from.',
-    5: 'A monster listens for 5 seconds after it arrives. Stand still, or keep your footsteps far from it.',
+    5: 'A monster listens for 5 seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -40,6 +40,7 @@
     'Sleepers do nothing until a ripple hits them. Keep your waves away.',
     'A monster only goes where you were. Once you move on, it has no idea where you went.',
     'Listen for growls and clicking steps. That is how you find monsters without waking them.',
+    'A monster that has locked onto you loses you the moment you get far enough away. Run.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -368,10 +369,11 @@
       y: spec.y,
       r: ENEMY_R,
       sleeper: spec.sleeper,
-      state: 'idle', // idle | hunt | search
+      state: 'idle', // idle | hunt (walking to a spot) | search (listening) | track (following you)
       path: null,
       pi: 0,
       timer: 0,
+      repath: 0,
       pause: 1 + Math.random() * 2,
       stepDist: 0,
       alertCd: 0,
@@ -386,35 +388,40 @@
     }
   }
 
+  function screech(e) {
+    if (e.alertCd > 0) return;
+    const sp = spatial(e.x, e.y, 950);
+    audio.enemyAlert(sp.pan, sp.g);
+    e.alertCd = 2;
+  }
+
   /**
-   * A monster learns of a sound at (ox,oy) - exactly where it was made - and
-   * goes there. It is NOT told where you are now, so if you have moved on it
-   * will not know. Two things can trigger this, and only these two (apart from
-   * touching you, which kills you outright):
-   *   1. your ripple wave hits it (see updateRipples), or
-   *   2. it is listening (see hearFootstep) and you walk too close.
+   * Your ripple wave hit this monster. It learns exactly where the ripple was
+   * sent from (ox,oy) and walks there. It is NOT told where you are now, so if
+   * you have moved on it will not know. (It is deaf while it walks.)
    */
   function alertEnemy(e, ox, oy) {
     const wasHunting = e.state === 'hunt';
     if (!setPathTo(e, ox, oy)) return;
     e.state = 'hunt';
-    if (!wasHunting && e.alertCd <= 0) {
-      const sp = spatial(e.x, e.y, 950);
-      audio.enemyAlert(sp.pan, sp.g);
-      e.alertCd = 2;
-    }
+    if (!wasHunting) screech(e);
   }
 
   /**
    * A footstep of yours at (x,y). Only a monster that has just reached the spot
    * a ripple sent it to (state 'search', i.e. for searchTime seconds) is
    * listening, and only within footstepRadius. Standing still makes no sound.
+   * Once it hears you it locks on and TRACKS you: it knows where you are and
+   * follows for as long as you stay within footstepRadius - even after the
+   * listening window is over. See the 'track' branch in updateEnemy.
    */
   function hearFootstep(x, y) {
     for (const e of enemies) {
       if (e.state !== 'search') continue;
       if (Math.hypot(e.x - x, e.y - y) > cfg.footstepRadius) continue;
-      alertEnemy(e, x, y);
+      e.state = 'track';
+      e.repath = 0;
+      screech(e);
     }
   }
 
@@ -457,6 +464,22 @@
         e.path = null;
         e.pause = 1 + Math.random() * 2;
       }
+    } else if (e.state === 'track') {
+      if (Math.hypot(player.x - e.x, player.y - e.y) > cfg.footstepRadius) {
+        // You got away. It can no longer sense you, and will not again until
+        // another ripple hits it.
+        e.state = 'idle';
+        e.path = null;
+        e.pause = 1 + Math.random() * 2;
+      } else {
+        // Still too close: it knows exactly where you are right now.
+        e.repath -= dt;
+        if (e.repath <= 0) {
+          e.repath = 0.2;
+          setPathTo(e, player.x, player.y);
+        }
+        moved = followPath(e, speed, dt);
+      }
     } else if (!e.sleeper) {
       if (e.path) {
         moved = followPath(e, speed * 0.28, dt);
@@ -471,7 +494,8 @@
 
     // clicking footsteps, faster while hunting
     e.stepDist += moved;
-    const stride = e.state === 'hunt' ? 24 : 18;
+    const chasing = e.state === 'hunt' || e.state === 'track';
+    const stride = chasing ? 24 : 18;
     if (e.stepDist >= stride) {
       e.stepDist = 0;
       const sp = spatial(e.x, e.y, 540);
@@ -482,7 +506,7 @@
     if (e.voice) {
       const sp = spatial(e.x, e.y, 720);
       const occluded = !hasLOS(e.x, e.y, player.x, player.y);
-      const mood = e.state === 'hunt' ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : 0.35;
+      const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : 0.35;
       const gain = sp.g * (0.16 + 0.3 * mood) * (occluded ? 0.6 : 1);
       audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: occluded });
     }
@@ -595,7 +619,8 @@
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
       while (rp.ai < rp.alerts.length && rp.alerts[rp.ai].t <= rp.t) {
         const a = rp.alerts[rp.ai++];
-        if (state === 'play') alertEnemy(a.e, rp.x, rp.y);
+        // a monster already tracking you knows better than the ripple spot
+        if (state === 'play' && a.e.state !== 'track') alertEnemy(a.e, rp.x, rp.y);
       }
     }
     ripples = ripples.filter((rp) => rp.t < rp.life);
@@ -650,7 +675,7 @@
     // heartbeat + danger vignette as monsters close in
     let dmin = Infinity;
     for (const e of enemies) {
-      const d = Math.hypot(e.x - player.x, e.y - player.y) * (e.state === 'hunt' ? 1 : 1.35);
+      const d = Math.hypot(e.x - player.x, e.y - player.y) * (e.state === 'hunt' || e.state === 'track' ? 1 : 1.35);
       if (d < dmin) dmin = d;
     }
     danger = clamp(1 - dmin / 300, 0, 1);

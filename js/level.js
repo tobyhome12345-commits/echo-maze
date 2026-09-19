@@ -26,7 +26,7 @@ function levelConfig(n) {
     enemies: n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8),
     enemySpeed: Math.min(70 + n * 8, 145), // px/s while hunting
     searchTime: 5, // seconds a monster listens after reaching the spot it was sent to
-    footstepRadius: 130, // px: how close your footsteps must be for a listening monster to hear them
+    footstepRadius: 130, // px: "too close" - a listening monster hears your steps inside this, and a monster that has locked on keeps tracking you only while you stay inside it
     rippleRadius: Math.max(640 - n * 24, 360),
     cooldown: Math.min(0.7 + n * 0.07, 1.5),
   };
