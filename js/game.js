@@ -8,7 +8,7 @@
   const WALK_SPEED = 170;
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
-  const CATCH_DIST = ENEMY_R + PLAYER_R - 3;
+  const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
   const CAMPAIGN_LEVELS = 10;
   const SAVE_KEY = 'echomaze.best';
 
@@ -38,7 +38,7 @@
     'Ripple, listen, move. Never stay where you rippled.',
     'Echoes arrive later the farther away something is.',
     'Sleepers do nothing until a ripple hits them. Keep your waves away.',
-    'A monster that loses your trail searches nearby, then wanders off.',
+    'A monster only goes where you were. Once you move on, it has no idea where you went.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -386,17 +386,15 @@
   }
 
   /**
-   * A ripple wave has just hit this monster. It now knows roughly where the
-   * ripple came from (ox,oy) - and therefore where you were - and hunts there.
-   * This is the only way a monster ever learns where you are (apart from
-   * touching you, which catches you outright).
+   * A ripple wave has just hit this monster. It learns exactly where the
+   * ripple was sent from (ox,oy) - where you were at that moment - and goes
+   * there. It is NOT told where you are now, so if you have moved on it will
+   * not know. This is the only way a monster ever learns anything about you
+   * (apart from touching you, which kills you outright).
    */
   function alertEnemy(e, ox, oy) {
-    const d = Math.hypot(e.x - ox, e.y - oy);
-    const a = Math.random() * TAU;
-    const m = Math.random() * cfg.trackError * d;
     const wasHunting = e.state === 'hunt';
-    if (!setPathTo(e, ox + Math.cos(a) * m, oy + Math.sin(a) * m)) return;
+    if (!setPathTo(e, ox, oy)) return;
     e.state = 'hunt';
     if (!wasHunting && e.alertCd <= 0) {
       const sp = spatial(e.x, e.y, 950);
@@ -431,18 +429,13 @@
     if (e.state === 'hunt') {
       moved = followPath(e, speed, dt);
       if (!e.path) {
+        // Reached the spot the ripple came from. It does not know where you
+        // went, so it just stands there a moment before giving up.
         e.state = 'search';
         e.timer = cfg.searchTime;
-        e.pause = 0.4;
       }
     } else if (e.state === 'search') {
       e.timer -= dt;
-      if (e.path) {
-        moved = followPath(e, speed * 0.5, dt);
-      } else {
-        e.pause -= dt;
-        if (e.pause <= 0) wander(e, 3, 0.6);
-      }
       if (e.timer <= 0) {
         e.state = 'idle';
         e.path = null;

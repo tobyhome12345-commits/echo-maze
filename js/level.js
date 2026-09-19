@@ -25,7 +25,6 @@ function levelConfig(n) {
     obstacles: Math.min(2 + n, 22),
     enemies: n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8),
     enemySpeed: Math.min(70 + n * 8, 145), // px/s while hunting
-    trackError: Math.max(0.03, 0.15 - n * 0.012), // how sloppy the tracking is
     searchTime: Math.min(3 + n * 0.5, 8),
     rippleRadius: Math.max(640 - n * 24, 360),
     cooldown: Math.min(0.7 + n * 0.07, 1.5),
