@@ -15,6 +15,7 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | `P` / `Esc` | Pause |
 | `M` | Mute |
 | `Enter` | Confirm on the Try again / Next level screens |
+| `Enter` / `Space` / `Esc` | Skip the intro cutscene (or click **Skip**) |
 
 Headphones recommended: echoes and monsters are stereo-panned.
 
@@ -26,6 +27,16 @@ Headphones recommended: echoes and monsters are stereo-panned.
 | Amber | Obstacles (boulders and pillars) |
 | Red | Echo monsters |
 | Green | The way out |
+
+## The intro
+
+**Begin** plays a ~55 second opening (skippable; **Continue** goes straight to your level):
+
+1. **Lore cards** over black: the maze under the old quarry, the eyeless monsters, and the cost of a ripple.
+2. **The scene:** an explorer, on their 41st day in the dark, mutters that they've been in here too long and may not survive. They send out a ripple (the game's real sonar, so you see the maze the same way they do), hear something answer, and start to turn — and an echo monster leaps out of a side passage. Cut to black, then their dropped sonar device clatters to the floor and pings once, lighting up an empty corridor.
+3. **"Now it is your turn"** and level 1 starts.
+
+The explorer's voice is synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. The whole thing lives in [`js/cutscene.js`](js/cutscene.js) and is driven by a single timeline of times at the top of that file.
 
 ## How it works
 
@@ -48,6 +59,7 @@ index.html      page + overlay screens (title, pause, caught, level complete, vi
 style.css       styling
 js/audio.js     SoundEngine - procedural Web Audio synthesis
 js/level.js     level generation + difficulty curve (levelConfig)
+js/cutscene.js  the opening cutscene: lore cards + scripted scene (timeline at the top)
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
 ```
 
@@ -55,4 +67,4 @@ Difficulty is tuned in one place: `levelConfig()` in [`js/level.js`](js/level.js
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `audio`) for poking at the game from the console.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `audio`) for poking at the game from the console.

@@ -48,6 +48,7 @@
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
   const overlays = ['title', 'pause', 'caught', 'complete', 'victory'];
+  // states: title | cutscene | play | paused | caught | complete
 
   const audio = new SoundEngine();
 
@@ -74,6 +75,7 @@
   let camX = 0;
   let camY = 0;
   let bannerTimer = null;
+  let debugFrozen = false; // ?debug only: hold the cutscene clock still
   let titleRipples = [];
   let titleTimer = 0;
   let W = 0;
@@ -517,10 +519,13 @@
     if (state !== 'play' || cooldown > 0) return;
     cooldown = cfg.cooldown;
     ripplesUsed++;
+    castRipple(player.x, player.y);
+    audio.ping();
+  }
 
+  /** Fire a ripple from (ox,oy) into the current level (also used by the intro cutscene). */
+  function castRipple(ox, oy) {
     const R = cfg.rippleRadius;
-    const ox = player.x;
-    const oy = player.y;
 
     // Round things the wave can bounce off.
     const circles = [];
@@ -599,8 +604,6 @@
     alerts.sort((a, b) => a.t - b.t);
 
     ripples.push({ x: ox, y: oy, t: 0, R, dist, type, echoes, ei: 0, alerts, ai: 0, life: (2 * R) / RIPPLE_SPEED + 2.6 });
-
-    audio.ping();
   }
 
   function playEcho(ev, R) {
@@ -788,6 +791,27 @@
     }
   }
 
+  /** Live ripples + bump flashes, in world coordinates (the caller sets the transform). */
+  function drawRippleLayer() {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (const rp of ripples) drawRipple(rp);
+
+    for (const m of marks) {
+      const a = 1 - m.t / m.life;
+      const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 18);
+      g.addColorStop(0, `rgba(${m.c},${a * 0.7})`);
+      g.addColorStop(1, `rgba(${m.c},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 18, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   function drawWorld() {
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
@@ -806,18 +830,8 @@
       ctx.fill();
     }
 
-    for (const rp of ripples) drawRipple(rp);
-
-    for (const m of marks) {
-      const a = 1 - m.t / m.life;
-      const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 18);
-      g.addColorStop(0, `rgba(${m.c},${a * 0.7})`);
-      g.addColorStop(1, `rgba(${m.c},0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, 18, 0, TAU);
-      ctx.fill();
-    }
+    drawRippleLayer();
+    ctx.globalCompositeOperation = 'lighter';
 
     // the player: a small pale dot with a faint halo
     const g = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 30);
@@ -857,6 +871,10 @@
   }
 
   function draw() {
+    if (state === 'cutscene') {
+      cutscene.draw();
+      return;
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#010206';
@@ -937,12 +955,49 @@
     showBanner(n);
   }
 
-  function newRun(fromLevel) {
+  /** Begin a run. A brand-new game plays the intro cutscene first; Continue skips it. */
+  function newRun(fromLevel, withIntro) {
     runSeed = (Math.random() * 0x7fffffff) | 0;
     endless = false;
     audio.init();
     audio.uiClick();
-    startLevel(fromLevel);
+    if (withIntro) startCutscene();
+    else startLevel(fromLevel);
+  }
+
+  // ---------------------------------------------------------------- cutscene
+  // The scripted scene lives in js/cutscene.js. It borrows this file's ripple
+  // system so the explorer's sonar looks and sounds exactly like yours.
+  const cutscene = EchoCutscene.create({
+    audio,
+    ctx,
+    canvas,
+    size: () => ({ W, H, DPR, viewScale }),
+    setStage(stage) {
+      level = stage;
+      cfg = stage.cfg;
+      player = stage.person;
+      enemies = [];
+      ripples = [];
+      marks = [];
+      danger = 0;
+      flash = 0;
+      shake = 0;
+    },
+    castRipple,
+    updateRipples,
+    drawRippleLayer,
+    finish: () => startLevel(1),
+  });
+
+  function startCutscene() {
+    destroyVoices();
+    audio.stopAmbient();
+    state = 'cutscene';
+    showOverlay(null);
+    $('hud').classList.add('hidden');
+    $('banner').classList.remove('show');
+    cutscene.start();
   }
 
   function onCaught() {
@@ -1036,7 +1091,13 @@
       case 'title':
         if (e.code === 'Enter') {
           e.preventDefault();
-          newRun(1);
+          newRun(1, true);
+        }
+        break;
+      case 'cutscene':
+        if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+          e.preventDefault();
+          cutscene.skip();
         }
         break;
       case 'caught':
@@ -1071,6 +1132,9 @@
     if (document.hidden) {
       releaseKeys();
       pause();
+      if (state === 'cutscene') audio.suspend();
+    } else if (state === 'cutscene') {
+      audio.resume();
     }
   });
 
@@ -1081,7 +1145,7 @@
     startLevel(levelNum);
   }
 
-  $('btn-start').addEventListener('click', () => newRun(1));
+  $('btn-start').addEventListener('click', () => newRun(1, true));
   $('btn-continue').addEventListener('click', () => newRun(getBest()));
   $('btn-resume').addEventListener('click', () => {
     audio.uiClick();
@@ -1125,6 +1189,8 @@
 
     if (state === 'play') {
       updatePlay(dt);
+    } else if (state === 'cutscene') {
+      if (!debugFrozen) cutscene.update(dt);
     } else if (state === 'caught' || state === 'complete') {
       flash = Math.max(0, flash - dt * 1.2);
       shake = Math.max(0, shake - dt * 20);
@@ -1139,7 +1205,7 @@
       titleRipples = titleRipples.filter((r) => r.t < 6);
     }
 
-    if (player && level && state !== 'title') {
+    if (player && level && state !== 'title' && state !== 'cutscene') {
       const k = Math.min(1, dt * 9);
       camX += (player.x - camX) * k;
       camY += (player.y - camY) * k;
@@ -1171,6 +1237,21 @@
       step: (secs) => {
         for (let t = 0; t < secs && state === 'play'; t += 1 / 60) updatePlay(1 / 60);
       },
+      // intro cutscene helpers: play it, hold time still, and jump to a moment
+      intro: () => {
+        audio.init();
+        runSeed = 1;
+        startCutscene();
+      },
+      freeze: (on) => {
+        debugFrozen = !!on;
+      },
+      csTo: (secs) => {
+        const start = cutscene.time;
+        for (let t = start; t < secs && state === 'cutscene'; t += 1 / 60) cutscene.update(1 / 60);
+        return cutscene.time;
+      },
+      cutscene,
       audio,
     };
   }

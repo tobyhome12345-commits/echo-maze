@@ -179,29 +179,29 @@ class SoundEngine {
 
   // ------------------------------------------------------------- player sounds
 
-  /** The sonar "ping" the player emits with SPACE. */
-  ping() {
+  /** The sonar "ping" the player emits with SPACE. `vol` scales it (1 = full). */
+  ping(vol = 1) {
     if (this._busy(120)) return;
     const c = this.ctx;
     const t = c.currentTime;
 
     const o = this._osc('sine', 1500, t, 0.7);
     o.frequency.exponentialRampToValueAtTime(380, t + 0.34);
-    const g = this._env(t, 0.004, 0.4, 0.55);
+    const g = this._env(t, 0.004, 0.4 * vol, 0.55);
     o.connect(g);
     this._route(g, 0, 0.6);
     this._track(o);
 
     const sub = this._osc('sine', 160, t, 0.6);
     sub.frequency.exponentialRampToValueAtTime(46, t + 0.32);
-    const sg = this._env(t, 0.005, 0.55, 0.42);
+    const sg = this._env(t, 0.005, 0.55 * vol, 0.42);
     sub.connect(sg);
     this._route(sg, 0, 0.15);
 
     const n = this._noise(t, 0.6);
     const bp = this._filter('bandpass', 3000, 1.2);
     bp.frequency.exponentialRampToValueAtTime(500, t + 0.45);
-    const ng = this._env(t, 0.01, 0.11, 0.42);
+    const ng = this._env(t, 0.01, 0.11 * vol, 0.42);
     n.connect(bp);
     bp.connect(ng);
     this._route(ng, 0, 0.3);
@@ -533,6 +533,118 @@ class SoundEngine {
     const g = this._env(t, 0.004, 0.2, 0.1);
     o.connect(g);
     this._route(g, 0, 0.3);
+  }
+
+  // ---------------------------------------------------------------- cutscene
+
+  /**
+   * One syllable of synthesised "speech": a buzzy voice source shaped by two
+   * vowel formants. Not words - the on-screen subtitles carry those - just the
+   * mumble of a person talking. `code` picks the vowel and pitch wobble.
+   */
+  voice(code = 97, vol = 1) {
+    if (this._busy(120)) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const vowels = [[730, 1090], [530, 1840], [270, 2290], [570, 840], [300, 870]]; // a e i o u
+    const [f1, f2] = vowels[code % 5];
+    const f0 = 165 + (code % 7) * 7 + Math.random() * 12;
+    const src = this._osc('sawtooth', f0, t, 0.16);
+    src.frequency.linearRampToValueAtTime(f0 * 0.9, t + 0.11);
+    const g = this._env(t, 0.014, 1.4 * vol, 0.09);
+    [[f1, 5, 1], [f2, 7, 0.55]].forEach(([f, q, a]) => {
+      const bp = this._filter('bandpass', f, q);
+      const bg = c.createGain();
+      bg.gain.value = a;
+      src.connect(bp);
+      bp.connect(bg);
+      bg.connect(g);
+    });
+    this._route(g, 0, 0.3);
+    this._track(src);
+  }
+
+  /** A slow, ragged breath. */
+  breath(vol = 1) {
+    if (this._busy(120)) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 1.2);
+    const bp = this._filter('bandpass', 900, 0.7);
+    bp.frequency.linearRampToValueAtTime(600, t + 0.9);
+    const g = this._env(t, 0.32, 0.09 * vol, 0.6);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.35);
+    this._track(n);
+  }
+
+  /** The jump scare: something huge leaps out of the dark. */
+  lunge() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [760, 803].forEach((f, i) => {
+      const o = this._osc('sawtooth', f, t, 0.8);
+      o.frequency.exponentialRampToValueAtTime(f * 0.16, t + 0.55);
+      const bp = this._filter('bandpass', 1300, 1.6);
+      bp.frequency.exponentialRampToValueAtTime(380, t + 0.5);
+      const g = this._env(t, 0.008, 0.62, 0.55);
+      o.connect(bp);
+      bp.connect(g);
+      this._route(g, i ? 0.3 : -0.3, 0.45);
+    });
+    const n = this._noise(t, 0.6);
+    const nlp = this._filter('lowpass', 2600, 0.8);
+    const ng = this._env(t, 0.004, 0.75, 0.35);
+    n.connect(nlp);
+    nlp.connect(ng);
+    this._route(ng, 0, 0.5);
+    const sub = this._osc('sine', 70, t, 0.8);
+    sub.frequency.exponentialRampToValueAtTime(28, t + 0.5);
+    const sg = this._env(t, 0.005, 0.95, 0.55);
+    sub.connect(sg);
+    this._route(sg, 0, 0.1);
+  }
+
+  /** A metal gadget clattering on stone. */
+  clank(vol = 1) {
+    if (this._busy(120)) return;
+    const t = this.ctx.currentTime;
+    [[1180, 0.5], [1810, 0.32], [2760, 0.2], [4020, 0.12]].forEach(([f, a], i) => {
+      // oscillator and envelope must start together: a gain node sits at 1.0 until its first event
+      const at = t + i * 0.012;
+      const o = this._osc('sine', f * (1 + Math.random() * 0.02), at, 0.6);
+      const g = this._env(at, 0.002, 1.0 * a * vol, 0.4 - i * 0.06);
+      o.connect(g);
+      this._route(g, 0.15, 0.4);
+      if (!i) this._track(o);
+    });
+    const n = this._noise(t, 0.1);
+    const hp = this._filter('highpass', 2500, 0.8);
+    const ng = this._env(t, 0.002, 0.22 * vol, 0.05);
+    n.connect(hp);
+    hp.connect(ng);
+    this._route(ng, 0.15, 0.3);
+  }
+
+  /** Cut everything dead for `seconds` - the "everything just stopped" beat. */
+  silence(seconds) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setTargetAtTime(0, t, 0.012);
+    this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, t + seconds, 0.05);
+  }
+
+  /** A low swell that lands under each lore card. */
+  swell(freq = 55, vol = 1) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [1, 1.5].forEach((m, i) => {
+      const o = this._osc('sine', freq * m + i * 0.3, t, 4);
+      const g = this._env(t, 1.3, 0.11 * vol * (i ? 0.6 : 1), 2.5);
+      o.connect(g);
+      this._route(g, 0, 0.5);
+    });
   }
 
   // ----------------------------------------------------------------- ambient
