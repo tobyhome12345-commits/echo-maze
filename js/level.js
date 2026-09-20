@@ -88,27 +88,38 @@ const TRAIL_LIFETIME = 60; // seconds a finished smell trail lasts before it fad
 const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before a trail can do it again
 
 /**
- * The monsters on each level of the game so far - EXACT, and the same in every
- * mode (the modes differ in speed, hearing, ripples and so on, not in how many
- * monsters there are). The game currently ends after level 10.
+ * The monsters on each level of the game so far - EXACT (the number never varies from run to run; the modes
+ * differ in speed, hearing, ripples and so on). The game currently ends after level 10.
+ *
+ * Normal, Hard and Hardcore (these four tables):
  *   level:   1  2  3  4  5  6  7  8  9  10
- *   echo:    0  1  1  2  2  0  1  1  2  0
- *   scent:   0  0  0  0  0  1  1  1  1  1
+ *   echo:    0  1  1  2  2  0  1  1  0  0
+ *   scent:   0  0  0  0  0  1  1  1  2  1
  *   mimic:   0  0  0  0  0  0  0  1  1  0
  *   stalker: 0  0  0  0  0  0  0  0  0  1
- * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8
- * adds the mimic; level 9 adds a second echo monster and the sonar decoy to find
- * (the owner did not give a monster mix for level 9 - this one is my choice);
- * level 10 is the stalker's: 1 stalker + 1 scent monster, and NO echo monsters and
- * NO mimic (the owner first asked for a mimic there too, then removed it in v9.0);
- * it has the sonar decoy, like every level from 9.
+ * Easy is the same except for levels 9 and 10 (MODE_MONSTERS below):
+ *   level 9:  1 scent + 1 mimic, nothing else      level 10: 1 stalker, nothing else
+ *
+ * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8 adds the mimic; level 9 (owner's
+ * v9.2 schedule) has NO echo monsters - two scent monsters and the mimic - and the sonar decoy to find; level 10 is
+ * the stalker's (1 stalker + 1 scent monster; no echo monsters, no mimic - the owner first asked for a mimic there
+ * too, then removed it in v9.0), with the decoy, like every level from 9. (Before v9.2 level 9 was 2 echo + 1 scent
+ * + 1 mimic in every mode, and level 10 was the same for Easy as for the others.) The decoy and the smell puddles
+ * are terrain, not monsters: they are on every level that had them, whatever the mode's monster mix.
  * Levels past 10 do not exist yet; the fallback formula below only keeps them
  * generating sensibly (debug/testing) until they are designed.
  */
-const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 2, 10: 0 };
-const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0 };
+const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 2, 10: 1 };
 const MIMIC_MONSTERS = { 8: 1, 9: 1 };
 const STALKER_MONSTERS = { 10: 1 };
+/** Per-mode exceptions to the tables above: { mode: { level: { echo, scent, mimic, stalker } } } (a level not listed here follows the tables). */
+const MODE_MONSTERS = {
+  easy: {
+    9: { echo: 0, scent: 1, mimic: 1, stalker: 0 },
+    10: { echo: 0, scent: 0, mimic: 0, stalker: 1 },
+  },
+};
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {
@@ -116,10 +127,13 @@ function levelConfig(n, modeId = 'normal') {
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
   const basePuddles = n < SCENT_FROM_LEVEL ? 0 : Math.min(3 + (n - SCENT_FROM_LEVEL), 10);
-  const echoCount = n in ECHO_MONSTERS ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
-  const scentCount = n in ECHO_MONSTERS ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
-  const mimicCount = n in ECHO_MONSTERS ? MIMIC_MONSTERS[n] || 0 : n >= MIMIC_FROM_LEVEL ? 1 : 0;
-  const stalkerCount = n in ECHO_MONSTERS ? STALKER_MONSTERS[n] || 0 : n >= STALKER_FROM_LEVEL ? 1 : 0;
+  const scheduled = n in ECHO_MONSTERS; // levels 1-10 have an exact schedule; anything past them uses the fallback formula
+  const pick = MODES[modeId] ? modeId : 'normal';
+  const exception = scheduled && MODE_MONSTERS[pick] ? MODE_MONSTERS[pick][n] : undefined; // this mode's own mix for this level, if it has one
+  const echoCount = exception ? exception.echo : scheduled ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
+  const scentCount = exception ? exception.scent : scheduled ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
+  const mimicCount = exception ? exception.mimic : scheduled ? MIMIC_MONSTERS[n] || 0 : n >= MIMIC_FROM_LEVEL ? 1 : 0;
+  const stalkerCount = exception ? exception.stalker : scheduled ? STALKER_MONSTERS[n] || 0 : n >= STALKER_FROM_LEVEL ? 1 : 0;
   const enemySpeed = Math.min((70 + n * 8) * m.speed, m.speedCap); // px/s while hunting
   return {
     n,

@@ -98,17 +98,19 @@ When a ripple's wave reaches something, it is drawn **as itself**, not just as a
 
 There are **ten levels so far**. Clearing level 10 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
 
-The monsters on each level are **exact, and the same in every mode** (the modes differ in speed, hearing, ripples and puddles, not in how many monsters there are):
+The monsters on each level are **exact** (the number never varies from run to run). They are the same in every mode **except on levels 9 and 10 on Easy** (the modes otherwise differ in speed, hearing, ripples and puddles, not in how many monsters there are). **Normal, Hard and Hardcore:**
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 2 | 0 |
-| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 1 |
+| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 0 | 0 |
+| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 2 | 1 |
 | Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | Stalker (orange) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | Sonar decoy to find | – | – | – | – | – | – | – | – | 1 | 1 |
 
-Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** brings a second echo monster and the **sonar decoy** (below), and from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker and one scent monster — no echo monsters and no mimic — so nothing on it can be alerted by a ripple at all. (It was planned with a mimic too; that was removed in v9.0.)
+**Easy** is identical for levels 1 to 8, and then: **level 9** has just **one scent monster and one mimic** (no echo monster), and **level 10** has **only a stalker** (no scent monster, nothing else). The sonar decoy and the smell puddles are terrain, not monsters, so they stay on those levels as before.
+
+Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** has **no echo monsters**: two scent monsters and the mimic (one scent monster on Easy), and the **sonar decoy** (below); from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker and one scent monster (only the stalker on Easy) — no echo monsters and no mimic — so nothing on it can be alerted by a ripple at all. (It was planned with a mimic too; that was removed in v9.0. Before v9.2, level 9 had two echo monsters and one scent monster in every mode.)
 
 ### Crouching (every level, every mode)
 
@@ -148,11 +150,11 @@ This is an **intentional difference between modes, and a deliberate exception to
 
 Every level from 9 has one **sonar decoy** lying somewhere (it glimmers pink when you are near, blips faintly, and shows up pink in a ripple). Walk onto it to pick it up — you can carry **only one**, shown in the top right — and press **`E`** to drop it where you stand. It beeps (faster and higher) for **5 seconds**, then **calls**: every monster within **480 px** of it — an echo monster (whatever it was doing, even asleep or tracking you), a scent monster, or a mimic **even if it hasn't turned yet** — is drawn to it. They pathfind to it and are **trapped there for 5 seconds after they arrive**, deaf to ripples, footsteps and smell, and then go back to normal (echo monsters and disguised mimics stand idle where they are; scent monsters patrol again). It is **one time use**. A trapped monster is still deadly to touch, so get past it, don't bump it. A mimic that is dragged over stays disguised and silent while it walks (only its chime moves).
 
-Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change.
+Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change (and, apart from levels 9 and 10 on Easy, not even how many).
 
 ## Difficulty modes
 
-Pick one on the title screen. Each mode scales the level curve (the table shows level 6 as an example). The number of monsters is not part of it — that is the same in every mode.
+Pick one on the title screen. Each mode scales the level curve (the table shows level 6 as an example). The number of monsters is not part of it — that is the same in every mode, except that Easy has fewer monsters on levels 9 and 10 (see **Levels**).
 
 | | Easy | Normal | Hard | Hardcore |
 | --- | --- | --- | --- | --- |
