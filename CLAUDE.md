@@ -8,6 +8,8 @@ This repo is the home of the game. **Every time the game is changed, commit and 
 
 Everything for this game lives in `C:\Claude\echo game` on the owner's PC: the version folders (`Echo Maze\`), the shortcut `Play Echo Maze.lnk` and the link `Echo Maze on GitHub.url` (which points at the repo).
 
+Also there: `Test - everything finished\` and its shortcut `Play Echo Maze (test - finished).lnk` - a **one-off test snapshot of v7.1** (not a version, not in the repo, not updated by later versions unless the owner asks) that starts as a completely finished save: every level cleared in every mode and all cutscenes seen. It differs from v7.1 only by the save-key prefix (`echomaze.test.*`, so it never touches the real game's save, which a browser shares between all local copies), a small "TEST COPY" notice, and `test-save.js`. Don't put version numbers in it and don't count it in the version table.
+
 The owner wants old versions preserved, **never overwritten**. Whenever the game itself changes (doc-only edits don't count), after committing and pushing:
 
 1. Save the committed tree as a **new** folder `C:\Claude\echo game\Echo Maze\vX.Y - short description` (e.g. `git archive --format=zip -o x.zip <commit> index.html style.css README.md js`, then `Expand-Archive`, so `CLAUDE.md` and `.gitignore` never land in the copy). Never edit, rename or delete earlier version folders, and never edit the files inside them.
