@@ -51,7 +51,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v8.0 | ad2202e | MAJOR: crouching (hold Shift), the stalker (new enemy, orange), level 10, and a fifth cutscene about the stalker (before level 10); the game now ends after level 10 |
 | v9.0 | 735c3ad | MAJOR (three features in one update): Visual cues (accessibility option, V key), wall muffling + Doppler for sound, and touch controls (joystick, ripple / crouch / pause buttons, portrait note); also the mimic removed from level 10 |
 | v9.1 | 3bd95f4 | MINOR: clearer art - every thing a ripple lights up has its own silhouette and texture (new `js/art.js`), a redesigned exit portal, per-mode `mimicTell`, a 0.3 s exit -> monster morph, the same art in the legend and cutscenes |
-| v9.2 | (this commit) | MINOR: monster mix changed per mode - Normal/Hard/Hardcore level 9 = 2 scent + 1 mimic (no echo monsters); Easy level 9 = 1 scent + 1 mimic and Easy level 10 = only a stalker (new `MODE_MONSTERS` in `js/level.js`) (latest) |
+| v9.2 | db5e9a2 | MINOR: monster mix changed per mode - Normal/Hard/Hardcore level 9 = 2 scent + 1 mimic (no echo monsters); Easy level 9 = 1 scent + 1 mimic and Easy level 10 = only a stalker (new `MODE_MONSTERS` in `js/level.js`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
