@@ -8,7 +8,17 @@
  *
  * The AudioContext is only created in init(), which the game calls from a
  * button click so that browser autoplay restrictions are satisfied.
+ *
+ * Wall muffling (audio only, never affects play): the game tells a monster's voice, a monster's
+ * footstep and the exit / mimic chime whether a wall or obstacle stands between it and the player.
+ * Two levels only - clear or muffled. Muffled = a low-pass at MUFFLE_HZ and a slightly lower gain.
+ * Continuous voices fade between the two with setTargetAtTime; one-shots just pick a level.
  */
+const MUFFLE_HZ = 600; // low-pass cut-off when a wall is in the way (about 500-700 Hz)
+const MUFFLE_GAIN = 0.8; // and the gain factor
+const MUFFLE_FADE = 0.1; // seconds (time constant): nothing clicks or pops
+const MUFFLE_OPEN_HZ = 16000; // the same low-pass when the way is clear: it is out of the way
+
 class SoundEngine {
   constructor() {
     this.ctx = null;
@@ -178,6 +188,42 @@ class SoundEngine {
     src.onended = () => {
       this.active--;
     };
+  }
+
+  /**
+   * Wall muffling for a one-shot sound: when `muffled`, run `node` through a low-pass (MUFFLE_HZ) and a slightly
+   * lower gain and return the node to route on; otherwise return `node` untouched. The two new nodes are fresh
+   * and static (the gain's value is set explicitly), so nothing can click.
+   */
+  _muffle(node, muffled) {
+    if (!muffled) return node;
+    const lp = this._filter('lowpass', MUFFLE_HZ, 0.7);
+    const g = this.ctx.createGain();
+    g.gain.value = MUFFLE_GAIN;
+    node.connect(lp);
+    lp.connect(g);
+    return g;
+  }
+
+  /**
+   * The muffling stage of a continuous voice: a low-pass that is wide open (out of the way) until a wall is
+   * between the monster and the player, then fades down to MUFFLE_HZ - plus its own gain. Returns { mf, mfg };
+   * connect the voice into `mf`, and route `mfg` on. See setMuffle().
+   */
+  _muffleStage() {
+    const c = this.ctx;
+    const mf = this._filter('lowpass', Math.min(MUFFLE_OPEN_HZ, c.sampleRate * 0.45), 0.7);
+    const mfg = c.createGain();
+    mfg.gain.value = 1;
+    mf.connect(mfg);
+    return { mf, mfg };
+  }
+
+  /** Fade a voice's muffling stage to clear or muffled (two levels). Called every frame; setTargetAtTime keeps it smooth. */
+  setMuffle(v, blocked) {
+    const t = this.ctx.currentTime;
+    v.mf.frequency.setTargetAtTime(blocked ? MUFFLE_HZ : Math.min(MUFFLE_OPEN_HZ, this.ctx.sampleRate * 0.45), t, MUFFLE_FADE);
+    v.mfg.gain.setTargetAtTime(blocked ? MUFFLE_GAIN : 1, t, MUFFLE_FADE);
   }
 
   // ------------------------------------------------------------- player sounds
@@ -414,8 +460,12 @@ class SoundEngine {
     this._track(first);
   }
 
-  /** Soft periodic pulse from the exit so you can home in on it. */
-  beacon(pan, gain) {
+  /**
+   * Soft periodic pulse from the exit so you can home in on it. A mimic's chime is this very same call, so
+   * `muffled` (a wall or obstacle between the chime and the player) must be worked out the same way for both:
+   * the mimic has to stay indistinguishable from the exit.
+   */
+  beacon(pan, gain, muffled = false) {
     if (this._busy(90)) return;
     const t = this.ctx.currentTime;
     const notes = [523.25, 783.99];
@@ -423,7 +473,7 @@ class SoundEngine {
       const o = this._osc('sine', f, t, 1.2);
       const g = this._env(t, 0.06, 0.16 * gain * (i ? 0.6 : 1), 0.8);
       o.connect(g);
-      this._route(g, pan, 0.55);
+      this._route(this._muffle(g, muffled), pan, 0.55);
       if (i === 0) this._track(o);
     });
   }
@@ -617,23 +667,26 @@ class SoundEngine {
     lfo2.connect(lfo2Depth);
     lfo2Depth.connect(lp.frequency);
 
+    // wall muffling sits after the voice: out -> low-pass -> gain -> pan -> master (see setMuffle)
+    const { mf, mfg } = this._muffleStage();
+    out.connect(mf);
     let pan = null;
     if (c.createStereoPanner) {
       pan = c.createStereoPanner();
-      out.connect(pan);
+      mfg.connect(pan);
       pan.connect(this.master);
     } else {
-      out.connect(this.master);
+      mfg.connect(this.master);
     }
     const send = c.createGain();
     send.gain.value = 0.25;
-    (pan || out).connect(send);
+    (pan || mfg).connect(send);
     send.connect(this.reverbIn);
 
     const oscs = [o1, o2, o3, lfo, lfo2];
     if (hiss) oscs.push(hiss);
     oscs.forEach((o) => o.start(t));
-    return { out, pan, lp, o1, o2, o3, lfo, pitch, kind, oscs };
+    return { out, mf, mfg, pan, lp, o1, o2, o3, lfo, pitch, kind, oscs };
   }
 
   /**
@@ -682,41 +735,54 @@ class SoundEngine {
     hp.connect(rg);
     rg.connect(breath);
 
+    const { mf, mfg } = this._muffleStage(); // wall muffling, same as the other voices
+    out.connect(mf);
     let pan = null;
     if (c.createStereoPanner) {
       pan = c.createStereoPanner();
-      out.connect(pan);
+      mfg.connect(pan);
       pan.connect(this.master);
     } else {
-      out.connect(this.master);
+      mfg.connect(this.master);
     }
     const send = c.createGain();
     send.gain.value = 0.25;
-    (pan || out).connect(send);
+    (pan || mfg).connect(send);
     send.connect(this.reverbIn);
 
     src.start(t, Math.random() * 1.5);
     rat.start(t, Math.random() * 1.5);
     lfo.start(t);
     lfo2.start(t);
-    return { out, pan, lp: bp, lfo, pitch, kind: 'stalker', oscs: [src, rat, lfo, lfo2] };
+    return { out, mf, mfg, pan, lp: bp, lfo, pitch, kind: 'stalker', oscs: [src, rat, lfo, lfo2] };
   }
 
-  updateEnemyVoice(v, { gain, pan, mood, muffle }) {
+  /**
+   * Per-frame update of one monster's continuous voice.
+   *   gain, pan, mood  as before
+   *   muffle           true when a wall or obstacle is between the monster and the player: fades the voice's
+   *                    low-pass down to MUFFLE_HZ and its gain down a little (setMuffle); false fades it back
+   *   doppler          pitch factor from how fast the distance to the player is changing (about 0.94-1.06:
+   *                    above 1 approaching, below 1 leaving). Voices only - never one-shots. 1 = none.
+   *                    The oscillators of an echo or scent voice are shifted; the stalker's voice is breath
+   *                    (noise), so its band-pass centre is shifted instead.
+   */
+  updateEnemyVoice(v, { gain, pan, mood, muffle, doppler = 1 }) {
     if (!v || !this.ctx) return;
     const t = this.ctx.currentTime;
+    if (v.mf) this.setMuffle(v, !!muffle);
     if (v.kind === 'stalker') {
       v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.08);
       if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
-      v.lp.frequency.setTargetAtTime((800 + mood * 600) * (muffle ? 0.55 : 1), t, 0.12); // brighter, sharper breath when it is on your trail
+      v.lp.frequency.setTargetAtTime((800 + mood * 600) * doppler, t, 0.12); // brighter, sharper breath when it is on your trail
       v.lfo.frequency.setTargetAtTime(0.36 + mood * 0.7, t, 0.4); // and quicker
       return;
     }
     const scent = v.kind === 'scent';
     v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.06);
     if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
-    v.lp.frequency.setTargetAtTime(((scent ? 300 : 190) + mood * (scent ? 300 : 460)) * (muffle ? 0.55 : 1), t, 0.1);
-    const pf = v.pitch * (1 + mood * (scent ? 0.12 : 0.28));
+    v.lp.frequency.setTargetAtTime((scent ? 300 : 190) + mood * (scent ? 300 : 460), t, 0.1);
+    const pf = v.pitch * (1 + mood * (scent ? 0.12 : 0.28)) * doppler;
     v.o1.frequency.setTargetAtTime(pf, t, 0.18);
     v.o2.frequency.setTargetAtTime(scent ? pf * 2.03 : pf * 1.498 + 0.7, t, 0.18);
     v.o3.frequency.setTargetAtTime(pf * 0.5, t, 0.18);
@@ -737,7 +803,7 @@ class SoundEngine {
   }
 
   /** Wet slap of a scent monster's footstep. */
-  scentStep(pan, gain) {
+  scentStep(pan, gain, muffled = false) {
     if (this.calm) gain *= 0.7;
     if (this._busy(90) || gain < 0.01) return;
     const t = this.ctx.currentTime;
@@ -746,12 +812,12 @@ class SoundEngine {
     const g = this._env(t, 0.003, 0.4 * gain, 0.08);
     n.connect(lp);
     lp.connect(g);
-    this._route(g, pan, 0.3);
+    this._route(this._muffle(g, muffled), pan, 0.3);
     const o = this._osc('sine', 130, t, 0.16);
     o.frequency.exponentialRampToValueAtTime(55, t + 0.1);
     const og = this._env(t, 0.003, 0.3 * gain, 0.1);
     o.connect(og);
-    this._route(og, pan, 0.2);
+    this._route(this._muffle(og, muffled), pan, 0.2);
     this._track(n);
   }
 
@@ -779,7 +845,7 @@ class SoundEngine {
   }
 
   /** Chitinous clack of a monster's footstep. */
-  enemyStep(pan, gain) {
+  enemyStep(pan, gain, muffled = false) {
     if (this.calm) gain *= 0.7;
     if (this._busy(90) || gain < 0.01) return;
     const t = this.ctx.currentTime;
@@ -788,12 +854,12 @@ class SoundEngine {
     const g = this._env(t, 0.002, 0.28 * gain, 0.045);
     n.connect(bp);
     bp.connect(g);
-    this._route(g, pan, 0.25);
+    this._route(this._muffle(g, muffled), pan, 0.25);
     const o = this._osc('triangle', 200, t, 0.12);
     o.frequency.exponentialRampToValueAtTime(80, t + 0.08);
     const og = this._env(t, 0.002, 0.22 * gain, 0.08);
     o.connect(og);
-    this._route(og, pan, 0.15);
+    this._route(this._muffle(og, muffled), pan, 0.15);
     this._track(n);
   }
 
@@ -818,7 +884,7 @@ class SoundEngine {
   }
 
   /** A stalker's footstep: a soft, light pit-pat - not a clack (echo monster) and not a wet slap (scent monster). */
-  stalkerStep(pan, gain) {
+  stalkerStep(pan, gain, muffled = false) {
     if (this.calm) gain *= 0.7;
     if (this._busy(90) || gain < 0.01) return;
     const t = this.ctx.currentTime;
@@ -828,13 +894,13 @@ class SoundEngine {
       const g = this._env(t + dt, 0.002, (i ? 0.16 : 0.24) * gain, 0.03);
       n.connect(bp);
       bp.connect(g);
-      this._route(g, pan, 0.2);
+      this._route(this._muffle(g, muffled), pan, 0.2);
       if (i === 0) this._track(n);
     });
   }
 
   /** One soft click from the back of a stalker's throat, now and then, while it walks. */
-  stalkerClick(pan, gain) {
+  stalkerClick(pan, gain, muffled = false) {
     if (this.calm) gain *= 0.7;
     if (this._busy(90) || gain < 0.01) return;
     const t = this.ctx.currentTime;
@@ -842,14 +908,14 @@ class SoundEngine {
     o.frequency.exponentialRampToValueAtTime(700, t + 0.035);
     const g = this._env(t, 0.001, 0.2 * gain, 0.03);
     o.connect(g);
-    this._route(g, pan, 0.4);
+    this._route(this._muffle(g, muffled), pan, 0.4);
     this._track(o);
     const n = this._noise(t, 0.05);
     const bp = this._filter('bandpass', 3200, 3);
     const ng = this._env(t, 0.001, 0.07 * gain, 0.02);
     n.connect(bp);
     bp.connect(ng);
-    this._route(ng, pan, 0.3);
+    this._route(this._muffle(ng, muffled), pan, 0.3);
   }
 
   /** A stalker has heard you: a sharp breath in, then two quick clicks as it turns. Quiet - and not a screech. */

@@ -17,10 +17,13 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | `P` / `Esc` | Pause |
 | `M` | Mute |
 | `C` | Toggle calm mode (any screen, any difficulty) |
+| `V` | Toggle **Visual cues** (any screen, any difficulty; see below) |
 | `Enter` | Confirm on the Try again / Next level screens |
 | `Enter` / `Space` / `Esc` | Skip the intro cutscene (or click **Skip**) |
 
-Headphones recommended: echoes and monsters are stereo-panned.
+On a touch device the controls are on screen instead (see **Touch controls** below).
+
+Headphones recommended: echoes and monsters are stereo-panned, muffled by walls, and shift in pitch as they come and go (see **Sound** below).
 
 ## What the colours mean
 
@@ -88,11 +91,11 @@ The monsters on each level are **exact, and the same in every mode** (the modes 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 2 | 0 |
 | Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 1 |
-| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 |
+| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | Stalker (orange) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | Sonar decoy to find | – | – | – | – | – | – | – | – | 1 | 1 |
 
-Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** brings a second echo monster and the **sonar decoy** (below), and from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker, one scent monster and one mimic, and no echo monsters at all — so no monster on it can be alerted by a ripple except the mimic, when it turns.
+Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** brings a second echo monster and the **sonar decoy** (below), and from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker and one scent monster — no echo monsters and no mimic — so nothing on it can be alerted by a ripple at all. (It was planned with a mimic too; that was removed in v9.0.)
 
 ### Crouching (every level, every mode)
 
@@ -153,14 +156,59 @@ For anyone who finds the game a bit much. It is **purely visual and audio**, so 
 - no heartbeat
 - the monster screech, growl, footsteps, the *caught* crash and the intro's lunge are much quieter, and the intro's jump scare has no flash or shake and a dimmer, smaller monster
 
+## Visual cues (accessibility)
+
+An independent option, like calm mode: a checkbox on the **title screen** and in the **pause menu**, the **`V`** key on any screen, and it is remembered (`localStorage`, `echomaze.visualcues`). While it is on the HUD shows **Visual cues**. It works in every difficulty, in calm mode and with the sound muted, and it **never changes the game**: it only draws (`js/cues.js`), and the game never reads anything back from it.
+
+Each sound that has a direction is also drawn as a small glyph on a ring about **45 px around you**, pointing toward it. Its **size and brightness follow how loud the sound is** (the same distance falloff as the audio), it fades in and out smoothly, and it exists **only while the sound would be audible**. Every kind has its own **shape** as well as a colour, so colour alone is never needed:
+
+| Sound | Cue |
+| --- | --- |
+| Echo monster: voice, footsteps, screech | red **diamond**. A screech (a monster starts hunting) is a bigger, brighter one and adds a short text caption, `[monster screech]` |
+| Scent monster: voice, steps | violet **round glyph with a wavy edge** |
+| Stalker: breathing, clicks, steps | small orange **dots** (one for a click, two for a step, three for its breathing) |
+| The exit's chime | green **chevron**, on the chime's own 2.4 s rhythm, only within its range |
+| A mimic's fake chime | **exactly the same** green chevron as the exit's, with exactly the same tell the sound has — no more, no less |
+| Sonar decoy | pink **four-point star**: at its drop spot, and each time it pings (and the floor one when you are near) |
+| Heartbeat | a thin **ring** around you, pulsing at the heartbeat's rate |
+
+- Nothing pulses more than **3 times a second**: each source is limited to one pulse per third of a second, however fast its sound repeats (a chasing monster's footsteps are heard about six times a second but flash the cue at most three).
+- **Calm mode** makes the fades slower and smoother; it never makes a cue weaker. (Calm mode has no heartbeat *sound*, but the heartbeat ring is still shown, so calm mode does not weaken the cues.)
+- A sound a **wall is muffling** gets a dimmer glyph (see **Sound** below).
+- It does **not** show hearing radii, monster states or exact positions — only direction, rough loudness, type and timing.
+- The shapes are listed in the title screen's legend while the option is on.
+- **Cutscenes** get short sound captions in brackets — `[distant scraping]`, `[device clatters]`, `[heartbeat pounding]` — above the explorers' subtitles, one for each sound the scene plays.
+
+## Sound: wall muffling and Doppler
+
+Audio only — neither changes anything about play.
+
+- **Muffling.** Every frame the game checks (with its own line-of-sight code, the DDA over the tile grid, plus the round obstacles) whether a **wall or obstacle** is between you and each monster's continuous voice, each monster's footsteps, and the exit's and a mimic's chime. If so the sound goes through a **low-pass at about 600 Hz** at a slightly lower gain; if the way is clear it opens back up. There are only two levels, faded with `setTargetAtTime` (about 0.1 s) so nothing clicks. The mimic's chime uses exactly the same code as the exit's, so it stays indistinguishable from it.
+- **Doppler.** A monster's *voice* (not its one-shot sounds) is shifted by how fast the distance to you is changing: up while it closes in, down while it moves away — at most about **±6 %**, smoothed. Standing still, or moving sideways at a steady distance, gives no shift.
+
+## Touch controls
+
+On touch devices (a coarse pointer, or the first touch) the game shows on-screen controls while you play. The **Touch controls** switch in the pause menu turns them on or off for anyone (and remembers it, `echomaze.touch`).
+
+- **Left half of the screen:** a floating **virtual joystick** — touch anywhere and drag. It is analog: any direction, and speed from a crawl to the same top speed as `WASD` (170 px/s) when pushed all the way.
+- **Right side:** a big **RIPPLE** button (the same cooldown as `Space`; it fills like a clock while it recharges), a smaller **CROUCH** button (hold, like `Shift`), a small **pause** button — and an **ITEM** button that appears only while you carry a sonar decoy (there is no `E` key on a phone).
+- **Multitouch:** built on Pointer Events, so you can move with one thumb and ripple with the other. A control can never get stuck: it lets go when the finger lifts or is cancelled, when the window loses focus, when the page is hidden, and whenever the game leaves the play screen.
+- The page cannot be scrolled, pinch-zoomed or double-tap-zoomed while you play.
+- The **pause menu** has big **Sound**, **Calm mode** and **Visual cues** buttons (a touch player has no `M`, `C` or `V`), and the title how-to shows the touch controls.
+- Every button on every screen is **at least 44 px tall**. In a cutscene, **tapping anywhere** (or **Skip**) skips it, with the same 0.6 s guard.
+- The game is played in **landscape**: held upright, a friendly "please turn your device sideways" note covers the screen and a game in progress is paused. On a short landscape screen the menus scroll and keep their main buttons pinned at the bottom.
+- The sound still only starts from a real tap on a button (**Begin** and friends). A short **vibration** on being caught (not in calm mode).
+
 ## Project layout
 
 ```
-index.html      page + overlay screens (title, replay, pause, caught, level complete, victory)
-style.css       styling
-js/audio.js     SoundEngine - procedural Web Audio synthesis
+index.html      page + overlay screens (title, replay, pause, caught, level complete, victory) + the touch layer
+style.css       styling (everything for touch is under `body.touch`)
+js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling and Doppler)
 js/level.js     level generation + difficulty curve (levelConfig)
 js/cutscene.js  the five story cutscenes: lore cards + scripted scenes (timelines at the top)
+js/cues.js      Visual cues (accessibility): the glyphs on the ring around you
+js/touch.js     on-screen touch controls: the virtual joystick and buttons
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
 ```
 
@@ -168,4 +216,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `audio`) for poking at the game from the console.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `audio`) for poking at the game from the console. `settings()` reports `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress` and `seen`. `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.

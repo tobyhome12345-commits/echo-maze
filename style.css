@@ -585,3 +585,480 @@ button.mode.active:focus-visible {
   width: 140px;
   accent-color: var(--accent);
 }
+
+/* ======================================================================
+   Visual cues (accessibility), and the touch controls.
+   Everything for touch lives under `body.touch` (set by js/game.js only on
+   touch devices, or when switched on in the pause menu), so the desktop
+   look is exactly as it was.
+   ====================================================================== */
+
+/* ---------------------------------------------------------- visual cues */
+
+/* a short text caption for a loud sound, e.g. [monster screech] */
+#cue-caption {
+  position: fixed;
+  left: 50%;
+  bottom: 24%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 5px 14px;
+  font-size: 14px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: #ffe0e6;
+  background: rgba(1, 2, 6, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#cue-caption.show {
+  opacity: 1;
+}
+
+/* [sound captions] in the cutscenes, above the explorer's subtitles (only with Visual cues on) */
+#cs-fx {
+  position: absolute;
+  left: 50%;
+  bottom: calc(13% + 92px);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  text-align: center;
+  font-size: clamp(14px, 1.9vw, 18px);
+  font-style: italic;
+  letter-spacing: 0.05em;
+  color: #b9dbea;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+#cs-fx.show {
+  opacity: 1;
+}
+
+/* the shapes of the cues on the title screen: shown only while Visual cues is on */
+.cue-legend {
+  display: none;
+  margin-top: 10px;
+}
+
+body.cues-on .cue-legend {
+  display: flex;
+}
+
+.legend .glyph {
+  width: 16px;
+  height: 16px;
+  margin-right: 7px;
+  vertical-align: -3px;
+  fill: var(--c);
+  stroke: var(--c);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--c));
+}
+
+.legend .glyph.line {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* --------------------------------------------- keyboard / touch how-to */
+
+.touch-only {
+  display: none !important;
+}
+
+body.touch .kb-only {
+  display: none !important;
+}
+
+body.touch .controls.touch-only {
+  display: grid !important;
+}
+
+body.touch .pause-toggles {
+  display: grid !important;
+}
+
+body.touch span.touch-only {
+  display: inline !important;
+}
+
+/* the big pause-menu buttons that stand in for the M, C and V keys */
+.pause-toggles {
+  gap: 10px;
+  margin: 14px 0 12px;
+}
+
+.pause-toggles button {
+  width: 100%;
+  min-height: 56px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.pause-toggles button.on {
+  color: #04121a;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---------------------------------------------------------- touch mode */
+
+body.touch {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+}
+
+body.touch canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+body.touch #hud {
+  padding-left: calc(20px + env(safe-area-inset-left, 0px));
+  padding-right: calc(20px + env(safe-area-inset-right, 0px));
+}
+
+/* menus scroll with a finger, but never pinch-zoom or double-tap-zoom */
+body.touch .overlay {
+  touch-action: none;
+}
+
+body.touch .panel {
+  touch-action: pan-y;
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
+  overscroll-behavior: contain;
+}
+
+/* every button is at least 44px tall */
+body.touch button {
+  min-height: 48px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+body.touch button.quiet {
+  padding: 12px 20px;
+  font-size: 13px;
+}
+
+body.touch button.mode {
+  min-height: 56px;
+}
+
+body.touch button.lvl {
+  min-height: 48px;
+}
+
+body.touch button.scene {
+  min-height: 56px;
+}
+
+body.touch .calm {
+  min-height: 48px;
+  gap: 14px;
+}
+
+body.touch .calm input {
+  width: 26px;
+  height: 26px;
+}
+
+body.touch .vol {
+  min-height: 48px;
+}
+
+body.touch .vol input {
+  width: 190px;
+  height: 44px;
+}
+
+/* a tap anywhere skips a cutscene */
+body.touch #cutscene {
+  pointer-events: auto;
+}
+
+body.touch #cs-skip {
+  min-height: 48px;
+  padding: 12px 22px;
+  font-size: 13px;
+  right: calc(22px + env(safe-area-inset-right, 0px));
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+}
+
+/* -------------------------------------------------- the on-screen controls */
+
+#touch {
+  --rip: clamp(88px, 24vmin, 132px);
+  --cro: clamp(62px, 16vmin, 92px);
+  --edge: calc(env(safe-area-inset-right, 0px) + 3vmin);
+  --floor: calc(env(safe-area-inset-bottom, 0px) + 5vmin);
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#touch > * {
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* the left half of the screen catches the joystick drag */
+#touch-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+}
+
+/* the stick: a faint ring where a thumb would rest, and a floating one wherever the finger lands */
+#touch > #touch-stick {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 9vmin + 16vmin);
+  top: calc(100% - 22vmin);
+  width: clamp(88px, 32vmin, 156px);
+  height: clamp(88px, 32vmin, 156px);
+  margin: calc(clamp(88px, 32vmin, 156px) / -2) 0 0 calc(clamp(88px, 32vmin, 156px) / -2);
+  border-radius: 50%;
+  border: 2px solid rgba(95, 212, 255, 0.4);
+  background: rgba(95, 212, 255, 0.06);
+  opacity: 0.3;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#touch-stick.active {
+  opacity: 0.85;
+}
+
+#touch-knob {
+  position: absolute;
+  left: 27%;
+  top: 27%;
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background: rgba(95, 212, 255, 0.34);
+  border: 2px solid rgba(190, 235, 255, 0.7);
+  box-shadow: 0 0 18px rgba(95, 212, 255, 0.3);
+}
+
+.tbtn {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(95, 212, 255, 0.5);
+  background: rgba(95, 212, 255, 0.1);
+  color: rgba(207, 233, 245, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tbtn.down {
+  background: rgba(95, 212, 255, 0.4);
+  box-shadow: 0 0 26px rgba(95, 212, 255, 0.5);
+  color: #fff;
+}
+
+/* the big RIPPLE button fills like a clock as its cooldown runs down, and is fully lit when it is ready */
+#tbtn-ripple {
+  --p: 1;
+  width: var(--rip);
+  height: var(--rip);
+  right: var(--edge);
+  bottom: var(--floor);
+  font-size: 14px;
+  background: conic-gradient(rgba(95, 212, 255, 0.34) calc(var(--p) * 360deg), rgba(95, 212, 255, 0.06) 0);
+}
+
+#tbtn-ripple.ready {
+  background: rgba(95, 212, 255, 0.2);
+}
+
+#tbtn-ripple.down {
+  background: rgba(95, 212, 255, 0.45);
+}
+
+#tbtn-crouch {
+  width: var(--cro);
+  height: var(--cro);
+  right: calc(var(--edge) + var(--rip) + 3vmin);
+  bottom: var(--floor);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+
+#tbtn-item {
+  width: var(--cro);
+  height: var(--cro);
+  right: calc(var(--edge) + (var(--rip) - var(--cro)) / 2);
+  bottom: calc(var(--floor) + var(--rip) + 2.5vmin);
+  border-color: rgba(255, 122, 217, 0.6);
+  background: rgba(255, 122, 217, 0.1);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+#tbtn-pause {
+  width: 48px;
+  height: 48px;
+  right: var(--edge);
+  top: calc(env(safe-area-inset-top, 0px) + 44px);
+  border-radius: 12px;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+}
+
+/* -------------------------------------------------- portrait: turn it sideways */
+
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: #010206;
+  touch-action: none;
+}
+
+@media (orientation: portrait) {
+  body.touch #rotate {
+    display: flex;
+  }
+}
+
+.rot-icon {
+  width: 84px;
+  height: 84px;
+  color: var(--accent);
+  animation: rot-hint 3.2s ease-in-out infinite;
+}
+
+@keyframes rot-hint {
+  0%,
+  25% {
+    transform: rotate(0deg);
+  }
+  60%,
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+
+.rot-title {
+  margin: 18px 0 6px;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.rot-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--dim);
+}
+
+/* ------------------------------------- short landscape screens (phones) */
+
+@media (max-height: 560px) {
+  body.touch .panel {
+    width: min(760px, calc(100vw - 24px));
+    padding: 14px 20px 12px;
+  }
+
+  body.touch .panel.small {
+    width: min(560px, calc(100vw - 24px));
+  }
+
+  body.touch h1 {
+    font-size: 30px;
+    letter-spacing: 0.22em;
+    padding-left: 0.22em;
+  }
+
+  body.touch h2 {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+
+  body.touch .tagline {
+    margin: 4px 0 10px;
+    font-size: 13px;
+  }
+
+  body.touch .controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+    font-size: 13px;
+  }
+
+  body.touch .legend {
+    margin-top: 10px;
+    gap: 6px 14px;
+    font-size: 12px;
+  }
+
+  body.touch .note {
+    margin: 10px 0 12px;
+    font-size: 12.5px;
+  }
+
+  body.touch .mode-desc {
+    min-height: 0;
+    margin: 6px 0;
+  }
+
+  body.touch .pause-toggles {
+    grid-template-columns: repeat(3, 1fr);
+    margin: 8px 0;
+  }
+
+  body.touch .pause-toggles button {
+    min-height: 52px;
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  body.touch .buttons {
+    margin-top: 6px;
+  }
+}
+
+/* on a phone held sideways the panels scroll, but the main action row (Begin / Continue, Resume / Quit) stays pinned at the bottom */
+@media (max-height: 560px) and (orientation: landscape) {
+  body.touch .buttons.dock {
+    position: sticky;
+    bottom: -12px;
+    z-index: 2;
+    margin: 6px -20px -12px;
+    padding: 10px 20px 12px;
+    background: rgba(4, 9, 16, 0.97);
+    border-top: 1px solid rgba(95, 212, 255, 0.14);
+  }
+}

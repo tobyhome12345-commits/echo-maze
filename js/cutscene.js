@@ -262,6 +262,7 @@ const EchoCutscene = (() => {
       speaker: $('cs-speaker'),
       line: $('cs-line'),
       skip: $('cs-skip'),
+      fx: $('cs-fx'), // [sound captions] (Visual cues option)
     };
 
     let active = false;
@@ -275,6 +276,7 @@ const EchoCutscene = (() => {
     let ringTimer = 0;
     let camX = 0;
     let camY = 0;
+    let fxUntil = 0; // scene time at which the current [sound caption] fades away (0 = none showing)
 
     // scene state
     let angle = 0;
@@ -367,6 +369,18 @@ const EchoCutscene = (() => {
     }
     function hideCard() {
       el.card.classList.remove('show');
+    }
+
+    /**
+     * A short sound caption in [brackets], shown above the explorer's subtitles for people who use the Visual cues
+     * option: [distant scraping], [device clatters]. Each one goes with a sound the scene really plays; it is text,
+     * so it fades and never flashes. Does nothing when the option is off.
+     */
+    function fx(text, dur = 2.1) {
+      if (!(env.visualCues && env.visualCues()) || !el.fx) return;
+      el.fx.textContent = text;
+      el.fx.classList.add('show');
+      fxUntil = time + dur;
     }
 
     function say(text) {
@@ -483,6 +497,19 @@ const EchoCutscene = (() => {
       at(S + FINAL_CARD_AT + 3.4, hideCard);
       at(S + END_AT, () => finish());
 
+      // [sound captions] (Visual cues option), one per sound the scene plays
+      const fxs = (t, text, dur) => at(S + t, () => fx(text, dur));
+      fxs(2.2, '[slow, tired breathing]');
+      fxs(PING_AT, '[sonar ping]', 1.4);
+      fxs(PING_AT + 1.5, '[echoes ticking back off the walls]');
+      fxs(LISTEN_AT, '[something breathing in the dark]');
+      fxs(21.4, '[clicking footsteps, closer]', 1.4);
+      fxs(22.4, '[heartbeat pounding]', 1.3);
+      fxs(LEAP_AT, '[a monster lunges]', 1.0);
+      fxs(GONE_AT, '[silence]', 1.5);
+      fxs(CLANK_AT, '[device clatters]', 1.2);
+      fxs(LAST_PING_AT, '[a lone ping]');
+
       events.sort((a, b) => a.t - b.t); // update() walks this list in order
     }
 
@@ -556,6 +583,16 @@ const EchoCutscene = (() => {
       });
       at(S2 + SC_CARD_T + 4.2, hideCard);
       at(S2 + SC_END_T, () => finish());
+
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S2 + t, () => fx(text, dur));
+      fxs(SC_PUDDLE_T, '[a wet splash]', 1.6);
+      fxs(SC_MON_T0, '[wet gurgling, far off]');
+      fxs(SC_MON_T0 + 1.8, '[soft, wet footsteps]');
+      fxs(SC_TOUCH_T, '[a sharp sniffing snort]', 1.6);
+      fxs(SC_HIT_T - 1.7, '[heartbeat pounding]', 1.2);
+      fxs(SC_HIT_T - 0.35, '[a rush of wet footsteps]', 1.0);
+      fxs(SC_HIT_T + 0.6, '[silence]', 1.6);
 
       events.sort((a, b) => a.t - b.t);
     }
@@ -702,6 +739,14 @@ const EchoCutscene = (() => {
       at(S3 + MM_CARD_T + 4.2, hideCard);
       at(S3 + MM_END_T, () => finish());
 
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S3 + t, () => fx(text, dur));
+      fxs(MM_CHIME_T, '[a chime, far down the corridor]', 2.4);
+      fxs(MM_PING_T, '[sonar ping]', 1.3);
+      fxs(MM_TOUCH_T + 0.03, '[the chime turns into a snarl - something charges]', 1.9);
+      fxs(MM_HIT_T + 0.6, '[silence]', 1.4);
+      fxs(MM_HIT_T + 1.3, '[device clatters]', 1.6);
+
       events.sort((a, b) => a.t - b.t);
     }
 
@@ -820,6 +865,14 @@ const EchoCutscene = (() => {
       });
       at(S4 + DC_CARD_T + 3.8, hideCard);
       at(S4 + DC_END_T, () => finish());
+
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S4 + t, () => fx(text, dur));
+      fxs(DC_PICK_T, '[a soft chime as it is picked up]', 1.8);
+      fxs(DC_CALL_T - 6.6, '[distant scraping]', 2.6);
+      fxs(DC_DROP_T, '[the decoy beeps, faster and higher]', 3.4);
+      fxs(DC_CALL_T, '[the decoy calls out]', 1.8);
+      fxs(DC_SCENT_TRAP_T + 0.4, '[monsters held in place, growling]', 2.4);
 
       events.sort((a, b) => a.t - b.t);
     }
@@ -955,6 +1008,16 @@ const EchoCutscene = (() => {
       at(S5 + ST_CARD_T + 4.6, hideCard);
       at(S5 + ST_END_T, () => finish());
 
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S5 + t, () => fx(text, dur));
+      fxs(ST_MON_T0 - 0.6, '[breathing in the dark]', 1.7);
+      fxs(ST_MON_T0 + 0.1, '[a sharp breath, then clicks]', 1.5);
+      fxs(4.7, '[soft, quick footsteps]', 1.5);
+      fxs(5.4, '[heartbeat pounding]', 1.5);
+      fxs(ST_ARRIVE_T, '[soft clicks, right beside them]', 2.0);
+      fxs(ST_LOSE_T + 0.9, '[a slow breath out]', 1.6);
+      fxs(12.0, '[footsteps fading]', 1.8);
+
       events.sort((a, b) => a.t - b.t);
     }
 
@@ -1082,6 +1145,8 @@ const EchoCutscene = (() => {
       el.card.classList.remove('show');
       el.caption.classList.remove('show');
       el.sub.classList.remove('show');
+      fxUntil = 0;
+      if (el.fx) el.fx.classList.remove('show');
       audio.startAmbient(SCENE_AMBIENT[kind]);
     }
 
@@ -1093,6 +1158,8 @@ const EchoCutscene = (() => {
       el.card.classList.remove('show');
       el.caption.classList.remove('show');
       el.sub.classList.remove('show');
+      fxUntil = 0;
+      if (el.fx) el.fx.classList.remove('show');
       el.root.classList.add('hidden');
     }
 
@@ -1112,6 +1179,10 @@ const EchoCutscene = (() => {
       time += dt;
       while (ev < events.length && events[ev].t <= time) events[ev++].fn();
       if (!active) return; // an event may have finished the cutscene
+      if (fxUntil && time > fxUntil) {
+        fxUntil = 0;
+        if (el.fx) el.fx.classList.remove('show'); // the [sound caption] fades
+      }
 
       env.updateRipples(dt);
       updateSub();

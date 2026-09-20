@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Echo Maze</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -24,9 +26,13 @@
     <div id="banner-text"></div>
   </div>
 
+  <!-- Visual cues (accessibility): a short text caption for a loud sound, e.g. [monster screech] -->
+  <div id="cue-caption" aria-live="polite"></div>
+
   <div id="cutscene" class="hidden">
     <div id="cs-caption"></div>
     <div id="cs-card"></div>
+    <div id="cs-fx" aria-live="polite"></div>
     <div id="cs-sub">
       <span id="cs-speaker"></span>
       <span id="cs-line"></span>
@@ -40,12 +46,18 @@
       <p class="tagline">You can't see. Neither can they &mdash; until your echo touches them.</p>
       <p id="title-notice" class="notice hidden"></p>
 
-      <div class="controls">
+      <div class="controls kb-only">
         <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>move</span></div>
         <div><kbd class="wide">SPACE</kbd><span>send a ripple</span></div>
         <div><kbd class="wide">SHIFT</kbd><span>hold to crouch: silent, but no ripples</span></div>
-        <div><kbd>M</kbd><span>mute</span><kbd>P</kbd><span>pause</span><kbd>C</kbd><span>calm</span></div>
+        <div><kbd>M</kbd><span>mute</span><kbd>P</kbd><span>pause</span><kbd>C</kbd><span>calm</span><kbd>V</kbd><span>visual cues</span></div>
         <div><kbd>E</kbd><span>use an item you have found</span></div>
+      </div>
+      <div class="controls touch-only">
+        <div><kbd class="wide">DRAG</kbd><span>on the left of the screen to move</span></div>
+        <div><kbd class="wide">RIPPLE</kbd><span>send a ripple</span></div>
+        <div><kbd class="wide">CROUCH</kbd><span>hold: silent, but no ripples</span></div>
+        <div><kbd class="wide">ITEM</kbd><span>use an item you have found</span><kbd>II</kbd><span>pause</span></div>
       </div>
 
       <ul class="legend">
@@ -59,7 +71,17 @@
         <li><i style="--c:#5dffa0"></i>The way out</li>
       </ul>
 
-      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. Hold Shift to crouch: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Find the green resonance and get out.</p>
+      <!-- shown only while Visual cues is on: the shapes that mark each kind of sound around you -->
+      <ul class="legend cue-legend" aria-label="Visual cue shapes">
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff3b5c"><path d="M0,-9 L7,0 L0,9 L-7,0 Z"/></svg>Echo monster: diamond</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#b07cff"><path d="M7.2,0.0 L8.3,1.5 L7.9,2.9 L6.2,3.6 L4.6,3.8 L3.8,4.6 L3.6,6.2 L2.9,7.9 L1.5,8.3 L0.0,7.2 L-1.0,5.9 L-2.0,5.6 L-3.6,6.2 L-5.4,6.5 L-6.5,5.4 L-6.2,3.6 L-5.6,2.0 L-5.9,1.0 L-7.2,0.0 L-8.3,-1.5 L-7.9,-2.9 L-6.2,-3.6 L-4.6,-3.8 L-3.8,-4.6 L-3.6,-6.2 L-2.9,-7.9 L-1.5,-8.3 L0.0,-7.2 L1.0,-5.9 L2.0,-5.6 L3.6,-6.2 L5.4,-6.5 L6.5,-5.4 L6.2,-3.6 L5.6,-2.0 L5.9,-1.0 Z"/></svg>Scent monster: wavy circle</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7410"><circle cx="-6" cy="0" r="2.4"/><circle cx="0" cy="0" r="2.4"/><circle cx="6" cy="0" r="2.4"/></svg>Stalker: small dots</li>
+        <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#5dffa0"><path d="M-4,-8 L5,0 L-4,8"/></svg>Exit chime: chevron</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7ad9"><path d="M0.0,-9.0 L2.4,-2.4 L9.0,0.0 L2.4,2.4 L0.0,9.0 L-2.4,2.4 L-9.0,0.0 L-2.4,-2.4 Z"/></svg>Sonar decoy: star</li>
+        <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#ff8496"><circle cx="0" cy="0" r="7" fill="none"/></svg>Heartbeat: ring</li>
+      </ul>
+
+      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. <span class="kb-only">Hold Shift to crouch</span><span class="touch-only">Hold CROUCH to crouch</span>: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Find the green resonance and get out.</p>
 
       <div class="modes" role="radiogroup" aria-label="Difficulty">
         <button type="button" class="mode" role="radio" data-mode="easy"><b>Easy</b><small data-best="easy"></small></button>
@@ -73,8 +95,12 @@
         <input type="checkbox" class="calm-toggle">
         <span><b>Calm mode</b> &mdash; softer visuals and sound, on any difficulty <kbd>C</kbd></span>
       </label>
+      <label class="calm">
+        <input type="checkbox" class="cues-toggle">
+        <span><b>Visual cues</b> &mdash; sounds shown as glyphs around you, on any difficulty <kbd>V</kbd></span>
+      </label>
 
-      <div class="buttons">
+      <div class="buttons dock">
         <button id="btn-start" class="primary">Begin</button>
         <button id="btn-continue" class="hidden">Continue</button>
       </div>
@@ -108,18 +134,36 @@
     <div class="panel small">
       <h2>Paused</h2>
       <p id="pause-mode" class="mode-desc"></p>
-      <div class="controls">
+      <div class="controls kb-only">
         <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>move</span></div>
         <div><kbd class="wide">SPACE</kbd><span>send a ripple</span></div>
         <div><kbd class="wide">SHIFT</kbd><span>hold to crouch: silent, but no ripples</span></div>
         <div><kbd>E</kbd><span>use an item</span><kbd>P</kbd><span>resume</span></div>
       </div>
-      <label class="calm">
+      <div class="controls touch-only">
+        <div><kbd class="wide">DRAG</kbd><span>left side: move</span><kbd class="wide">RIPPLE</kbd><span>ripple</span></div>
+        <div><kbd class="wide">CROUCH</kbd><span>hold: silent, no ripples</span><kbd class="wide">ITEM</kbd><span>use item</span></div>
+      </div>
+      <!-- big buttons for touch players, who have no M, C or V key -->
+      <div class="pause-toggles touch-only">
+        <button type="button" id="pbtn-mute" aria-pressed="true">Sound: On</button>
+        <button type="button" id="pbtn-calm" aria-pressed="false">Calm mode: Off</button>
+        <button type="button" id="pbtn-cues" aria-pressed="false">Visual cues: Off</button>
+      </div>
+      <label class="calm kb-only">
         <input type="checkbox" class="calm-toggle">
         <span><b>Calm mode</b> &mdash; softer visuals and sound <kbd>C</kbd></span>
       </label>
+      <label class="calm kb-only">
+        <input type="checkbox" class="cues-toggle">
+        <span><b>Visual cues</b> &mdash; sounds shown as glyphs around you <kbd>V</kbd></span>
+      </label>
+      <label class="calm">
+        <input type="checkbox" class="touch-toggle">
+        <span><b>Touch controls</b> &mdash; an on-screen joystick and buttons</span>
+      </label>
       <label class="vol">Volume <input type="range" class="vol-slider" min="0" max="100" value="80"></label>
-      <div class="buttons">
+      <div class="buttons dock">
         <button id="btn-resume" class="primary">Resume</button>
         <button id="btn-quit">Quit to title</button>
       </div>
@@ -157,9 +201,30 @@
     </div>
   </section>
 
+  <!-- On-screen touch controls (js/touch.js). Shown only while playing, and only on touch devices or when switched on in the pause menu. -->
+  <div id="touch" class="hidden" aria-hidden="true">
+    <div id="touch-zone"></div>
+    <div id="touch-stick"><div id="touch-knob"></div></div>
+    <div id="tbtn-ripple" class="tbtn" role="button" aria-label="Send a ripple"><span>Ripple</span></div>
+    <div id="tbtn-crouch" class="tbtn" role="button" aria-label="Hold to crouch"><span>Crouch</span></div>
+    <div id="tbtn-item" class="tbtn hidden" role="button" aria-label="Use your item"><span>Item</span></div>
+    <div id="tbtn-pause" class="tbtn" role="button" aria-label="Pause"><span>II</span></div>
+  </div>
+
+  <!-- Shown in place of everything else when a touch device is held upright: the game is played in landscape -->
+  <div id="rotate" aria-hidden="true">
+    <div class="rot-card">
+      <svg class="rot-icon" viewBox="0 0 64 64" aria-hidden="true"><rect x="19" y="6" width="26" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="32" cy="46" r="2" fill="currentColor"/><path d="M50 14 A22 22 0 0 1 56 30 M56 30 L51 26 M56 30 L60 25" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <p class="rot-title">Please turn your device sideways</p>
+      <p class="rot-sub">Echo Maze is played in landscape. Your game is paused and waiting.</p>
+    </div>
+  </div>
+
   <script src="js/audio.js"></script>
   <script src="js/level.js"></script>
   <script src="js/cutscene.js"></script>
+  <script src="js/cues.js"></script>
+  <script src="js/touch.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

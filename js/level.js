@@ -86,19 +86,20 @@ const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before
  *   level:   1  2  3  4  5  6  7  8  9  10
  *   echo:    0  1  1  2  2  0  1  1  2  0
  *   scent:   0  0  0  0  0  1  1  1  1  1
- *   mimic:   0  0  0  0  0  0  0  1  1  1
+ *   mimic:   0  0  0  0  0  0  0  1  1  0
  *   stalker: 0  0  0  0  0  0  0  0  0  1
  * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8
  * adds the mimic; level 9 adds a second echo monster and the sonar decoy to find
  * (the owner did not give a monster mix for level 9 - this one is my choice);
- * level 10 is the stalker's (the owner's mix: 1 stalker, 1 scent, 1 mimic, NO echo
- * monsters; it has the sonar decoy too, like every level from 9).
+ * level 10 is the stalker's: 1 stalker + 1 scent monster, and NO echo monsters and
+ * NO mimic (the owner first asked for a mimic there too, then removed it in v9.0);
+ * it has the sonar decoy, like every level from 9.
  * Levels past 10 do not exist yet; the fallback formula below only keeps them
  * generating sensibly (debug/testing) until they are designed.
  */
 const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 2, 10: 0 };
 const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
-const MIMIC_MONSTERS = { 8: 1, 9: 1, 10: 1 };
+const MIMIC_MONSTERS = { 8: 1, 9: 1 };
 const STALKER_MONSTERS = { 10: 1 };
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */

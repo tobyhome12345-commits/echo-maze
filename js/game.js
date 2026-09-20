@@ -18,6 +18,12 @@
   const MODE_KEY = 'echomaze.mode';
   const CALM_KEY = 'echomaze.calm';
   const SEEN_KEY = 'echomaze.seen'; // { intro: 1, scent: 1 } cutscenes that have played, so they can be replayed
+  const VISUALCUES_KEY = 'echomaze.visualcues'; // '1' = the Visual cues accessibility option is on
+  const TOUCH_KEY = 'echomaze.touch'; // '1' = touch controls forced on, '0' = forced off, unset = automatic (touch devices)
+  // Doppler (audio only): a monster's voice is shifted by how fast it is closing on you or moving away, at most about +/-6%
+  const DOPPLER_MAX = 0.06; // fractional pitch shift at the largest closing speed
+  const DOPPLER_FULL_SPEED = 180; // px/s of change in distance that gives the full shift (exaggerated so it is audible)
+  const DOPPLER_SMOOTH = 0.12; // seconds: the closing speed is smoothed so the pitch glides
 
   const T_WALL = 1;
   const T_OBSTACLE = 2;
@@ -75,6 +81,8 @@
   // states: title | cutscene | play | paused | caught | complete
 
   const audio = new SoundEngine();
+  // Visual sound cues (accessibility, js/cues.js): drawn only, never read back - they cannot affect the game
+  const cues = EchoCues.create({ ctx, enabled: () => visualCues, calm: () => calm });
 
   // ---------------------------------------------------------------- storage
   // Everything is wrapped in try/catch: storage can be blocked or unavailable.
@@ -119,6 +127,11 @@
   // ----------------------------------------------------------------- state
   let mode = MODES[store.get(MODE_KEY)] ? store.get(MODE_KEY) : 'normal'; // easy | normal | hard | hardcore
   let calm = store.get(CALM_KEY) === '1'; // softer visuals + sound, independent of the mode
+  let visualCues = store.get(VISUALCUES_KEY) === '1'; // accessibility: draw sounds as glyphs around the player (independent of calm)
+  let touchPref = store.get(TOUCH_KEY); // '1' | '0' | null (automatic)
+  let touchSeen = false; // a real touch has happened on this page
+  let touchOn = false; // touch controls in use (see refreshTouchMode)
+  let audioFx = true; // wall muffling + Doppler. Always on; ?debug can switch it off to prove it changes nothing but sound
   let progress = loadProgress();
   let seen = loadSeen();
   let replaying = false; // a cutscene is being rewatched from the replay screen (it returns there, not to a level)
@@ -140,6 +153,7 @@
   let ripplesUsed = 0;
   let beaconTimer = 0;
   let heartTimer = 0;
+  let cueBeatTimer = 0; // the heartbeat cue's own timer, for calm mode (which has no heartbeat sound to time it by)
   let danger = 0;
   let beat = 0;
   let flash = 0;
@@ -472,6 +486,8 @@
       deaf: 0, // stalker: seconds since it last heard you
       spotNew: false, // stalker: the spot has changed since it last planned a route
       clickCd: 1 + Math.random() * 2, // stalker: seconds to its next soft click
+      aDist: -1, // audio only (Doppler): its distance to the player last frame, and the smoothed rate that distance is changing
+      aVr: 0,
       followTrail: null, // scent monster: the trail it is following
       ignoreTrail: null, // scent monster: a trail it just finished; ignored until it walks away from it
       voice: audio.ready && kind !== 'mimic' ? audio.createEnemyVoice(spec.pitch, kind) : null, // a disguised mimic makes no sound of its own
@@ -487,10 +503,50 @@
     }
   }
 
+  /**
+   * Is a wall or an obstacle between (x0,y0) and (x1,y1)? Used for AUDIO ONLY (wall muffling) and for dimming the
+   * matching visual cue. It is the game's own line-of-sight test (hasLOS, the DDA over the tile grid) plus a
+   * check of the round obstacles with rayCircle (the same test the ripples use). Nothing new is cast, and
+   * nothing in the game reads the result.
+   */
+  function soundBlocked(x0, y0, x1, y1) {
+    if (!hasLOS(x0, y0, x1, y1)) return true;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const d = Math.hypot(dx, dy);
+    if (d < 1) return false;
+    for (const o of level.obstacles) {
+      const t = rayCircle(x0, y0, dx / d, dy / d, o.x, o.y, o.r);
+      if (t >= 0 && t < d) return true;
+    }
+    return false;
+  }
+
+  /** A sound's loudness (its audio gain, 0..1) as the visual cues show it: a square root, so quiet sounds still read. */
+  const cueLoud = (g) => Math.sqrt(clamp(g, 0, 1));
+
+  /**
+   * The chime of the exit - and of a mimic, which calls this very same function from where it stands. Within the
+   * chime's range (620 px, the same falloff as the sound) it plays the bell AND shows the green chevron, and a
+   * wall or obstacle in the way muffles the bell and dims the chevron. Because the exit and the mimic go through
+   * exactly this code, the mimic has precisely the same tell as the exit - no more, no less - by ear and by eye.
+   */
+  function chime(x, y) {
+    const sp = spatial(x, y, 620);
+    if (sp.g <= 0.015) return;
+    const blocked = soundBlocked(x, y, player.x, player.y);
+    audio.beacon(sp.pan, sp.g, audioFx && blocked);
+    cues.pulse('exit', x, y, cueLoud(sp.g), { muffled: blocked });
+  }
+
   function screech(e) {
     if (e.alertCd > 0) return;
     const sp = spatial(e.x, e.y, 950);
     audio.enemyAlert(sp.pan, sp.g);
+    if (sp.g >= 0.01) {
+      cues.pulse('echo', e.x, e.y, cueLoud(sp.g), { big: true, key: e, sub: 'alert' });
+      cues.caption('[monster screech]');
+    }
     e.alertCd = 2;
   }
 
@@ -588,6 +644,10 @@
     if (e.alertCd > 0) return;
     const sp = spatial(e.x, e.y, 950);
     audio.stalkerAlert(sp.pan, sp.g);
+    if (sp.g >= 0.01) {
+      cues.pulse('stalker', e.x, e.y, cueLoud(sp.g), { big: true, key: e, sub: 'alert' });
+      cues.caption('[sharp breath, clicks]');
+    }
     e.alertCd = 2;
   }
 
@@ -731,6 +791,10 @@
     if (e.alertCd > 0) return;
     const sp = spatial(e.x, e.y, 950);
     audio.scentAlert(sp.pan, sp.g);
+    if (sp.g >= 0.01) {
+      cues.pulse('scent', e.x, e.y, cueLoud(sp.g), { big: true, key: e, sub: 'alert' });
+      cues.caption('[snorting]');
+    }
     e.alertCd = 2;
   }
 
@@ -922,20 +986,39 @@
     }
   }
 
-  /** Footstep clicks / squelches and the continuous voice of one monster. */
+  /**
+   * Footstep clicks / squelches and the continuous voice of one monster - and, for the Visual cues option, the
+   * matching glyphs. Everything in here is sound and drawing only: nothing it computes feeds back into the game.
+   *   Muffling: every frame, is a wall or an obstacle between this monster and you? If so its voice and its
+   *             footsteps are muffled (a low-pass and a slightly lower gain), and the matching cue is dimmed.
+   *   Doppler:  its voice is shifted up while it closes on you and down while it moves away (about +/-6% at most).
+   */
   function enemyAudio(e, moved, dt = 0) {
     if (e.kind === 'mimic') return; // disguised: no footsteps, no voice - the only sound it makes is the exit's chime
     const scent = e.kind === 'scent';
     const stalker = e.kind === 'stalker';
     const chasing = isChasing(e);
+    const cueKind = stalker ? 'stalker' : scent ? 'scent' : 'echo';
+    const blocked = soundBlocked(e.x, e.y, player.x, player.y);
+    const muf = audioFx && blocked; // what the audio does about it (?debug can switch the audio effect off; the cue still follows `blocked`)
+
+    // Doppler: how fast is the distance to you changing? (the monster and you both move; standing still or moving sideways gives 0)
+    const dNow = Math.hypot(e.x - player.x, e.y - player.y);
+    if (dt > 0) {
+      if (e.aDist >= 0) e.aVr += ((dNow - e.aDist) / dt - e.aVr) * (1 - Math.exp(-dt / DOPPLER_SMOOTH));
+      e.aDist = dNow;
+    }
+    const doppler = audioFx ? 1 - DOPPLER_MAX * clamp(e.aVr / DOPPLER_FULL_SPEED, -1, 1) : 1; // closing = up, leaving = down
+
     e.stepDist += moved;
     const stride = stalker ? (chasing ? 22 : 19) : scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
     if (e.stepDist >= stride) {
       e.stepDist = 0;
       const sp = spatial(e.x, e.y, 540);
-      if (stalker) audio.stalkerStep(sp.pan, sp.g);
-      else if (scent) audio.scentStep(sp.pan, sp.g);
-      else audio.enemyStep(sp.pan, sp.g);
+      if (stalker) audio.stalkerStep(sp.pan, sp.g, muf);
+      else if (scent) audio.scentStep(sp.pan, sp.g, muf);
+      else audio.enemyStep(sp.pan, sp.g, muf);
+      if (sp.g >= 0.01) cues.pulse(cueKind, e.x, e.y, cueLoud(sp.g), { key: e, sub: 'step', dots: 2, muffled: blocked });
     }
 
     if (stalker) {
@@ -944,17 +1027,17 @@
       if (e.clickCd <= 0) {
         e.clickCd = (chasing ? 0.5 : 1.3) + Math.random() * (chasing ? 0.7 : 1.7);
         const sc = spatial(e.x, e.y, 600);
-        audio.stalkerClick(sc.pan, sc.g);
+        audio.stalkerClick(sc.pan, sc.g, muf);
+        if (sc.g >= 0.01) cues.pulse('stalker', e.x, e.y, cueLoud(sc.g), { key: e, sub: 'click', dots: 1, muffled: blocked });
       }
     }
 
-    if (e.voice) {
-      const sp = spatial(e.x, e.y, 720);
-      const occluded = !hasLOS(e.x, e.y, player.x, player.y);
-      const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker ? 0.5 : 0.35;
-      const gain = sp.g * (0.16 + 0.3 * mood) * (occluded ? 0.6 : 1);
-      audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: occluded });
-    }
+    const sp = spatial(e.x, e.y, 720);
+    const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker ? 0.5 : 0.35;
+    const gain = sp.g * (0.16 + 0.3 * mood);
+    if (e.voice) audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: muf, doppler });
+    // its voice as a sustained cue, while it would be audible (the stalker's breathing: three small dots)
+    if (gain >= 0.012) cues.hold(e, cueKind, e.x, e.y, cueLoud(gain / 0.46), blocked, stalker ? 3 : 1);
   }
 
   // ---------------------------------------------------------------- ripples
@@ -979,7 +1062,7 @@
 
   // ---------------------------------------------------------------- crouching
   /** Is a crouch key (Shift) held? Same speed as walking; no footsteps, no ripples, and a stalker cannot hear you. */
-  const crouchHeld = () => down('ShiftLeft', 'ShiftRight');
+  const crouchHeld = () => down('ShiftLeft', 'ShiftRight') || touch.crouch; // the Shift key, or the touch CROUCH button held
 
   /**
    * The instant you start crouching, everything your ripples showed you is wiped from the screen and from the
@@ -1179,6 +1262,8 @@
     marks.push({ x: e.x, y: e.y, t: 0, life: 1.4, c: COLORS[T_ENEMY], r: 40 });
     const sp = spatial(e.x, e.y, 950);
     audio.mimicReveal(sp.pan, Math.max(sp.g, 0.25));
+    cues.pulse('echo', e.x, e.y, cueLoud(Math.max(sp.g, 0.25)), { big: true, key: e, sub: 'alert' }); // the "exit" snarls
+    cues.caption('[the exit snarls]');
     for (const rp of ripples) {
       let hit = false;
       for (let j = 0; j < RAYS; j++) {
@@ -1239,6 +1324,7 @@
     decoys.push({ x: player.x, y: player.y, t: 0, phase: 'arming', tick: 0, hum: 0, ring: 0, lured: [] });
     marks.push({ x: player.x, y: player.y, t: 0, life: 0.9, c: COLORS[T_DECOY], r: 26 });
     audio.decoyDrop();
+    cues.pulse('decoy', player.x, player.y, 0.6, {}); // a cue at its drop spot (at your feet: it points the way you were facing)
     updateHud();
   }
 
@@ -1255,6 +1341,8 @@
     }
     const sp = spatial(d.x, d.y, 1100);
     audio.decoyCall(sp.pan, Math.max(sp.g, 0.3));
+    cues.pulse('decoy', d.x, d.y, cueLoud(Math.max(sp.g, 0.3)), { big: true, key: d, sub: 'call' });
+    cues.caption('[sonar decoy calls out]');
   }
 
   function updateDecoys(dt) {
@@ -1265,7 +1353,10 @@
       if (decoyBlipTimer <= 0) {
         decoyBlipTimer = 3.2;
         const sp = spatial(fd.x, fd.y, 300);
-        if (sp.g > 0.02) audio.decoyBlip(sp.pan, sp.g);
+        if (sp.g > 0.02) {
+          audio.decoyBlip(sp.pan, sp.g);
+          cues.pulse('decoy', fd.x, fd.y, cueLoud(sp.g), { key: fd, sub: 'blip' });
+        }
       }
     }
     for (let i = decoys.length - 1; i >= 0; i--) {
@@ -1279,6 +1370,7 @@
           d.tick = 0.85 - 0.6 * f;
           const sp = spatial(d.x, d.y, 700);
           audio.decoyTick(sp.pan, Math.max(sp.g, 0.12), f);
+          cues.pulse('decoy', d.x, d.y, cueLoud(Math.max(sp.g, 0.12)), { key: d, sub: 'tick' }); // (rate-limited: the beeps speed up past 3 a second)
         }
         if (d.t >= DECOY_ARM_SECONDS) callMonsters(d);
       } else {
@@ -1288,6 +1380,7 @@
           d.hum = 1.2;
           const sp = spatial(d.x, d.y, 700);
           audio.decoyTick(sp.pan, Math.max(sp.g, 0.1) * 0.7, 1);
+          cues.pulse('decoy', d.x, d.y, cueLoud(Math.max(sp.g, 0.1) * 0.7), { key: d, sub: 'tick' });
         }
         // spent once everything it called has been let go again
         if (d.ring > 1.2 && d.lured.every((e) => e.state !== 'lured' && e.state !== 'trapped')) decoys.splice(i, 1);
@@ -1317,13 +1410,25 @@
     syncCrouch();
     const ix = (down('KeyD', 'ArrowRight') ? 1 : 0) - (down('KeyA', 'ArrowLeft') ? 1 : 0);
     const iy = (down('KeyS', 'ArrowDown') ? 1 : 0) - (down('KeyW', 'ArrowUp') ? 1 : 0);
-    let contact = null;
-    let walked = false; // did we really move this frame? (pushing into a wall does not count)
+    // Where to: a movement key (always full speed, exactly as ever) - or, if none is held, the touch joystick, which
+    // is analog: any direction, speed from a crawl to the same 170 px/s. (0,0 unless a finger is pushing the stick.)
+    let mvx = 0;
+    let mvy = 0;
     if (ix || iy) {
       const len = Math.hypot(ix, iy);
+      mvx = ix / len;
+      mvy = iy / len;
+    } else {
+      const s = touch.vec();
+      mvx = s.x;
+      mvy = s.y;
+    }
+    let contact = null;
+    let walked = false; // did we really move this frame? (pushing into a wall does not count)
+    if (mvx || mvy) {
       const px = player.x;
       const py = player.y;
-      contact = moveCircle(player, (ix / len) * WALK_SPEED * dt, (iy / len) * WALK_SPEED * dt);
+      contact = moveCircle(player, mvx * WALK_SPEED * dt, mvy * WALK_SPEED * dt);
       const step = Math.hypot(player.x - px, player.y - py);
       walked = step > 0.3;
       player.stepDist += step;
@@ -1357,17 +1462,13 @@
     for (const e of enemies) updateEnemy(e, dt);
     updateRipples(dt);
 
-    // exit beacon - and a mimic chimes exactly the same, from wherever it is
+    // exit beacon - and a mimic chimes exactly the same, from wherever it is (the very same function, so it can
+    // never differ from the exit's chime in sound or in its visual cue: range, rhythm, muffling and all)
     beaconTimer -= dt;
     if (beaconTimer <= 0) {
       beaconTimer = 2.4;
-      const sp = spatial(level.exit.x, level.exit.y, 620);
-      if (sp.g > 0.015) audio.beacon(sp.pan, sp.g);
-      for (const e of enemies) {
-        if (e.kind !== 'mimic') continue;
-        const sm = spatial(e.x, e.y, 620);
-        if (sm.g > 0.015) audio.beacon(sm.pan, sm.g);
-      }
+      chime(level.exit.x, level.exit.y);
+      for (const e of enemies) if (e.kind === 'mimic') chime(e.x, e.y);
     }
 
     // heartbeat + danger vignette as monsters close in (a disguised mimic gives no warning: it is just an exit)
@@ -1383,9 +1484,18 @@
       if (heartTimer <= 0) {
         heartTimer = 0.95 - danger * 0.6;
         audio.heartbeat(0.35 + danger * 0.65);
+        cues.heartbeat(0.35 + danger * 0.65); // a ring around you, once per beat (never above ~3 a second)
         beat = 1;
       }
+    } else if (danger > 0) {
+      // calm mode has no heartbeat sound, but the Visual cues option must not be weaker in calm mode: it keeps its ring
+      cueBeatTimer -= dt;
+      if (cueBeatTimer <= 0) {
+        cueBeatTimer = 0.95 - danger * 0.6;
+        cues.heartbeat(0.35 + danger * 0.65);
+      }
     }
+    cues.update(dt, player.x, player.y);
 
     // --- outcomes
     for (const e of enemies) {
@@ -1640,6 +1750,8 @@
       ctx.arc(player.x, player.y, 17, -Math.PI / 2, -Math.PI / 2 + TAU * f);
       ctx.stroke();
     }
+    // Visual cues (accessibility): small glyphs on a ring about 45px (on screen) around you, one per audible sound
+    if (visualCues) cues.draw(player.x, player.y, 1 / viewScale);
     ctx.globalCompositeOperation = 'source-over';
   }
 
@@ -1702,9 +1814,9 @@
   function updateHud() {
     $('hud-level').textContent = `Level ${levelNum} · ${MODES[mode].label}`;
     $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
-    $('hud-item').textContent = player && player.hasDecoy ? 'Sonar decoy · E' : '';
+    $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : '';
     $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
-    $('hud-audio').textContent = [calm ? 'Calm' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
+    $('hud-audio').textContent = [calm ? 'Calm' : '', visualCues ? 'Visual cues' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
   }
 
   function showBanner(n) {
@@ -1752,6 +1864,8 @@
     ripplesUsed = 0;
     beaconTimer = 1;
     heartTimer = 0;
+    cueBeatTimer = 0;
+    cues.clear();
     danger = 0;
     beat = 0;
     flash = 0;
@@ -1799,6 +1913,7 @@
       decoys = [];
       ripples = [];
       marks = [];
+      cues.clear();
       danger = 0;
       flash = 0;
       shake = 0;
@@ -1807,6 +1922,7 @@
     updateRipples,
     drawRippleLayer,
     calm: () => calm,
+    visualCues: () => visualCues, // the Visual cues option also adds short [sound captions] to the cutscenes
     finish(kind) {
       if (replaying) {
         // rewatched from the replay screen: go back there, no level starts
@@ -1829,6 +1945,7 @@
     }
     destroyVoices();
     audio.stopAmbient();
+    touch.setVisible(false); // no touch controls in a cutscene (a tap anywhere skips it - see below)
     state = 'cutscene';
     showOverlay(null);
     $('hud').classList.add('hidden');
@@ -1847,11 +1964,21 @@
   function onCaught() {
     if (state !== 'play') return;
     state = 'caught';
+    touch.releaseAll();
     audio.caught();
     audio.stopAmbient();
     destroyVoices();
+    cues.clear();
     flash = calm ? 0 : 1; // calm mode: no red flash or screen shake
     shake = calm ? 0 : 14;
+    // a short buzz on a touch device (off in calm mode, like the flash and shake)
+    if (touchOn && !calm && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try {
+        navigator.vibrate([90, 50, 160]);
+      } catch (e) {
+        /* vibration is optional */
+      }
+    }
     setTimeout(() => {
       if (state !== 'caught') return;
       if (MODES[mode].oneLife) {
@@ -1872,8 +1999,10 @@
   function onLevelComplete() {
     if (state !== 'play') return;
     state = 'complete';
+    touch.releaseAll();
     audio.stopAmbient();
     destroyVoices();
+    cues.clear();
     saveBest(levelNum + 1);
     const m = Math.floor(levelTime / 60);
     const s = Math.floor(levelTime % 60);
@@ -1896,7 +2025,9 @@
   function pause() {
     if (state !== 'play') return;
     state = 'paused';
+    touch.releaseAll(); // never carry a held finger across a screen change
     $('pause-mode').textContent = `${MODES[mode].label} · Level ${levelNum}`;
+    refreshOptionUi();
     showOverlay('pause');
     audio.suspend();
   }
@@ -1914,6 +2045,7 @@
     audio.resume();
     state = 'title';
     level = null;
+    cues.clear();
     $('hud').classList.add('hidden');
     $('banner').classList.remove('show');
     refreshTitle();
@@ -2106,11 +2238,73 @@
     });
     if (state === 'caught' || !$('caught').classList.contains('hidden')) $('caught').classList.toggle('danger', !calm);
     if (level && state !== 'title' && state !== 'cutscene') updateHud();
+    refreshOptionUi();
   }
 
   function toggleMute() {
     audio.setMuted(!audio.muted);
     if (state !== 'title') updateHud();
+    refreshOptionUi();
+  }
+
+  /**
+   * Visual cues: an accessibility option, independent of calm mode and of the difficulty, saved in localStorage.
+   * It only draws (js/cues.js) and adds cutscene captions - it never touches the game.
+   */
+  function setVisualCues(on) {
+    visualCues = !!on;
+    store.set(VISUALCUES_KEY, visualCues ? '1' : '0');
+    if (!visualCues) cues.clear();
+    if (level && state !== 'title' && state !== 'cutscene') updateHud();
+    refreshOptionUi();
+  }
+
+  /**
+   * Touch controls are on for touch devices (a coarse pointer, or the first real touch) unless switched off in the
+   * pause menu; the same switch turns them on for anyone else. Only the on-screen controls and the touch layout of
+   * the menus depend on it (`body.touch`); the game itself does not know.
+   */
+  function refreshTouchMode() {
+    let coarse = false;
+    try {
+      coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    } catch (e) {
+      coarse = false;
+    }
+    touchOn = touchPref === '1' ? true : touchPref === '0' ? false : coarse || touchSeen;
+    document.body.classList.toggle('touch', touchOn);
+    if (!touchOn) touch.setVisible(false);
+    if (level && state !== 'title' && state !== 'cutscene') updateHud();
+    refreshOptionUi();
+  }
+
+  function setTouchControls(on) {
+    touchPref = on ? '1' : '0';
+    store.set(TOUCH_KEY, touchPref);
+    refreshTouchMode();
+  }
+
+  /** Keep every place that shows an option in step: the checkboxes on the title and pause screens, and the big pause-menu buttons for touch players. */
+  function refreshOptionUi() {
+    document.querySelectorAll('.calm-toggle').forEach((c) => {
+      c.checked = calm;
+    });
+    document.querySelectorAll('.cues-toggle').forEach((c) => {
+      c.checked = visualCues;
+    });
+    document.querySelectorAll('.touch-toggle').forEach((c) => {
+      c.checked = touchOn;
+    });
+    document.body.classList.toggle('cues-on', visualCues); // the legend of cue shapes on the title screen shows only while it is on
+    const set = (id, label, on) => {
+      const b = $(id);
+      b.textContent = `${label}: ${on ? 'On' : 'Off'}`;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.classList.toggle('on', on);
+    };
+    set('pbtn-mute', 'Sound', !audio.muted);
+    set('pbtn-calm', 'Calm mode', calm);
+    set('pbtn-cues', 'Visual cues', visualCues);
   }
 
   // ----------------------------------------------------------------- input
@@ -2123,6 +2317,7 @@
 
     if (e.code === 'KeyM') return toggleMute();
     if (e.code === 'KeyC') return setCalm(!calm); // works on every screen, in every mode
+    if (e.code === 'KeyV') return setVisualCues(!visualCues); // so does Visual cues
     switch (state) {
       case 'play':
         if (e.code === 'Space') emitRipple();
@@ -2171,6 +2366,7 @@
 
   function releaseKeys() {
     for (const k in keys) keys[k] = false;
+    touch.releaseAll(); // and every finger-held control, so nothing is ever left stuck down
   }
 
   window.addEventListener('blur', () => {
@@ -2208,6 +2404,62 @@
       c.blur(); // so SPACE / ENTER never re-toggle it while playing
     });
   });
+  document.querySelectorAll('.cues-toggle').forEach((c) => {
+    c.addEventListener('change', () => {
+      setVisualCues(c.checked);
+      c.blur();
+    });
+  });
+  document.querySelectorAll('.touch-toggle').forEach((c) => {
+    c.addEventListener('change', () => {
+      setTouchControls(c.checked);
+      c.blur();
+    });
+  });
+  // big pause-menu buttons, for touch players who have no M, C or V key
+  $('pbtn-mute').addEventListener('click', () => toggleMute());
+  $('pbtn-calm').addEventListener('click', () => setCalm(!calm));
+  $('pbtn-cues').addEventListener('click', () => setVisualCues(!visualCues));
+
+  // ------------------------------------------------------------ touch controls
+  // The on-screen controls live in js/touch.js; they call the very same functions the keys do.
+  const touch = EchoTouch.create({
+    ripple: () => emitRipple(), // = Space (same cooldown)
+    item: () => dropDecoy(), // = E
+    pause: () => pause(), // = P
+    crouchChanged: () => syncCrouch(), // the CROUCH button is Shift: wipe the ripple information the instant it goes down
+  });
+  // the first real touch turns touch controls on (unless they were switched off in the pause menu)
+  window.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.pointerType === 'touch' && !touchSeen) {
+        touchSeen = true;
+        refreshTouchMode();
+      }
+    },
+    true
+  );
+  try {
+    const mq = window.matchMedia && window.matchMedia('(pointer: coarse)');
+    if (mq && mq.addEventListener) mq.addEventListener('change', refreshTouchMode);
+  } catch (e) {
+    /* older browsers: the first touch still turns them on */
+  }
+  window.addEventListener('orientationchange', resize);
+  // in a cutscene, a tap anywhere skips it (skip() itself ignores the first 0.6 s)
+  $('cutscene').addEventListener('pointerdown', () => {
+    if (touchOn && state === 'cutscene') cutscene.skip();
+  });
+  // no page scroll, no pinch zoom and no rubber-banding while the touch controls are up
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (touchOn && (state === 'play' || state === 'cutscene')) e.preventDefault();
+    },
+    { passive: false }
+  );
   $('btn-caught-title').addEventListener('click', () => {
     audio.uiClick();
     toTitle();
@@ -2275,11 +2527,20 @@
       }
     }
 
+    // touch controls: shown only while playing (and released the moment they are not)
+    if (touchOn && state === 'play' && window.innerHeight > window.innerWidth) pause(); // portrait: the "rotate your device" note is up
+    touch.setVisible(touchOn && state === 'play');
+    if (touchOn && state === 'play') {
+      touch.setCooldown(cfg.cooldown > 0 ? 1 - cooldown / cfg.cooldown : 1);
+      touch.setItem(!!player.hasDecoy);
+    }
+
     draw();
     requestAnimationFrame(frame);
   }
 
   resize();
+  refreshTouchMode();
   refreshTitle();
   requestAnimationFrame(frame);
 
@@ -2322,7 +2583,43 @@
       cutscene,
       setMode,
       setCalm,
-      settings: () => ({ mode, calm, progress: { ...progress }, seen: { ...seen } }),
+      setVisualCues,
+      setTouchControls,
+      // switch the accessibility / input features for a test WITHOUT saving them: { cues, touch, audioFx }
+      features: (f = {}) => {
+        if ('cues' in f) {
+          visualCues = !!f.cues;
+          if (!visualCues) cues.clear();
+        }
+        if ('touch' in f) {
+          touchPref = f.touch ? '1' : '0';
+          refreshTouchMode();
+          if (state === 'play') touch.setVisible(touchOn);
+        }
+        if ('audioFx' in f) audioFx = !!f.audioFx;
+        refreshOptionUi();
+        return { cues: visualCues, touch: touchOn, audioFx };
+      },
+      seed: (n) => {
+        runSeed = n | 0; // the maze seed, so two runs can be the same
+      },
+      cues: () => cues.list(),
+      snapCamera: () => {
+        camX = player.x;
+        camY = player.y;
+      },
+      captionText: () => ($('cue-caption').classList.contains('show') ? $('cue-caption').textContent : ''),
+      touch,
+      soundBlocked,
+      settings: () => ({
+        mode,
+        calm,
+        visualCues,
+        touchControls: { on: touchOn, saved: touchPref }, // saved: '1' forced on, '0' forced off, null = automatic
+        audioFx, // wall muffling + Doppler (always true in real play)
+        progress: { ...progress },
+        seen: { ...seen },
+      }),
       draw: () => draw(),
       audio,
     };
