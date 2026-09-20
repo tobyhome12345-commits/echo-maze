@@ -441,6 +441,25 @@ button.mode.active:focus-visible {
   color: var(--dim);
 }
 
+.mode-score {
+  margin: -2px 0 10px;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: #ffb3c0;
+  text-shadow: 0 0 12px rgba(255, 59, 92, 0.35);
+}
+
+.notice {
+  margin: -14px 0 16px;
+  padding: 9px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #ffc0cb;
+  background: rgba(255, 59, 92, 0.09);
+  border: 1px solid rgba(255, 59, 92, 0.3);
+  border-radius: 8px;
+}
+
 .calm {
   display: flex;
   align-items: center;

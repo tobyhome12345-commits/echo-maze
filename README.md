@@ -67,7 +67,7 @@ Pick one on the title screen. Each mode scales the level curve above (the table 
 | Ripple recharge | 0.90 s | 1.09 s | 1.29 s | 1.34 s |
 | Lives | unlimited retries | unlimited retries | unlimited retries | **one life** |
 
-Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Hardcore**, being caught ends the run: you see *You died* and can only start a new run from level 1 on a fresh maze (there is no Continue). Every monster is always slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode.
+Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Easy, Normal and Hard**, being caught shows *Try again*, which puts you back at the start of the level you were on (same maze, monsters reset). In **Hardcore**, being caught ends the run: you are sent straight back to the title screen, there is no Continue and no way to resume, and the next Begin starts over from level 1 on a fresh maze. Your Hardcore **high score** (the furthest level you reached, or "all 10 levels cleared") stays on the title screen — on the Hardcore button and as its own line — and is never lowered by a worse run. Every monster is always slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode.
 
 Progress (best level unlocked) is saved separately for each mode, and your choice of mode is remembered.
 

@@ -11,7 +11,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 1. Save the committed tree as a **new** folder `C:\Claude\Echo Maze\vN - short description` (e.g. `git archive --format=zip -o x.zip HEAD`, extract it, delete `CLAUDE.md` and `.gitignore` from the copy). Never edit or delete earlier `vN` folders.
 2. Re-point the shortcut `C:\Claude\Play Echo Maze.lnk` at the new folder's `index.html`.
 
-Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
+Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode`, `v8 - hardcore returns to title` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
 
 ## Monster rules (owner's design - don't loosen)
 
@@ -30,7 +30,8 @@ Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters g
 ## Difficulty modes and calm mode (owner's design)
 
 - Four modes in the `MODES` table in `js/level.js` (`easy`, `normal`, `hard`, `hardcore`); each scales the baseline curve in `levelConfig(n, mode)`. Owner's brief: Normal is *very slightly* easier than the game was before modes existed; Hard is harder than that; Hardcore is one life and a *tiny bit* harder than Hard. Keep every monster speed below the player's 170px/s and keep the order easy < normal < hard < hardcore. Mazes must be identical across modes for one seed (only monsters differ).
-- Hardcore = one life: being caught shows "You died" and starts a new run at level 1 (no intro, no Continue). Other modes keep unlimited retries of the same level.
+- Hardcore = one life: being caught sends the player **straight back to the title screen** (with a death notice) - no overlay, no Continue, nothing to resume; the next Begin is a fresh run from level 1. Other modes: being caught shows "Try again", which restarts the same level (same maze, monsters reset). The owner asked for exactly this split.
+- Hardcore's **high score stays visible** on the title screen (its button tag and a "High score" line): the furthest level reached, 11 = all ten cleared. It is recorded when a level is cleared (and on starting a Hardcore level, so a run that dies on level 1 still counts) and is never lowered. Level 1 has no monsters, so you cannot die there.
 - Progress is saved per mode (`echomaze.progress`, best level unlocked, never lowered); mode and calm are remembered (`echomaze.mode`, `echomaze.calm`); the old single `echomaze.best` is migrated to Normal.
 - **Calm mode is purely visual + audio and must never change difficulty or gameplay.** It is a flag (`calm` in game.js, mirrored to `audio.calm`), toggled on the title, in the pause menu and with `C`, any time, any mode. It removes the red edge creep, the caught flash/shake/red glow, the heartbeat, and softens screech/growl/steps/caught/lunge and the intro's scare.
 

@@ -964,6 +964,11 @@
   function startLevel(n) {
     destroyVoices();
     levelNum = n;
+    // Hardcore keeps a high score even for a run that dies on level 1.
+    if (MODES[mode].oneLife && !progress[mode]) {
+      progress[mode] = 1;
+      store.set(PROGRESS_KEY, JSON.stringify(progress));
+    }
     level = generateLevel(n, runSeed, mode);
     cfg = level.cfg;
     player = { x: level.start.x, y: level.start.y, r: PLAYER_R, stepDist: 0, bumpCd: 0, blocked: false };
@@ -993,6 +998,7 @@
   function newRun(fromLevel, withIntro) {
     runSeed = (Math.random() * 0x7fffffff) | 0;
     endless = false;
+    $('title-notice').classList.add('hidden');
     audio.init();
     audio.uiClick();
     if (withIntro) startCutscene();
@@ -1045,20 +1051,19 @@
     shake = calm ? 0 : 14;
     setTimeout(() => {
       if (state !== 'caught') return;
-      prepareCaughtOverlay();
+      if (MODES[mode].oneLife) {
+        // One life: the run is over. Back to the title screen - there is nothing to resume.
+        const died = levelNum;
+        toTitle();
+        const note = $('title-notice');
+        note.textContent = `☠ You died on level ${died}. Hardcore gives you one life, so that run is over.`;
+        note.classList.remove('hidden');
+        return;
+      }
+      // Every other mode: just try the same level again.
+      $('caught').classList.toggle('danger', !calm); // calm mode: no red glow
       showOverlay('caught');
     }, 900);
-  }
-
-  /** Hardcore has one life: being caught ends the run instead of offering a retry. */
-  function prepareCaughtOverlay() {
-    const oneLife = !!MODES[mode].oneLife;
-    $('caught-title').textContent = oneLife ? 'You died' : 'Caught';
-    $('caught-text').textContent = oneLife
-      ? `Hardcore gives you one life. Your run ended on level ${levelNum}.`
-      : 'The echo found you.';
-    $('retry-label').textContent = oneLife ? 'New run' : 'Try again';
-    $('caught').classList.toggle('danger', !calm); // calm mode: no red glow
   }
 
   function onLevelComplete() {
@@ -1115,8 +1120,13 @@
     easy: 'Slower monsters, fewer of them, longer ripples, and they lose you sooner. Unlimited retries.',
     normal: 'The intended game, a touch gentler than it used to be. Unlimited retries.',
     hard: 'Faster and more monsters, sharper ears, shorter ripples. Unlimited retries.',
-    hardcore: 'A little harder than Hard — and you only get one life. Get caught and the run is over.',
+    hardcore: 'A little harder than Hard — and you only get one life. Get caught and you are sent back to the title screen; there is no resuming.',
   };
+
+  /** Hardcore's high score is the furthest you got. 11 means all ten levels were cleared. */
+  const scoreText = (n) =>
+    n === CAMPAIGN_LEVELS + 1 ? 'all 10 levels cleared' : n > CAMPAIGN_LEVELS + 1 ? `endless level ${n}` : `level ${n}`;
+  const scoreShort = (n) => (n === CAMPAIGN_LEVELS + 1 ? '10/10' : `Lv ${n}`);
 
   /** Bring the title screen's mode picker, best-level tags and Continue button up to date. */
   function refreshTitle() {
@@ -1125,9 +1135,16 @@
       b.classList.toggle('active', m === mode);
       b.setAttribute('aria-checked', m === mode ? 'true' : 'false');
       const best = getBest(m);
-      b.querySelector('small').textContent = best > 1 ? `Best: Lv ${best}` : '';
+      const tag = b.querySelector('small');
+      if (MODES[m].oneLife) tag.textContent = progress[m] ? `High score: ${scoreShort(progress[m])}` : '';
+      else tag.textContent = best > 1 ? `Best: Lv ${best}` : '';
     });
     $('mode-desc').textContent = MODE_INFO[mode];
+    // Hardcore's high score stays visible even though it can never be resumed.
+    const score = $('mode-score');
+    const showScore = !!MODES[mode].oneLife && !!progress[mode];
+    score.classList.toggle('hidden', !showScore);
+    if (showScore) score.textContent = `☠ High score: ${scoreText(progress[mode])}`;
     // Hardcore has no Continue: dying ends the run, so there is nothing to resume.
     const best = getBest();
     const btn = $('btn-continue');
@@ -1232,13 +1249,10 @@
 
   window.addEventListener('resize', resize);
 
+  /** Try again: back to the start of the level you were caught on (same maze). */
   function retry() {
-    if (MODES[mode].oneLife) {
-      newRun(1, false); // one life: the run is over, start again from level 1 on a fresh maze
-    } else {
-      audio.uiClick();
-      startLevel(levelNum);
-    }
+    audio.uiClick();
+    startLevel(levelNum);
   }
 
   document.querySelectorAll('.mode').forEach((b) => {
