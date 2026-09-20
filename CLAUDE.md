@@ -11,7 +11,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 1. Save the committed tree as a **new** folder `C:\Claude\Echo Maze\vN - short description` (e.g. `git archive --format=zip -o x.zip HEAD`, extract it, delete `CLAUDE.md` and `.gitignore` from the copy). Never edit or delete earlier `vN` folders.
 2. Re-point the shortcut `C:\Claude\Play Echo Maze.lnk` at the new folder's `index.html`.
 
-Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode`, `v8 - hardcore returns to title` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
+Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode`, `v8 - hardcore returns to title`, `v9 - scent monster and puddles` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
 
 ## Monster rules (owner's design - don't loosen)
 
@@ -26,6 +26,15 @@ Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters g
 - Plain HTML/CSS/JS, **no build step and no dependencies**. Scripts are classic `<script>` tags (not ES modules) so `index.html` also works from `file://`.
 - **No audio files.** All sound is synthesised in `js/audio.js` with the Web Audio API. The `AudioContext` must only be created from a user click (the Begin button) — keep it that way.
 - Difficulty lives in `levelConfig()` in `js/level.js`.
+
+## Scent monster, smell puddles and trails (owner's design, level 6+)
+
+- **Level 4+: at least two echo monsters in every mode** (`levelConfig`: floor of 2 from level 4). Hard/Hardcore keep their extra ones.
+- **Scent monster** (`kind: 'scent'`, violet, `T_SCENT`): a second monster type, from level 6 (`SCENT_FROM_LEVEL`). It **never stands still** (state `patrol`, walks to random tiles), **cannot track echoes or footsteps** (a ripple *sees* it - its own violet colour and echo sound - but never alerts it; it is not in `alerts`), and **touching it kills you** exactly like an echo monster (restart depends on the mode).
+- **Puddles** (`level.puddles`, lime, `PUDDLE_R`): stepping in makes you smelly for `SMELL_SECONDS` = 5 of **walking** time. **The clock only runs while the player actually moves** (`walked`, > 0.3px/frame): standing still or pushing into a wall never runs it out, and standing in a puddle tops it up. This is deliberate - it stops players just waiting out the 5 seconds. Puddles never block a ripple; a ripple that has line of sight lights them up (timed mark) and plays `echoPuddle`.
+- While smelly the player leaves a **trail** (`level.trails`, points every 12px). Trails **persist for the whole level** (they reset when the level restarts). While smelly and within `smellRange`, a scent monster `track`s the player's live position and loses them when the smell ends or they leave range.
+- A scent monster that **touches a trail at all** (`TRAIL_TOUCH`) goes to **the other end**: the end farther along the trail from where it touched (`checkTrailTouch`). Once committed (`followTrail`) it must NOT re-evaluate that trail every frame (the "farther end" flips at the midpoint and it would pace back and forth - this was a real bug). After finishing it ignores that trail until it has walked away from it (`ignoreTrail`).
+- Scent monster speed is 0.9x an echo monster's and always below the player's 170px/s.
 
 ## Difficulty modes and calm mode (owner's design)
 

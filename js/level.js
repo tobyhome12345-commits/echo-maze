@@ -25,20 +25,30 @@ function mulberry32(seed) {
  *                     inside this, and a monster that has locked on keeps
  *                     tracking you only while you stay inside it
  *   ripple / cooldown multipliers on your ripple's range / recharge time
+ *   puddles           multiplier on how many smell puddles a level has (level 6+)
+ *   smell             px: how far away a scent monster can smell you while you
+ *                     are smelly (it loses you beyond this)
  *   oneLife           being caught ends the whole run
  */
 const MODES = {
-  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, ripple: 1.2, cooldown: 0.8 },
-  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, ripple: 1.03, cooldown: 0.97 },
-  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, ripple: 0.88, cooldown: 1.15 },
-  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, ripple: 0.85, cooldown: 1.2, oneLife: true },
+  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240 },
+  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300 },
+  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360 },
+  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, oneLife: true },
 };
 const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
+
+const PUDDLE_R = 14;
+const SCENT_FROM_LEVEL = 6; // the scent monster and the smell puddles arrive together
+const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in a puddle
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {
   const m = MODES[modeId] || MODES.normal;
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
+  const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
+  const basePuddles = n < SCENT_FROM_LEVEL ? 0 : Math.min(3 + (n - SCENT_FROM_LEVEL), 10);
+  const enemySpeed = Math.min((70 + n * 8) * m.speed, m.speedCap); // px/s while hunting
   return {
     n,
     mode: modeId,
@@ -47,12 +57,19 @@ function levelConfig(n, modeId = 'normal') {
     loopFrac: Math.min(0.08 + n * 0.015, 0.22), // extra openings -> loops
     rooms: Math.min(1 + Math.floor(n / 2), 8),
     obstacles: Math.min(2 + n, 22),
-    enemies: baseEnemies === 0 ? 0 : Math.min(Math.max(1, Math.round(baseEnemies * m.count)), 10),
-    enemySpeed: Math.min((70 + n * 8) * m.speed, m.speedCap), // px/s while hunting
+    // echo monsters: from level 4 there are always at least two, in every mode
+    enemies: baseEnemies === 0 ? 0 : Math.min(Math.max(n >= 4 ? 2 : 1, Math.round(baseEnemies * m.count)), 10),
+    enemySpeed,
     searchTime: m.listen, // seconds a monster listens after reaching the spot it was sent to
     footstepRadius: m.hear, // px, see MODES
     rippleRadius: Math.max(640 - n * 24, 360) * m.ripple,
     cooldown: Math.min(0.7 + n * 0.07, 1.5) * m.cooldown,
+    // scent monsters + smell puddles (level 6+)
+    scentMonsters: baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4),
+    scentSpeed: enemySpeed * 0.9, // a little slower than an echo monster; always well under the player's 170
+    smellRange: m.smell,
+    smellSeconds: SMELL_SECONDS,
+    puddles: basePuddles === 0 ? 0 : Math.max(2, Math.round(basePuddles * m.puddles)),
   };
 }
 
@@ -234,12 +251,61 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     const tx = pick % W;
     const ty = (pick / W) | 0;
     enemies.push({
+      kind: 'echo',
       tx,
       ty,
       x: (tx + 0.5) * TILE,
       y: (ty + 0.5) * TILE,
       sleeper: n >= 3 && k % 3 === 2,
       pitch: 44 + rand() * 22,
+    });
+  }
+
+  // 7. Scent monsters (level 6+): they walk the maze and follow smell instead of sound.
+  for (let k = 0; k < cfg.scentMonsters; k++) {
+    let pick = -1;
+    for (const minSep of [8, 5, 2, 0]) {
+      for (const idx of spots) {
+        if (dS[idx] < minStart || tooClose(idx, minSep)) continue;
+        pick = idx;
+        break;
+      }
+      if (pick >= 0) break;
+    }
+    if (pick < 0) pick = spots.find((i) => dS[i] >= 4 && !tooClose(i, 0)) ?? -1;
+    if (pick < 0) continue;
+    const tx = pick % W;
+    const ty = (pick / W) | 0;
+    enemies.push({
+      kind: 'scent',
+      tx,
+      ty,
+      x: (tx + 0.5) * TILE,
+      y: (ty + 0.5) * TILE,
+      sleeper: false,
+      pitch: 70 + rand() * 20,
+    });
+  }
+
+  // 8. Smell puddles (level 6+). Mostly in rooms, where you can walk around them.
+  const puddles = [];
+  const pRoom = shuffle(roomTiles.filter((i) => !blocked[i]), rand);
+  const pOther = shuffle(spots.filter((i) => !roomSet.has(i)), rand);
+  let pTries = cfg.puddles * 10;
+  while (puddles.length < cfg.puddles && pTries-- > 0 && (pRoom.length || pOther.length)) {
+    const idx = pRoom.length && (rand() < 0.8 || !pOther.length) ? pRoom.pop() : pOther.pop();
+    if (blocked[idx]) continue;
+    const tx = idx % W;
+    const ty = (idx / W) | 0;
+    if (Math.max(Math.abs(tx - sx), Math.abs(ty - sy)) < 4) continue;
+    if (Math.max(Math.abs(tx - ex), Math.abs(ty - ey)) < 2) continue;
+    if (puddles.some((p) => Math.hypot(p.tx - tx, p.ty - ty) < 3)) continue;
+    puddles.push({
+      x: (tx + 0.5) * TILE + (rand() - 0.5) * 10,
+      y: (ty + 0.5) * TILE + (rand() - 0.5) * 10,
+      r: PUDDLE_R,
+      tx,
+      ty,
     });
   }
 
@@ -250,6 +316,8 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     walls,
     blocked,
     obstacles,
+    puddles,
+    trails: [], // smell trails laid by the player this level (see game.js)
     enemies,
     start: { x: (sx + 0.5) * TILE, y: (sy + 0.5) * TILE },
     exit: { x: (ex + 0.5) * TILE, y: (ey + 0.5) * TILE, r: EXIT_R },

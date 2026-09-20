@@ -303,6 +303,76 @@ class SoundEngine {
     this._track(o1);
   }
 
+  /** Echo off a scent monster: a low, wet gurgle (unlike an echo monster's buzzy moan). */
+  echoScent(pan, vol, dist) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const base = 88 + (1 - Math.min(dist / 650, 1)) * 20;
+    const bp = this._filter('bandpass', 380, 1.4);
+    const g = this._env(t, 0.06, 0.4 * vol, 0.6);
+    [base, base * 1.07].forEach((f) => {
+      const o = this._osc('triangle', f, t, 0.8);
+      const lfo = this._osc('sine', 9, t, 0.8); // the gurgle: fast, shallow wobble
+      const lg = this.ctx.createGain();
+      lg.gain.value = 9;
+      lfo.connect(lg);
+      lg.connect(o.frequency);
+      o.connect(bp);
+    });
+    bp.connect(g);
+    this._route(g, pan, 0.45);
+    const n = this._noise(t, 0.5);
+    const nb = this._filter('bandpass', 1400, 1.5);
+    const ng = this._env(t, 0.05, 0.07 * vol, 0.3);
+    n.connect(nb);
+    nb.connect(ng);
+    this._route(ng, pan, 0.4);
+    this._track(n);
+  }
+
+  /** Echo off a puddle: a bubbly "blorp". */
+  echoPuddle(pan, vol, dist) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const f0 = 230 + (1 - Math.min(dist / 650, 1)) * 60;
+    const o = this._osc('sine', f0, t, 0.3);
+    o.frequency.exponentialRampToValueAtTime(f0 * 2.1, t + 0.09);
+    const g = this._env(t, 0.005, 0.32 * vol, 0.16);
+    o.connect(g);
+    this._route(g, pan, 0.4);
+    const o2 = this._osc('sine', f0 * 1.3, t + 0.1, 0.25);
+    o2.frequency.exponentialRampToValueAtTime(f0 * 2.6, t + 0.17);
+    const g2 = this._env(t + 0.1, 0.004, 0.2 * vol, 0.1);
+    o2.connect(g2);
+    this._route(g2, pan, 0.4);
+    this._track(o);
+  }
+
+  /** You step into a smell puddle: a wet squelch. */
+  splash(vol = 1) {
+    if (this._busy(100)) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 170, t, 0.3);
+    o.frequency.exponentialRampToValueAtTime(520, t + 0.1);
+    const g = this._env(t, 0.004, 0.5 * vol, 0.18);
+    o.connect(g);
+    this._route(g, 0, 0.25);
+    const n = this._noise(t, 0.35);
+    const bp = this._filter('bandpass', 1500, 1.2);
+    bp.frequency.exponentialRampToValueAtTime(420, t + 0.25);
+    const ng = this._env(t, 0.006, 0.34 * vol, 0.24);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, 0, 0.3);
+    const at = t + 0.1;
+    const o2 = this._osc('sine', 250, at, 0.25);
+    o2.frequency.exponentialRampToValueAtTime(700, at + 0.07);
+    const g2 = this._env(at, 0.003, 0.26 * vol, 0.12);
+    o2.connect(g2);
+    this._route(g2, 0, 0.25);
+    this._track(o);
+  }
+
   /** Echo off the exit: a clear, bright bell. */
   echoExit(pan, vol) {
     if (this._busy(90)) return;
@@ -340,30 +410,32 @@ class SoundEngine {
   // --------------------------------------------------------- enemy (monster)
 
   /**
-   * Continuous, looping voice for one echo monster. Returns a handle that is
-   * updated every frame with updateEnemyVoice().
+   * Continuous, looping voice for one monster. Returns a handle that is
+   * updated every frame with updateEnemyVoice(). An echo monster growls (buzzy,
+   * dissonant); a scent monster ('scent') gurgles and sniffs (soft, wet, choppy).
    */
-  createEnemyVoice(pitch = 55) {
+  createEnemyVoice(pitch = 55, kind = 'echo') {
     if (!this.ctx) return null;
     const c = this.ctx;
     const t = c.currentTime;
+    const scent = kind === 'scent';
 
     const out = c.createGain();
     out.gain.value = 0;
     const breath = c.createGain();
     breath.gain.value = 0.65;
-    const lp = this._filter('lowpass', 260, 5);
+    const lp = this._filter('lowpass', scent ? 420 : 260, scent ? 2 : 5);
     const mix = c.createGain();
     mix.gain.value = 0.32;
 
     const o1 = c.createOscillator();
-    o1.type = 'sawtooth';
+    o1.type = scent ? 'triangle' : 'sawtooth';
     o1.frequency.value = pitch;
     const o2 = c.createOscillator();
-    o2.type = 'sawtooth';
-    o2.frequency.value = pitch * 1.498 + 0.7;
+    o2.type = scent ? 'sine' : 'sawtooth';
+    o2.frequency.value = scent ? pitch * 2.03 : pitch * 1.498 + 0.7;
     const o3 = c.createOscillator();
-    o3.type = 'square';
+    o3.type = scent ? 'sine' : 'square';
     o3.frequency.value = pitch * 0.5;
     const g3 = c.createGain();
     g3.gain.value = 0.5;
@@ -375,11 +447,25 @@ class SoundEngine {
     lp.connect(breath);
     breath.connect(out);
 
-    // slow "breathing" on amplitude, faster wobble on the filter
+    // a scent monster also has a wet, sniffing hiss that skips the low-pass
+    let hiss = null;
+    if (scent) {
+      hiss = c.createBufferSource();
+      hiss.buffer = this.noiseBuf;
+      hiss.loop = true;
+      const hb = this._filter('bandpass', 1500, 1.4);
+      const hg = c.createGain();
+      hg.gain.value = 0.3;
+      hiss.connect(hb);
+      hb.connect(hg);
+      hg.connect(breath);
+    }
+
+    // slow "breathing" on amplitude (a choppy sniff for a scent monster), faster wobble on the filter
     const lfo = c.createOscillator();
-    lfo.frequency.value = 0.35 + Math.random() * 0.3;
+    lfo.frequency.value = scent ? 1.6 + Math.random() * 0.4 : 0.35 + Math.random() * 0.3;
     const lfoDepth = c.createGain();
-    lfoDepth.gain.value = 0.3;
+    lfoDepth.gain.value = scent ? 0.55 : 0.3;
     lfo.connect(lfoDepth);
     lfoDepth.connect(breath.gain);
     const lfo2 = c.createOscillator();
@@ -402,21 +488,24 @@ class SoundEngine {
     (pan || out).connect(send);
     send.connect(this.reverbIn);
 
-    [o1, o2, o3, lfo, lfo2].forEach((o) => o.start(t));
-    return { out, pan, lp, o1, o2, o3, lfo, pitch, oscs: [o1, o2, o3, lfo, lfo2] };
+    const oscs = [o1, o2, o3, lfo, lfo2];
+    if (hiss) oscs.push(hiss);
+    oscs.forEach((o) => o.start(t));
+    return { out, pan, lp, o1, o2, o3, lfo, pitch, kind, oscs };
   }
 
   updateEnemyVoice(v, { gain, pan, mood, muffle }) {
     if (!v || !this.ctx) return;
     const t = this.ctx.currentTime;
+    const scent = v.kind === 'scent';
     v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.06);
     if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
-    v.lp.frequency.setTargetAtTime((190 + mood * 460) * (muffle ? 0.55 : 1), t, 0.1);
-    const pf = v.pitch * (1 + mood * 0.28);
+    v.lp.frequency.setTargetAtTime(((scent ? 300 : 190) + mood * (scent ? 300 : 460)) * (muffle ? 0.55 : 1), t, 0.1);
+    const pf = v.pitch * (1 + mood * (scent ? 0.12 : 0.28));
     v.o1.frequency.setTargetAtTime(pf, t, 0.18);
-    v.o2.frequency.setTargetAtTime(pf * 1.498 + 0.7, t, 0.18);
+    v.o2.frequency.setTargetAtTime(scent ? pf * 2.03 : pf * 1.498 + 0.7, t, 0.18);
     v.o3.frequency.setTargetAtTime(pf * 0.5, t, 0.18);
-    v.lfo.frequency.setTargetAtTime(0.35 + mood * 2.4, t, 0.3);
+    v.lfo.frequency.setTargetAtTime(scent ? 1.6 + mood * 2.2 : 0.35 + mood * 2.4, t, 0.3);
   }
 
   destroyEnemyVoice(v) {
@@ -430,6 +519,48 @@ class SoundEngine {
         /* already stopped */
       }
     });
+  }
+
+  /** Wet slap of a scent monster's footstep. */
+  scentStep(pan, gain) {
+    if (this.calm) gain *= 0.7;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.14);
+    const lp = this._filter('lowpass', 520 + Math.random() * 200, 1);
+    const g = this._env(t, 0.003, 0.4 * gain, 0.08);
+    n.connect(lp);
+    lp.connect(g);
+    this._route(g, pan, 0.3);
+    const o = this._osc('sine', 130, t, 0.16);
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.1);
+    const og = this._env(t, 0.003, 0.3 * gain, 0.1);
+    o.connect(og);
+    this._route(og, pan, 0.2);
+    this._track(n);
+  }
+
+  /** Two hard, wet snorts: a scent monster has caught your smell. */
+  scentAlert(pan, gain) {
+    if (this.calm) gain *= 0.35;
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    [0, 0.24].forEach((dt, i) => {
+      const n = this._noise(t + dt, 0.3);
+      const bp = this._filter('bandpass', 800, 2.4);
+      bp.frequency.setValueAtTime(800, t + dt);
+      bp.frequency.exponentialRampToValueAtTime(2600, t + dt + 0.16);
+      const g = this._env(t + dt, 0.012, 0.6 * gain, 0.17);
+      n.connect(bp);
+      bp.connect(g);
+      this._route(g, pan, 0.45);
+      if (i === 0) this._track(n);
+    });
+    const low = this._osc('sine', 78, t, 0.6);
+    low.frequency.exponentialRampToValueAtTime(58, t + 0.5);
+    const lg = this._env(t, 0.03, 0.4 * gain, 0.45);
+    low.connect(lg);
+    this._route(lg, pan, 0.3);
   }
 
   /** Chitinous clack of a monster's footstep. */

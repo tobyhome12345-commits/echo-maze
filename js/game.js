@@ -17,11 +17,16 @@
 
   const T_WALL = 1;
   const T_OBSTACLE = 2;
-  const T_ENEMY = 3;
+  const T_ENEMY = 3; // echo monster
   const T_EXIT = 4;
-  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160'];
-  const LINE_W = [0, 2.4, 2.8, 3.4, 3.2]; // core stroke width per type
+  const T_SCENT = 5; // scent monster (violet)
+  const T_PUDDLE = 6; // smell puddle (lime) - never blocks a ripple, just shows up in it
+  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70'];
+  const LINE_W = [0, 2.4, 2.8, 3.4, 3.2, 3.4, 3]; // core stroke width per type
+  const NRAYTYPES = 6; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster); 0 = nothing
   const ALPHA_LEVELS = 10;
+  const SMELL_TRAIL_STEP = 12; // px between recorded trail points
+  const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
 
   const COS = new Float32Array(RAYS);
   const SIN = new Float32Array(RAYS);
@@ -34,8 +39,9 @@
     1: 'SPACE sends a ripple. Blue is wall, amber is an obstacle. Follow the green chime.',
     2: 'You are not alone. Red means something alive. Its growl is your only warning.',
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
-    4: 'Move after every ripple - a monster you hit will hunt the spot you rippled from.',
+    4: 'Two echo monsters now. Move after every ripple - a monster you hit will hunt the spot you rippled from.',
     5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
+    6: 'A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -44,6 +50,8 @@
     'A monster only goes where you were. Once you move on, it has no idea where you went.',
     'Listen for growls and clicking steps. That is how you find monsters without waking them.',
     'A monster that has locked onto you loses you the moment you get far enough away. Run.',
+    'Smell only wears off while you WALK. Standing still keeps you smelly, so keep moving away.',
+    'A scent monster ignores ripples and footsteps. Only smell - and its trails - lead it to you.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -399,23 +407,36 @@
   }
 
   // --------------------------------------------------------------- enemies
+  /**
+   * Two kinds of monster:
+   *   'echo'  (red)    blind; learns of you only from a ripple hit or your close footsteps
+   *   'scent' (violet) ignores ripples and footsteps; follows SMELL. It never stands still.
+   * `state` is idle | hunt (walking to a spot) | search (listening) | track (following you)
+   * for an echo monster, and patrol | follow (along a smell trail) | track (smelling you) for a scent monster.
+   */
   function makeEnemy(spec) {
+    const kind = spec.kind || 'echo';
     return {
+      kind,
       x: spec.x,
       y: spec.y,
       r: ENEMY_R,
       sleeper: spec.sleeper,
-      state: 'idle', // idle | hunt (walking to a spot) | search (listening) | track (following you)
+      state: kind === 'scent' ? 'patrol' : 'idle',
       path: null,
       pi: 0,
       timer: 0,
       repath: 0,
-      pause: 1 + Math.random() * 2,
+      pause: kind === 'scent' ? 0.3 + Math.random() : 1 + Math.random() * 2,
       stepDist: 0,
       alertCd: 0,
-      voice: audio.ready ? audio.createEnemyVoice(spec.pitch) : null,
+      followTrail: null, // scent monster: the trail it is following
+      ignoreTrail: null, // scent monster: a trail it just finished; ignored until it walks away from it
+      voice: audio.ready ? audio.createEnemyVoice(spec.pitch, kind) : null,
     };
   }
+
+  const isChasing = (e) => e.state === 'hunt' || e.state === 'track' || e.state === 'follow';
 
   function destroyVoices() {
     for (const e of enemies) {
@@ -481,6 +502,11 @@
 
   function updateEnemy(e, dt) {
     e.alertCd = Math.max(0, e.alertCd - dt);
+    enemyAudio(e, e.kind === 'scent' ? updateScent(e, dt) : updateEcho(e, dt));
+  }
+
+  /** Echo monster AI. Returns the distance it moved this frame. */
+  function updateEcho(e, dt) {
     const speed = cfg.enemySpeed;
 
     let moved = 0;
@@ -528,21 +554,189 @@
       }
     }
 
-    // clicking footsteps, faster while hunting
+    return moved;
+  }
+
+  // --------------------------------------------------- smell + scent monsters
+  /** A scent monster has caught wind of you. */
+  function scentAlert(e) {
+    if (e.alertCd > 0) return;
+    const sp = spatial(e.x, e.y, 950);
+    audio.scentAlert(sp.pan, sp.g);
+    e.alertCd = 2;
+  }
+
+  /** Closest point on a smell trail to (x,y): { d, px, py, along, seg }, `along` = distance from the trail's start. */
+  function nearestOnTrail(tr, x, y) {
+    let best = { d: Infinity, px: 0, py: 0, along: 0, seg: 0 };
+    for (let i = 0; i < tr.pts.length - 1; i++) {
+      const a = tr.pts[i];
+      const b = tr.pts[i + 1];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const l2 = dx * dx + dy * dy;
+      const t = l2 > 0 ? clamp(((x - a.x) * dx + (y - a.y) * dy) / l2, 0, 1) : 0;
+      const px = a.x + dx * t;
+      const py = a.y + dy * t;
+      const d = Math.hypot(x - px, y - py);
+      if (d < best.d) best = { d, px, py, along: tr.cum[i] + Math.sqrt(l2) * t, seg: i };
+    }
+    return best;
+  }
+
+  /**
+   * A scent monster that touches a smell trail at all goes to the OTHER end of
+   * it - whichever end is farther along the trail from where it touched it.
+   */
+  function checkTrailTouch(e) {
+    for (const tr of level.trails) {
+      if (tr.pts.length < 2) continue;
+      // Once it has committed to a trail it just walks it. (Re-deciding every frame would
+      // flip which end is "farther" at the halfway point and make it pace back and forth.)
+      if (tr === e.followTrail) continue;
+      const hit = nearestOnTrail(tr, e.x, e.y);
+      if (tr === e.ignoreTrail) {
+        // it has just walked this trail; do not bounce straight back until it has left it
+        if (hit.d > TRAIL_TOUCH + 30) e.ignoreTrail = null;
+        continue;
+      }
+      if (hit.d > TRAIL_TOUCH) continue;
+      const toStart = hit.along;
+      const toEnd = tr.len - hit.along;
+      const path = [];
+      if (toStart > toEnd) for (let i = hit.seg; i >= 0; i--) path.push({ x: tr.pts[i].x, y: tr.pts[i].y }); // farther end = the start
+      else for (let i = hit.seg + 1; i < tr.pts.length; i++) path.push({ x: tr.pts[i].x, y: tr.pts[i].y }); // farther end = the far tip
+      if (!path.length) continue;
+      e.state = 'follow';
+      e.followTrail = tr;
+      e.path = path;
+      e.pi = 0;
+      scentAlert(e);
+      return;
+    }
+  }
+
+  /** Scent monster AI. Returns the distance it moved this frame. */
+  function updateScent(e, dt) {
+    const speed = cfg.scentSpeed;
+    let moved = 0;
+
+    // 1. Smelling YOU: only while you are smelly, and only within smellRange.
+    const smelly = player.smell > 0 && Math.hypot(player.x - e.x, player.y - e.y) <= cfg.smellRange;
+    if (smelly) {
+      if (e.state !== 'track') {
+        e.state = 'track';
+        e.repath = 0;
+        e.followTrail = null;
+        scentAlert(e);
+      }
+    } else if (e.state === 'track') {
+      // Your smell wore off, or you got far enough away. It has lost you.
+      e.state = 'patrol';
+      e.path = null;
+      e.pause = 0.5;
+    }
+
+    // 2. Smelling a TRAIL you left earlier (not while it is smelling you directly).
+    if (e.state !== 'track') checkTrailTouch(e);
+
+    // 3. Move.
+    if (e.state === 'track') {
+      e.repath -= dt;
+      if (e.repath <= 0) {
+        e.repath = 0.25;
+        setPathTo(e, player.x, player.y);
+      }
+      moved = followPath(e, speed, dt);
+    } else if (e.state === 'follow') {
+      moved = followPath(e, speed, dt);
+      if (!e.path) {
+        e.ignoreTrail = e.followTrail;
+        e.followTrail = null;
+        e.state = 'patrol';
+        e.pause = 0.8;
+      }
+    } else if (e.path) {
+      moved = followPath(e, speed * 0.55, dt); // patrol: an unhurried walk
+    } else {
+      e.pause -= dt;
+      if (e.pause <= 0) patrol(e);
+    }
+    return moved;
+  }
+
+  /** Walk to somewhere else in the maze. A scent monster never just stands there. */
+  function patrol(e) {
+    for (let i = 0; i < 8; i++) {
+      const t = randomNearbyTile(e, 10);
+      if (t && setPathTo(e, (t[0] + 0.5) * TILE, (t[1] + 0.5) * TILE)) {
+        e.pause = 0.4 + Math.random();
+        return;
+      }
+    }
+    e.path = null;
+    e.pause = 0.5;
+  }
+
+  /** You step into a puddle: smelly for smellSeconds of walking (stepping in again just tops it up). */
+  function stepInPuddle() {
+    const fresh = player.smell <= 0;
+    player.smell = cfg.smellSeconds;
+    audio.splash(fresh ? 1 : 0.5);
+    marks.push({ x: player.x, y: player.y, t: 0, life: 0.9, c: COLORS[T_PUDDLE], r: 26 });
+    if (!fresh) return;
+    // a new smell trail begins where you stepped in
+    const tr = { pts: [{ x: player.x, y: player.y }], cum: [0], len: 0, active: true };
+    level.trails.push(tr);
+    player.trail = tr;
+  }
+
+  /** While smelly and walking: the smell timer runs and the trail grows behind you. */
+  function updateSmell(dt, walked) {
+    const inside = level.puddles.some((p) => Math.hypot(player.x - p.x, player.y - p.y) < p.r);
+    if (inside) {
+      if (!player.inPuddle) stepInPuddle(); // just stepped in
+      else player.smell = cfg.smellSeconds; // still in it: the smell stays topped up
+    }
+    player.inPuddle = inside;
+    if (player.smell <= 0) return;
+    if (!walked) return; // the smell only wears off while you WALK - standing still never runs it out
+    player.smell = Math.max(0, player.smell - dt);
+    const tr = player.trail;
+    if (tr) {
+      const last = tr.pts[tr.pts.length - 1];
+      const d = Math.hypot(player.x - last.x, player.y - last.y);
+      if (d >= SMELL_TRAIL_STEP || player.smell === 0) {
+        if (d > 0.5) {
+          tr.pts.push({ x: player.x, y: player.y });
+          tr.len += d;
+          tr.cum.push(tr.len);
+        }
+      }
+      if (player.smell === 0) {
+        tr.active = false;
+        player.trail = null;
+      }
+    }
+  }
+
+  /** Footstep clicks / squelches and the continuous voice of one monster. */
+  function enemyAudio(e, moved) {
+    const scent = e.kind === 'scent';
+    const chasing = isChasing(e);
     e.stepDist += moved;
-    const chasing = e.state === 'hunt' || e.state === 'track';
-    const stride = chasing ? 24 : 18;
+    const stride = scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
     if (e.stepDist >= stride) {
       e.stepDist = 0;
       const sp = spatial(e.x, e.y, 540);
-      audio.enemyStep(sp.pan, sp.g);
+      if (scent) audio.scentStep(sp.pan, sp.g);
+      else audio.enemyStep(sp.pan, sp.g);
     }
 
-    // continuous voice
     if (e.voice) {
       const sp = spatial(e.x, e.y, 720);
       const occluded = !hasLOS(e.x, e.y, player.x, player.y);
-      const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : 0.35;
+      const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent ? 0.5 : 0.35;
       const gain = sp.g * (0.16 + 0.3 * mood) * (occluded ? 0.6 : 1);
       audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: occluded });
     }
@@ -567,7 +761,10 @@
       if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE });
     });
     enemies.forEach((e) => {
-      if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) circles.push({ x: e.x, y: e.y, r: e.r, type: T_ENEMY, enemy: e });
+      // a ripple SEES a scent monster (violet) but only an echo monster (red) learns of you from it
+      if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) {
+        circles.push({ x: e.x, y: e.y, r: e.r, type: e.kind === 'scent' ? T_SCENT : T_ENEMY, enemy: e });
+      }
     });
     const ex = level.exit;
     if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push({ x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
@@ -625,6 +822,14 @@
         w: b.type === T_WALL ? Math.min(1, 0.3 + b.n / 12) : 1,
       });
     }
+    // Puddles lie flat on the floor, so the wave passes over them (they never block a ripple).
+    // Any puddle the wave can see lights up lime when it arrives, and gives a wet "blorp" echo.
+    for (const p of level.puddles || []) {
+      const d = Math.hypot(p.x - ox, p.y - oy);
+      if (d > R || !hasLOS(ox, oy, p.x, p.y)) continue;
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[T_PUDDLE], r: p.r + 10, puddle: true });
+      echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_PUDDLE, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
+    }
     echoes.sort((a, b) => a.t - b.t);
 
     // A monster only learns of you if a ray of the wave actually reaches it
@@ -647,6 +852,8 @@
       case T_OBSTACLE: audio.echoObstacle(ev.pan, vol, ev.d); break;
       case T_ENEMY: audio.echoEnemy(ev.pan, vol, ev.d); break;
       case T_EXIT: audio.echoExit(ev.pan, vol); break;
+      case T_SCENT: audio.echoScent(ev.pan, vol, ev.d); break;
+      case T_PUDDLE: audio.echoPuddle(ev.pan, vol, ev.d); break;
     }
   }
 
@@ -678,12 +885,15 @@
     const ix = (down('KeyD', 'ArrowRight') ? 1 : 0) - (down('KeyA', 'ArrowLeft') ? 1 : 0);
     const iy = (down('KeyS', 'ArrowDown') ? 1 : 0) - (down('KeyW', 'ArrowUp') ? 1 : 0);
     let contact = null;
+    let walked = false; // did we really move this frame? (pushing into a wall does not count)
     if (ix || iy) {
       const len = Math.hypot(ix, iy);
       const px = player.x;
       const py = player.y;
       contact = moveCircle(player, (ix / len) * WALK_SPEED * dt, (iy / len) * WALK_SPEED * dt);
-      player.stepDist += Math.hypot(player.x - px, player.y - py);
+      const step = Math.hypot(player.x - px, player.y - py);
+      walked = step > 0.3;
+      player.stepDist += step;
       if (player.stepDist >= 30) {
         player.stepDist = 0;
         audio.footstep(1);
@@ -696,6 +906,7 @@
       marks.push({ x: contact.x, y: contact.y, t: 0, life: 0.9, c: COLORS[T_WALL] });
     }
     player.blocked = !!contact;
+    updateSmell(dt, walked);
 
     // --- world
     for (const e of enemies) updateEnemy(e, dt);
@@ -712,7 +923,7 @@
     // heartbeat + danger vignette as monsters close in
     let dmin = Infinity;
     for (const e of enemies) {
-      const d = Math.hypot(e.x - player.x, e.y - player.y) * (e.state === 'hunt' || e.state === 'track' ? 1 : 1.35);
+      const d = Math.hypot(e.x - player.x, e.y - player.y) * (isChasing(e) ? 1 : 1.35);
       if (d < dmin) dmin = d;
     }
     danger = clamp(1 - dmin / 300, 0, 1);
@@ -735,7 +946,7 @@
   // ----------------------------------------------------------------- render
   const segBuckets = [];
   const retBuckets = [];
-  for (let k = 0; k < 5; k++) {
+  for (let k = 0; k < NRAYTYPES; k++) {
     segBuckets[k] = [];
     for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a] = [];
     retBuckets[k] = [];
@@ -756,7 +967,7 @@
   function drawRipple(rp) {
     const r = rp.t * RIPPLE_SPEED;
     const { x, y, dist, type, R } = rp;
-    for (let k = 1; k < 5; k++) {
+    for (let k = 1; k < NRAYTYPES; k++) {
       retBuckets[k].length = 0;
       for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a].length = 0;
     }
@@ -814,7 +1025,7 @@
         else b.push(px, py, px, py);
       }
     }
-    for (let k = 1; k < 5; k++) {
+    for (let k = 1; k < NRAYTYPES; k++) {
       for (let a = 0; a < ALPHA_LEVELS; a++) {
         const al = (a + 0.5) / ALPHA_LEVELS;
         strokeBucket(segBuckets[k][a], `rgba(${COLORS[k]},${al * 0.2})`, LINE_W[k] * 3.2);
@@ -834,16 +1045,44 @@
     for (const rp of ripples) drawRipple(rp);
 
     for (const m of marks) {
+      if (m.t < 0) continue; // a reveal still waiting for the wave to reach it
       const a = 1 - m.t / m.life;
-      const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 18);
+      const rad = m.r || 18;
+      const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, rad);
       g.addColorStop(0, `rgba(${m.c},${a * 0.7})`);
       g.addColorStop(1, `rgba(${m.c},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 18, 0, TAU);
+      ctx.arc(m.x, m.y, rad, 0, TAU);
       ctx.fill();
+      if (m.puddle) {
+        ctx.strokeStyle = `rgba(${m.c},${a * 0.8})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, rad * 0.62, 0, TAU);
+        ctx.stroke();
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /** Smell trails you have left this level: faint, brighter while one is still being laid. */
+  function drawTrails() {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const tr of level.trails) {
+      if (tr.pts.length < 2) continue;
+      const pulse = tr.active ? 0.75 + 0.25 * Math.sin(levelTime * 7) : 1;
+      ctx.beginPath();
+      ctx.moveTo(tr.pts[0].x, tr.pts[0].y);
+      for (let i = 1; i < tr.pts.length; i++) ctx.lineTo(tr.pts[i].x, tr.pts[i].y);
+      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},${(tr.active ? 0.22 : 0.1) * pulse})`;
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},${(tr.active ? 0.6 : 0.3) * pulse})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
 
   function drawWorld() {
@@ -864,6 +1103,20 @@
       ctx.fill();
     }
 
+    // a puddle only glimmers when you are practically about to step in it
+    for (const p of level.puddles) {
+      const dp = Math.hypot(p.x - player.x, p.y - player.y);
+      if (dp > 70) continue;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r + 12);
+      g.addColorStop(0, `rgba(${COLORS[T_PUDDLE]},${(1 - dp / 70) * 0.5})`);
+      g.addColorStop(1, `rgba(${COLORS[T_PUDDLE]},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r + 12, 0, TAU);
+      ctx.fill();
+    }
+
+    drawTrails();
     drawRippleLayer();
     ctx.globalCompositeOperation = 'lighter';
 
@@ -885,6 +1138,22 @@
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(player.x, player.y, 12, -Math.PI / 2, -Math.PI / 2 + TAU * p);
+      ctx.stroke();
+    }
+    if (player.smell > 0) {
+      // smelly: a lime halo, and a ring that drains as you walk (it holds still while you stand still)
+      const f = player.smell / cfg.smellSeconds;
+      const sg = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 34);
+      sg.addColorStop(0, `rgba(${COLORS[T_PUDDLE]},0.22)`);
+      sg.addColorStop(1, `rgba(${COLORS[T_PUDDLE]},0)`);
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 34, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},0.75)`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 17, -Math.PI / 2, -Math.PI / 2 + TAU * f);
       ctx.stroke();
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -971,7 +1240,17 @@
     }
     level = generateLevel(n, runSeed, mode);
     cfg = level.cfg;
-    player = { x: level.start.x, y: level.start.y, r: PLAYER_R, stepDist: 0, bumpCd: 0, blocked: false };
+    player = {
+      x: level.start.x,
+      y: level.start.y,
+      r: PLAYER_R,
+      stepDist: 0,
+      bumpCd: 0,
+      blocked: false,
+      smell: 0, // seconds of WALKING left of being smelly (after stepping in a puddle)
+      trail: null, // the smell trail being laid right now
+      inPuddle: false,
+    };
     enemies = level.enemies.map(makeEnemy);
     ripples = [];
     marks = [];
