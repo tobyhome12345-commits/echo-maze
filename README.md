@@ -45,6 +45,13 @@ Clearing level 5 plays a second, shorter scene (~30 s, skippable, and **Continue
 
 The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. Both scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens both (no flash or shake, dimmer monster, quieter sound).
 
+## Replaying levels and cutscenes
+
+Once there is something to replay, a **Levels & cutscenes** button appears under Begin on the title screen (`Esc` goes back).
+
+- **Levels:** every level you have already **cleared on the selected difficulty** can be picked and played again (1 up to the one before your best). Levels you haven't cleared — including the one you're currently up to, which is what **Continue** is for — are dimmed and can't be picked. Each mode has its own list, so switch mode on the title screen to see another mode's levels. Replaying never lowers your saved progress, and it starts straight in the level with no cutscene, like Continue. **Hardcore has no level select**: it is one life from level 1 and can't be resumed, so a level select would just be a way around that.
+- **Cutscenes:** the intro and the scent-monster scene can be rewatched once they have played (the ones you haven't seen show as locked "???"). They work in every mode, honour calm mode, can be skipped, and drop you back on this screen when they end.
+
 ## How it works
 
 - **Ripples are ray-cast.** Each ripple fires 640 rays through the tile grid (plus circle tests for obstacles, monsters and the exit). The wavefront expands at a fixed speed, lights up what it hits, and a reflected wave travels back along each ray.
@@ -86,7 +93,7 @@ Pick one on the title screen. Each mode scales the level curve (the table shows 
 
 Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Easy, Normal and Hard**, being caught shows *Try again*, which puts you back at the start of the level you were on (same maze, monsters reset). In **Hardcore**, being caught ends the run: you are sent straight back to the title screen, there is no Continue and no way to resume, and the next Begin starts over from level 1 on a fresh maze. Your Hardcore **high score** (the furthest level you reached, or "finished the game") stays on the title screen — on the Hardcore button and as its own line — and is never lowered by a worse run. Every monster is always slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode.
 
-Progress (best level unlocked) is saved separately for each mode, and your choice of mode is remembered.
+Progress (best level unlocked) is saved separately for each mode, and your choice of mode is remembered. The cutscenes you have seen are remembered too.
 
 ## Calm mode
 
@@ -99,7 +106,7 @@ For anyone who finds the game a bit much. It is **purely visual and audio**, so 
 ## Project layout
 
 ```
-index.html      page + overlay screens (title, pause, caught, level complete, victory)
+index.html      page + overlay screens (title, replay, pause, caught, level complete, victory)
 style.css       styling
 js/audio.js     SoundEngine - procedural Web Audio synthesis
 js/level.js     level generation + difficulty curve (levelConfig)

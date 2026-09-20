@@ -14,6 +14,7 @@
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
   const CALM_KEY = 'echomaze.calm';
+  const SEEN_KEY = 'echomaze.seen'; // { intro: 1, scent: 1 } cutscenes that have played, so they can be replayed
 
   const T_WALL = 1;
   const T_OBSTACLE = 2;
@@ -58,7 +59,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'pause', 'caught', 'complete', 'victory'];
+  const overlays = ['title', 'replay', 'pause', 'caught', 'complete', 'victory'];
   // states: title | cutscene | play | paused | caught | complete
 
   const audio = new SoundEngine();
@@ -95,10 +96,20 @@
     return p;
   }
 
+  function loadSeen() {
+    try {
+      return JSON.parse(store.get(SEEN_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
   // ----------------------------------------------------------------- state
   let mode = MODES[store.get(MODE_KEY)] ? store.get(MODE_KEY) : 'normal'; // easy | normal | hard | hardcore
   let calm = store.get(CALM_KEY) === '1'; // softer visuals + sound, independent of the mode
   let progress = loadProgress();
+  let seen = loadSeen();
+  let replaying = false; // a cutscene is being rewatched from the replay screen (it returns there, not to a level)
   audio.calm = calm;
   let state = 'title';
   let runSeed = 1;
@@ -1313,12 +1324,26 @@
     updateRipples,
     drawRippleLayer,
     calm: () => calm,
-    // the intro leads into level 1; the scent-monster scene leads into level 6
-    finish: (kind) => startLevel(kind === 'scent' ? SCENT_FROM_LEVEL : 1),
+    finish(kind) {
+      if (replaying) {
+        // rewatched from the replay screen: go back there, no level starts
+        replaying = false;
+        toTitle();
+        showReplay();
+      } else {
+        // the intro leads into level 1; the scent-monster scene leads into level 6
+        startLevel(kind === 'scent' ? SCENT_FROM_LEVEL : 1);
+      }
+    },
   });
 
   /** kind: 'intro' (before level 1) or 'scent' (between levels 5 and 6). */
   function startCutscene(kind = 'intro') {
+    // remember that it has played, so it can be rewatched from the replay screen
+    if (!seen[kind]) {
+      seen[kind] = 1;
+      store.set(SEEN_KEY, JSON.stringify(seen));
+    }
     destroyVoices();
     audio.stopAmbient();
     state = 'cutscene';
@@ -1450,6 +1475,112 @@
     document.querySelectorAll('.calm-toggle').forEach((c) => {
       c.checked = calm;
     });
+    $('btn-replay').classList.toggle('hidden', !replayAvailable());
+  }
+
+  // ---------------------------------------------- replay: levels + cutscenes
+  const SCENES = [
+    { kind: 'intro', name: 'The Lost Explorer', blurb: 'How it all began.', locked: 'Press Begin to see it for the first time.' },
+    { kind: 'scent', name: 'Not Every Monster Listens', blurb: 'What follows the scent.', locked: 'You will see it when you clear level 5.' },
+  ];
+
+  /** Has this cutscene played? Saves from before this was tracked count if they got past it. */
+  function hasSeen(kind) {
+    if (seen[kind]) return true;
+    const reached = Math.max(...Object.keys(MODES).map((m) => getBest(m)));
+    return kind === 'intro' ? reached > 1 : reached >= SCENT_FROM_LEVEL;
+  }
+
+  /**
+   * How many levels can be replayed in this mode: the ones already cleared (1 .. best-1). The level
+   * you are up to is not one of them - that is what Continue is for. Hardcore has none: it is one
+   * life from level 1 and cannot be resumed, so a level select would just be a way to resume.
+   */
+  function clearedLevels() {
+    if (MODES[mode].oneLife) return 0;
+    return Math.min(getBest() - 1, CAMPAIGN_LEVELS);
+  }
+
+  function replayAvailable() {
+    return clearedLevels() > 0 || SCENES.some((s) => hasSeen(s.kind));
+  }
+
+  /** Fill in and show the replay screen for the current mode. */
+  function showReplay() {
+    const oneLife = !!MODES[mode].oneLife;
+    const cleared = clearedLevels();
+    $('replay-sub').textContent = `${MODES[mode].label} mode. Change the difficulty on the title screen to see another mode's levels.`;
+
+    const grid = $('level-grid');
+    grid.textContent = '';
+    grid.classList.toggle('hidden', oneLife);
+    if (!oneLife) {
+      for (let n = 1; n <= CAMPAIGN_LEVELS; n++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'lvl';
+        b.textContent = n;
+        if (n <= cleared) {
+          b.setAttribute('aria-label', `Play level ${n} again`);
+          b.addEventListener('click', () => playLevel(n));
+        } else {
+          b.disabled = true;
+          b.title = 'Not cleared yet';
+          b.setAttribute('aria-label', `Level ${n}, not cleared yet`);
+        }
+        grid.appendChild(b);
+      }
+    }
+    $('level-note').textContent = oneLife
+      ? 'Hardcore always starts on level 1 with one life, so there is no level select here. The cutscenes still work.'
+      : cleared
+        ? 'Levels you have already cleared on this mode. Pick one to play it again.'
+        : 'Clear a level and it will show up here.';
+
+    const list = $('scene-list');
+    list.textContent = '';
+    for (const s of SCENES) {
+      const ok = hasSeen(s.kind);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'scene';
+      const name = document.createElement('b');
+      name.textContent = ok ? s.name : '???';
+      const sub = document.createElement('small');
+      sub.textContent = ok ? s.blurb : s.locked;
+      b.append(name, sub);
+      if (ok) b.addEventListener('click', () => playScene(s.kind));
+      else b.disabled = true;
+      list.appendChild(b);
+    }
+    showOverlay('replay');
+  }
+
+  function openReplay() {
+    audio.init(); // a button click, so the browser lets the sound start
+    audio.uiClick();
+    showReplay();
+  }
+
+  function closeReplay() {
+    audio.uiClick();
+    refreshTitle();
+    showOverlay('title');
+  }
+
+  /** Play a cleared level again: like Continue, no cutscene first, same mode rules. */
+  function playLevel(n) {
+    if (state !== 'title' || n < 1 || n > clearedLevels()) return;
+    newRun(n);
+  }
+
+  /** Rewatch a cutscene that has already played. When it ends (or is skipped) you land back on the replay screen. */
+  function playScene(kind) {
+    if (state !== 'title' || !hasSeen(kind)) return;
+    audio.init();
+    audio.uiClick();
+    replaying = true;
+    startCutscene(kind);
   }
 
   function setMode(m) {
@@ -1495,7 +1626,12 @@
         if (e.code === 'Escape' || e.code === 'KeyP') unpause();
         break;
       case 'title':
-        if (e.code === 'Enter') {
+        if (!$('replay').classList.contains('hidden')) {
+          // the replay screen is open: Esc goes back; Enter just presses the focused button
+          if (e.code === 'Escape') closeReplay();
+        } else if (e.code === 'Enter') {
+          // a focused button (tabbed to) handles its own Enter; otherwise Enter means Begin
+          if (document.activeElement && document.activeElement.tagName === 'BUTTON') break;
           e.preventDefault();
           newRun(1, true);
         }
@@ -1570,6 +1706,8 @@
   });
   $('btn-start').addEventListener('click', () => newRun(1, true));
   $('btn-continue').addEventListener('click', () => newRun(getBest()));
+  $('btn-replay').addEventListener('click', openReplay);
+  $('btn-replay-back').addEventListener('click', closeReplay);
   $('btn-resume').addEventListener('click', () => {
     audio.uiClick();
     unpause();
@@ -1670,7 +1808,7 @@
       cutscene,
       setMode,
       setCalm,
-      settings: () => ({ mode, calm, progress: { ...progress } }),
+      settings: () => ({ mode, calm, progress: { ...progress }, seen: { ...seen } }),
       draw: () => draw(),
       audio,
     };

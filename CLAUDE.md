@@ -11,7 +11,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 1. Save the committed tree as a **new** folder `C:\Claude\Echo Maze\vN - short description` (e.g. `git archive --format=zip -o x.zip HEAD`, extract it, delete `CLAUDE.md` and `.gitignore` from the copy). Never edit or delete earlier `vN` folders.
 2. Re-point the shortcut `C:\Claude\Play Echo Maze.lnk` at the new folder's `index.html`.
 
-Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode`, `v8 - hardcore returns to title`, `v9 - scent monster and puddles`, `v10 - scent cutscene and ending` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
+Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode`, `v8 - hardcore returns to title`, `v9 - scent monster and puddles`, `v10 - scent cutscene and ending`, `v11 - level select and cutscene replay` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
 
 ## Monster rules (owner's design - don't loosen)
 
@@ -48,6 +48,13 @@ Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters g
 ## Cutscenes
 
 `js/cutscene.js` (`EchoCutscene.create(env)`) holds **two scenes**, chosen by `start(kind)`: `'intro'` (before level 1: lore cards, then a lost explorer taken by an echo monster) and `'scent'` (owner's request: after clearing level 5, before level 6 - another explorer steps in a puddle, leaves a trail, and a scent monster touches the trail and follows it to them; ends on the card "It can't hear you. It follows what you leave behind."). Both are scripted in a hand-built stage; the intro reuses the game's real ripple system (`env.castRipple`, `env.drawRippleLayer`). Everything is timed off one clock; the times are constants at the top (`S`, `LINES`, `PING_AT`, `LEAP_AT`, ... and the `SC_*` constants for the scent scene). The intro is played by "Begin" (`newRun(1, true)`); the scent scene by `advanceLevel()` when going 5 -> 6. "Continue", Try again and skipping never replay them, and both work the same in every mode. The scent scene shows the real mechanics (5s of walking smell, a trail, following it to the other end). It is skippable (Enter/Space/Esc/button, ignored for the first 0.6s). The explorer's voice is synthesised (`audio.voice`); do not add audio files. The explorer is unnamed and ungendered on purpose - keep it that way (no pronouns in text).
+
+## Replay screen: level select + cutscene replay (owner's request)
+
+- Title button "Levels & cutscenes" (`#btn-replay`, only shown when there is something to replay) opens the `#replay` overlay (`showReplay()` in `js/game.js`; `state` stays `'title'`, Esc goes back, and Enter on it must NOT start a run).
+- **Levels:** only levels **already cleared in the selected mode** are pickable: `clearedLevels()` = `min(best - 1, CAMPAIGN_LEVELS)`. The level you are up to (`best`) is NOT pickable - that is Continue. Locked levels are shown dimmed/disabled. Picking one calls `newRun(n)`: no cutscene (like Continue), replaying never lowers `progress`, Next level continues normally (5 -> 6 still plays the scent scene).
+- **Hardcore has no level select** (deliberate): it is one life from level 1 with no resuming, so picking a level would be a back door around that rule. Its cutscenes still work. If the owner wants hardcore level select, ask what it should do to the high score.
+- **Cutscenes:** `SEEN_KEY` = `echomaze.seen` (`{intro:1, scent:1}`), set in `startCutscene()` when a scene starts (skipping counts - they were shown it). `hasSeen(kind)` also counts old saves that got past the scene (any mode's best > 1 for the intro, >= 6 for the scent scene). Global, not per mode. Unseen ones show as locked "???" with a hint. Rewatching sets `replaying`; `cutscene`'s `finish` (end OR skip) then goes `toTitle()` + `showReplay()` instead of `startLevel`.
 
 ## Testing
 

@@ -72,8 +72,29 @@
         <button id="btn-start" class="primary">Begin</button>
         <button id="btn-continue" class="hidden">Continue</button>
       </div>
+      <div class="buttons">
+        <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
+      </div>
       <p class="fine">&#127911; Headphones recommended. Clicking Begin turns on the sound.</p>
       <label class="vol">Volume <input type="range" class="vol-slider" min="0" max="100" value="80"></label>
+    </div>
+  </section>
+
+  <section id="replay" class="overlay hidden">
+    <div class="panel">
+      <h2>Replay</h2>
+      <p id="replay-sub" class="mode-desc"></p>
+
+      <h3>Levels</h3>
+      <div id="level-grid" class="level-grid" role="group" aria-label="Levels you have cleared"></div>
+      <p id="level-note" class="fine"></p>
+
+      <h3>Cutscenes</h3>
+      <div id="scene-list" class="scene-list"></div>
+
+      <div class="buttons">
+        <button id="btn-replay-back" class="primary">Back <span class="key">Esc</span></button>
+      </div>
     </div>
   </section>
 

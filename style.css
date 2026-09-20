@@ -383,6 +383,76 @@ button.primary:focus-visible {
   box-shadow: 0 0 22px rgba(255, 59, 92, 0.35);
 }
 
+button.quiet {
+  padding: 8px 18px;
+  font-size: 12px;
+  color: var(--dim);
+  border-color: rgba(95, 212, 255, 0.2);
+}
+
+button:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+button:disabled:hover,
+button:disabled:focus-visible,
+button:disabled:active {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+/* replay screen: levels you have cleared + cutscenes you have seen */
+
+h3 {
+  margin: 20px 0 10px;
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+  gap: 8px;
+}
+
+button.lvl {
+  padding: 12px 0;
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.scene-list {
+  display: grid;
+  gap: 8px;
+}
+
+button.scene {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 11px 16px;
+  text-align: left;
+  letter-spacing: 0.08em;
+}
+
+button.scene small {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--dim);
+}
+
+#replay .buttons {
+  margin-top: 22px;
+}
+
 .key {
   margin-left: 8px;
   font-size: 11px;
