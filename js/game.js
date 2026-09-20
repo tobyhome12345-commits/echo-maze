@@ -28,7 +28,8 @@
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
-  const TRAIL_STEP_ON = 12; // px: how close the player must be to a finished trail to step on it (and smell again)
+  const TRAIL_STEP_ON = 14; // px: how close the player must be to a finished trail to step on it (and smell again)
+  const TRAIL_TIP_GRACE = 40; // px: the last stretch of the trail you have just finished laying, which does not count until you step off it
 
   const COS = new Float32Array(RAYS);
   const SIN = new Float32Array(RAYS);
@@ -708,20 +709,24 @@
 
   /**
    * Stepping onto a smell trail you left earlier (one that is still there) makes you smelly again,
-   * exactly as if you had stepped in a puddle - at most once every TRAIL_RESMELL_COOLDOWN seconds.
-   * Only when you are not smelly already, and never the trail you have only just finished laying
-   * until you have stepped off it (you are standing on its tip the moment your smell runs out).
+   * exactly as if you had stepped in a puddle (5 seconds of walking smell; if you are already smelly
+   * it tops you back up) - at most once every TRAIL_RESMELL_COOLDOWN seconds. Any part of any
+   * finished trail counts, including walking straight back along the one you have just laid.
+   * The only exceptions: the trail you are still laying, and the last TRAIL_TIP_GRACE px of the
+   * trail you have only just finished (you are standing on its tip the moment your smell runs out,
+   * so it would restart at once) until you have stepped off it or moved back along it.
    */
   function touchOwnTrail() {
     let touching = false;
     for (const tr of level.trails) {
       if (tr.active || tr.pts.length < 2) continue;
-      const on = nearestOnTrail(tr, player.x, player.y).d <= TRAIL_STEP_ON;
-      if (tr === player.justLeft) {
-        if (!on) player.justLeft = null; // stepped off: it counts from now on
+      const hit = nearestOnTrail(tr, player.x, player.y);
+      if (hit.d > TRAIL_STEP_ON) {
+        if (tr === player.justLeft) player.justLeft = null; // stepped off it: it counts in full from now on
         continue;
       }
-      if (on) touching = true;
+      if (tr === player.justLeft && hit.along > tr.len - TRAIL_TIP_GRACE) continue; // still at the tip you just finished
+      touching = true;
     }
     if (!touching || player.trailCd > 0) return;
     player.trailCd = TRAIL_RESMELL_COOLDOWN;
@@ -737,7 +742,7 @@
       else player.smell = cfg.smellSeconds; // still in it: the smell stays topped up
     }
     player.inPuddle = inside;
-    if (player.smell <= 0 && level.trails.length) touchOwnTrail();
+    if (level.trails.length) touchOwnTrail(); // smelly or not: a trail you left can (re)smell you
     if (player.smell <= 0) return;
     if (!walked) return; // the smell only wears off while you WALK - standing still never runs it out
     player.smell = Math.max(0, player.smell - dt);
@@ -757,7 +762,7 @@
         tr.active = false;
         tr.expireAt = levelTime + TRAIL_LIFETIME;
         player.trail = null;
-        player.justLeft = tr; // you are standing on its tip: it cannot re-smell you until you step off it
+        player.justLeft = tr; // you are standing on its tip: that stretch cannot re-smell you until you leave it
       }
     }
   }
