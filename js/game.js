@@ -9,7 +9,7 @@
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
-  const CAMPAIGN_LEVELS = 10;
+  const CAMPAIGN_LEVELS = 7; // the game so far: clearing level 7 ends it ("you finished") - more levels come later
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -41,7 +41,7 @@
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
     4: 'Two echo monsters now. Move after every ripple - a monster you hit will hunt the spot you rippled from.',
     5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
-    6: 'A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow.',
+    6: 'A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -102,7 +102,6 @@
   audio.calm = calm;
   let state = 'title';
   let runSeed = 1;
-  let endless = false;
   let levelNum = 1;
   let level = null;
   let cfg = null;
@@ -714,7 +713,9 @@
         }
       }
       if (player.smell === 0) {
+        // your smell has run out: the trail is finished, and now starts to fade (see TRAIL_LIFETIME)
         tr.active = false;
+        tr.expireAt = levelTime + TRAIL_LIFETIME;
         player.trail = null;
       }
     }
@@ -907,6 +908,11 @@
     }
     player.blocked = !!contact;
     updateSmell(dt, walked);
+    // a finished smell trail lasts about a minute, then it is gone
+    for (let i = level.trails.length - 1; i >= 0; i--) {
+      const tr = level.trails[i];
+      if (!tr.active && levelTime >= tr.expireAt) level.trails.splice(i, 1);
+    }
 
     // --- world
     for (const e of enemies) updateEnemy(e, dt);
@@ -1066,20 +1072,21 @@
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  /** Smell trails you have left this level: faint, brighter while one is still being laid. */
+  /** Smell trails you have left: faint, brighter while one is still being laid, fading out over their last 12 seconds. */
   function drawTrails() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (const tr of level.trails) {
       if (tr.pts.length < 2) continue;
       const pulse = tr.active ? 0.75 + 0.25 * Math.sin(levelTime * 7) : 1;
+      const fade = tr.active ? 1 : clamp((tr.expireAt - levelTime) / 12, 0, 1);
       ctx.beginPath();
       ctx.moveTo(tr.pts[0].x, tr.pts[0].y);
       for (let i = 1; i < tr.pts.length; i++) ctx.lineTo(tr.pts[i].x, tr.pts[i].y);
-      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},${(tr.active ? 0.22 : 0.1) * pulse})`;
+      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},${(tr.active ? 0.22 : 0.1) * pulse * fade})`;
       ctx.lineWidth = 8;
       ctx.stroke();
-      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},${(tr.active ? 0.6 : 0.3) * pulse})`;
+      ctx.strokeStyle = `rgba(${COLORS[T_PUDDLE]},${(tr.active ? 0.6 : 0.3) * pulse * fade})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -1276,7 +1283,6 @@
   /** Begin a run. A brand-new game plays the intro cutscene first; Continue skips it. */
   function newRun(fromLevel, withIntro) {
     runSeed = (Math.random() * 0x7fffffff) | 0;
-    endless = false;
     $('title-notice').classList.add('hidden');
     audio.init();
     audio.uiClick();
@@ -1307,17 +1313,26 @@
     updateRipples,
     drawRippleLayer,
     calm: () => calm,
-    finish: () => startLevel(1),
+    // the intro leads into level 1; the scent-monster scene leads into level 6
+    finish: (kind) => startLevel(kind === 'scent' ? SCENT_FROM_LEVEL : 1),
   });
 
-  function startCutscene() {
+  /** kind: 'intro' (before level 1) or 'scent' (between levels 5 and 6). */
+  function startCutscene(kind = 'intro') {
     destroyVoices();
     audio.stopAmbient();
     state = 'cutscene';
     showOverlay(null);
     $('hud').classList.add('hidden');
     $('banner').classList.remove('show');
-    cutscene.start();
+    cutscene.start(kind);
+  }
+
+  /** On from a cleared level. Going from level 5 to 6 plays the scent-monster cutscene first. */
+  function advanceLevel() {
+    audio.uiClick();
+    if (levelNum + 1 === SCENT_FROM_LEVEL) startCutscene('scent');
+    else startLevel(levelNum + 1);
   }
 
   function onCaught() {
@@ -1354,10 +1369,11 @@
     const m = Math.floor(levelTime / 60);
     const s = Math.floor(levelTime % 60);
     const stats = `Time ${m}:${String(s).padStart(2, '0')}  ·  Ripples ${ripplesUsed}`;
-    if (levelNum === CAMPAIGN_LEVELS && !endless) {
+    if (levelNum >= CAMPAIGN_LEVELS) {
+      // The end of the game so far. There is no level 8 yet.
       $('victory-text').textContent = MODES[mode].oneLife
-        ? 'All ten levels cleared on a single life. The echoes fade behind you…'
-        : `All ten levels cleared on ${MODES[mode].label}. The echoes fade behind you…`;
+        ? 'You cleared every level on a single life. The echoes fade behind you… More levels are coming.'
+        : `You cleared every level on ${MODES[mode].label}. The echoes fade behind you… More levels are coming.`;
       audio.victory();
       setTimeout(() => state === 'complete' && showOverlay('victory'), 700);
     } else {
@@ -1402,10 +1418,11 @@
     hardcore: 'A little harder than Hard — and you only get one life. Get caught and you are sent back to the title screen; there is no resuming.',
   };
 
-  /** Hardcore's high score is the furthest you got. 11 means all ten levels were cleared. */
-  const scoreText = (n) =>
-    n === CAMPAIGN_LEVELS + 1 ? 'all 10 levels cleared' : n > CAMPAIGN_LEVELS + 1 ? `endless level ${n}` : `level ${n}`;
-  const scoreShort = (n) => (n === CAMPAIGN_LEVELS + 1 ? '10/10' : `Lv ${n}`);
+  /** A best level past the last real level means the game was finished. */
+  const isFinished = (n) => n > CAMPAIGN_LEVELS;
+  /** Hardcore's high score is the furthest you got. */
+  const scoreText = (n) => (isFinished(n) ? 'finished the game' : `level ${n}`);
+  const scoreShort = (n) => (isFinished(n) ? 'Finished' : `Lv ${n}`);
 
   /** Bring the title screen's mode picker, best-level tags and Continue button up to date. */
   function refreshTitle() {
@@ -1416,7 +1433,7 @@
       const best = getBest(m);
       const tag = b.querySelector('small');
       if (MODES[m].oneLife) tag.textContent = progress[m] ? `High score: ${scoreShort(progress[m])}` : '';
-      else tag.textContent = best > 1 ? `Best: Lv ${best}` : '';
+      else tag.textContent = isFinished(best) ? 'Finished' : best > 1 ? `Best: Lv ${best}` : '';
     });
     $('mode-desc').textContent = MODE_INFO[mode];
     // Hardcore's high score stays visible even though it can never be resumed.
@@ -1427,7 +1444,8 @@
     // Hardcore has no Continue: dying ends the run, so there is nothing to resume.
     const best = getBest();
     const btn = $('btn-continue');
-    btn.classList.toggle('hidden', best <= 1 || !!MODES[mode].oneLife);
+    // ...and nothing to continue once the game has been finished (there is no level after the last)
+    btn.classList.toggle('hidden', best <= 1 || !!MODES[mode].oneLife || isFinished(best));
     btn.textContent = `Continue (Level ${best})`;
     document.querySelectorAll('.calm-toggle').forEach((c) => {
       c.checked = calm;
@@ -1497,7 +1515,7 @@
       case 'complete':
         if (e.code === 'Enter') {
           e.preventDefault();
-          if (!$('complete').classList.contains('hidden')) startLevel(levelNum + 1);
+          if (!$('complete').classList.contains('hidden')) advanceLevel();
         }
         break;
     }
@@ -1561,15 +1579,7 @@
     toTitle();
   });
   $('btn-retry').addEventListener('click', retry);
-  $('btn-next').addEventListener('click', () => {
-    audio.uiClick();
-    startLevel(levelNum + 1);
-  });
-  $('btn-endless').addEventListener('click', () => {
-    audio.uiClick();
-    endless = true;
-    startLevel(levelNum + 1);
-  });
+  $('btn-next').addEventListener('click', advanceLevel);
   $('btn-victory-title').addEventListener('click', () => {
     audio.uiClick();
     toTitle();
@@ -1643,11 +1653,12 @@
         for (let t = 0; t < secs && state === 'play'; t += 1 / 60) updatePlay(1 / 60);
       },
       // intro cutscene helpers: play it, hold time still, and jump to a moment
-      intro: () => {
+      intro: (kind = 'intro') => {
         audio.init();
         runSeed = 1;
-        startCutscene();
+        startCutscene(kind);
       },
+      advance: () => advanceLevel(),
       freeze: (on) => {
         debugFrozen = !!on;
       },

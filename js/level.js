@@ -41,6 +41,20 @@ const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
 const PUDDLE_R = 14;
 const SCENT_FROM_LEVEL = 6; // the scent monster and the smell puddles arrive together
 const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in a puddle
+const TRAIL_LIFETIME = 60; // seconds a finished smell trail lasts before it fades away
+
+/**
+ * The monsters on each level of the game so far - EXACT, and the same in every
+ * mode (the modes differ in speed, hearing, ripples and so on, not in how many
+ * monsters there are). The game currently ends after level 7.
+ *   level:  1  2  3  4  5  6  7
+ *   echo:   0  1  1  2  2  1  1
+ *   scent:  0  0  0  0  0  1  1
+ * Levels past 7 do not exist yet; the fallback formula below only keeps them
+ * generating sensibly (debug/testing) until they are designed.
+ */
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 1, 7: 1 };
+const SCENT_MONSTERS = { 6: 1, 7: 1 };
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {
@@ -48,6 +62,8 @@ function levelConfig(n, modeId = 'normal') {
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
   const basePuddles = n < SCENT_FROM_LEVEL ? 0 : Math.min(3 + (n - SCENT_FROM_LEVEL), 10);
+  const echoCount = n in ECHO_MONSTERS ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
+  const scentCount = n in ECHO_MONSTERS ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
   const enemySpeed = Math.min((70 + n * 8) * m.speed, m.speedCap); // px/s while hunting
   return {
     n,
@@ -57,15 +73,14 @@ function levelConfig(n, modeId = 'normal') {
     loopFrac: Math.min(0.08 + n * 0.015, 0.22), // extra openings -> loops
     rooms: Math.min(1 + Math.floor(n / 2), 8),
     obstacles: Math.min(2 + n, 22),
-    // echo monsters: from level 4 there are always at least two, in every mode
-    enemies: baseEnemies === 0 ? 0 : Math.min(Math.max(n >= 4 ? 2 : 1, Math.round(baseEnemies * m.count)), 10),
+    enemies: echoCount, // echo monsters (see ECHO_MONSTERS)
     enemySpeed,
     searchTime: m.listen, // seconds a monster listens after reaching the spot it was sent to
     footstepRadius: m.hear, // px, see MODES
     rippleRadius: Math.max(640 - n * 24, 360) * m.ripple,
     cooldown: Math.min(0.7 + n * 0.07, 1.5) * m.cooldown,
     // scent monsters + smell puddles (level 6+)
-    scentMonsters: baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4),
+    scentMonsters: scentCount, // see SCENT_MONSTERS
     scentSpeed: enemySpeed * 0.9, // a little slower than an echo monster; always well under the player's 170
     smellRange: m.smell,
     smellSeconds: SMELL_SECONDS,

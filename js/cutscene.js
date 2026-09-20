@@ -67,6 +67,42 @@ const EchoCutscene = (() => {
   const TURN_START = 22.4;
   const TURN_END = 23.1;
 
+  // ------------------------------------------------ the scent scene (levels 5 -> 6)
+  // A second explorer steps in a smell puddle, walks on leaving a trail, rests
+  // believing nothing can find them, and a scent monster picks up the trail and
+  // follows it to them. It plays after level 5 is cleared. Times are scene-relative
+  // (SC_S = when the scene proper begins, after one lore card).
+  const SC_S = 4.6;
+  const SC_SPEED = 55; // the explorer's walking pace, px/s
+  const SC_START_X = 100;
+  const SC_PUDDLE_X = 300;
+  const SC_SMELL = 5; // seconds of walking they stay smelly - exactly as in the game
+  const SC_PUDDLE_T = (SC_PUDDLE_X - SC_START_X) / SC_SPEED; // they step into the puddle
+  const SC_STOP_T = SC_PUDDLE_T + SC_SMELL; // the smell has run out; they stop walking
+  const SC_STOP_X = SC_START_X + SC_SPEED * SC_STOP_T;
+  const SC_MON_X0 = 40; // the scent monster comes in from the left
+  const SC_MON_T0 = 9.8;
+  const SC_MON_PATROL = 62; // px/s while it wanders
+  const SC_MON_FOLLOW = 95; // px/s once it has the trail
+  const SC_TOUCH_T = SC_MON_T0 + (SC_PUDDLE_X - SC_MON_X0) / SC_MON_PATROL; // it touches the start of the trail
+  const SC_REACH = SC_STOP_X - 26; // where it stops: right behind the explorer
+  const SC_HIT_T = SC_TOUCH_T + (SC_REACH - SC_PUDDLE_X) / SC_MON_FOLLOW; // ...and reaches them
+  const SC_CARD_T = SC_HIT_T + 3.2;
+  const SC_END_T = SC_HIT_T + 8.4;
+  const SC_LINES = [
+    [1.3, 'Almost through this part.'],
+    [4.1, "Ugh. What is this? It's all over my boots."],
+    [6.4, "It's fading... as long as I keep moving."],
+    [9.3, 'There. No pings, no noise. Nothing can find me now.'],
+    [12.0, '...Is that sniffing?'],
+    [SC_TOUCH_T + 0.5, "It's following my trail!"],
+  ];
+
+  const PAL_INTRO = { glow: '255,208,140', cone: '255,226,170', body: '255,226,175', hand: '255,232,190', head: '255,240,212', lamp: '255,250,232' };
+  const PAL_SCENT = { glow: '196,236,170', cone: '210,242,196', body: '206,236,196', hand: '214,242,204', head: '234,250,228', lamp: '246,255,240' };
+  const LIME = '190,240,70';
+  const VIOLET = '176,124,255';
+
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
   function buildStage() {
@@ -149,10 +185,25 @@ const EchoCutscene = (() => {
     let mvoice = null; // its growl, heard before it is seen
     let danger = 0; // 0..1 how close the thing feels
 
+    // which scene is playing: 'intro' (before level 1) or 'scent' (between levels 5 and 6)
+    let kind = 'intro';
+    let sceneStart = S;
+    let pal = PAL_INTRO;
+    // scent scene state
+    let smell = 0; // seconds of walking left of being smelly
+    let trail = null; // the smell trail behind the explorer: { pts, active }
+    let scentMon = null; // the scent monster: { x, state: 'patrol' | 'follow', stepDist }
+    let lunge = 0; // 0..1: the last rush at the explorer
+
     // -------------------------------------------------------------- helpers
-    const sceneT = () => time - S;
+    const sceneT = () => time - sceneStart;
     /** Calm mode softens the scare: no flash or shake, a dimmer monster, quieter sound. */
     const isCalm = () => !!(env.calm && env.calm());
+
+    /** Where the explorer of the scent scene is: walking at a steady pace, then stopped. */
+    const scWalkX = (st) => SC_START_X + SC_SPEED * clamp(st, 0, SC_STOP_T);
+    /** Explorer's x at scene time st, whichever scene is playing. */
+    const xAt = (st) => (kind === 'scent' ? scWalkX(st) : personX(st));
 
     function personX(st) {
       if (st <= WALK[0][0]) return WALK[0][1];
@@ -297,8 +348,161 @@ const EchoCutscene = (() => {
       events.sort((a, b) => a.t - b.t); // update() walks this list in order
     }
 
+    // --------------------------------------------- the scent scene: the timeline
+    function buildScent() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S2 = SC_S;
+
+      // one line of lore, then the scene
+      at(0.6, () => {
+        showCard('Not every monster listens.');
+        audio.swell(50);
+      });
+      at(S2 - 1.0, hideCard);
+      at(S2, () => {
+        rings = [];
+      });
+      at(S2 + 0.8, () => {
+        el.caption.textContent = 'Day 12';
+        el.caption.classList.add('show');
+      });
+      at(S2 + 3.4, () => el.caption.classList.remove('show'));
+      SC_LINES.forEach(([t, text]) => at(S2 + t, () => say(text)));
+      [2.0, 5.2, 9.0].forEach((t) => at(S2 + t, () => audio.breath(0.9)));
+
+      // in the puddle: the smell, and its trail, begin
+      at(S2 + SC_PUDDLE_T, () => {
+        smell = SC_SMELL;
+        trail = { pts: [{ x: SC_PUDDLE_X, y: PY }], active: true };
+        audio.splash(1);
+      });
+
+      // something comes in from the left, wandering - it has not heard a thing
+      at(S2 + SC_MON_T0, () => {
+        scentMon = { x: SC_MON_X0, state: 'patrol', stepDist: 0 };
+        mvoice = audio.createEnemyVoice(78, 'scent');
+      });
+      // ...until it touches the start of the trail, and follows it to the other end
+      at(S2 + SC_TOUCH_T, () => {
+        if (!scentMon) return;
+        scentMon.state = 'follow';
+        const h = heard(scentMon.x, PY, 900);
+        audio.scentAlert(h.pan, 1);
+      });
+      [[2.6, 0.5], [1.7, 0.7], [0.95, 0.9]].forEach(([before, g]) => at(S2 + SC_HIT_T - before, () => audio.heartbeat(g)));
+      at(S2 + SC_HIT_T - 0.7, () => {
+        noticed = true;
+      });
+      at(S2 + SC_HIT_T - 0.35, () => audio.lunge());
+      at(S2 + SC_HIT_T, () => {
+        flash = isCalm() ? 0 : 1;
+        shake = isCalm() ? 0 : 14;
+        personVisible = false;
+        lampOn = false;
+        stopMonsterVoice();
+        clearSub();
+        audio.stopAmbient();
+        audio.silence(1.1);
+      });
+      at(S2 + SC_HIT_T + 0.25, () => {
+        dark = true;
+        scentMon = null;
+      });
+
+      // only the trail is left glowing in the dark
+      at(S2 + SC_CARD_T, () => {
+        showCard("It can't hear you.\nIt follows what you leave behind.");
+        audio.swell(46, 1.1);
+      });
+      at(S2 + SC_CARD_T + 4.2, hideCard);
+      at(S2 + SC_END_T, () => finish());
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the scent scene. */
+    function updateScentScene(dt) {
+      if (time < SC_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - SC_S;
+      flash = Math.max(0, flash - dt * 2.4);
+      shake = Math.max(0, shake - dt * 30);
+
+      // the explorer walks at a steady pace until their smell has run out
+      const before = person.x;
+      person.x = scWalkX(st);
+      person.y = PY;
+      const walking = st < SC_STOP_T && personVisible;
+      if (walking) {
+        stepDist += person.x - before;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(0.35);
+        }
+      }
+
+      // smell: the clock only runs while they are walking, and a trail grows behind them
+      if (smell > 0 && walking) {
+        smell = Math.max(0, smell - dt);
+        if (trail) {
+          const last = trail.pts[trail.pts.length - 1];
+          if (person.x - last.x >= 12 || (smell === 0 && person.x - last.x > 1)) trail.pts.push({ x: person.x, y: PY });
+          if (smell === 0) trail.active = false;
+        }
+      }
+
+      // they turn towards the sniffing behind them, and flinch when they see what is coming
+      angle = Math.PI * smooth((st - (SC_TOUCH_T - 0.6)) / 0.7);
+      if (noticed) offX = lerp(offX, 12, Math.min(1, dt * 14));
+
+      // the scent monster: wanders in, touches the trail, follows it to the other end
+      if (scentMon) {
+        const follow = scentMon.state === 'follow';
+        const px = scentMon.x;
+        scentMon.x = Math.min(follow ? SC_REACH : SC_PUDDLE_X, px + (follow ? SC_MON_FOLLOW : SC_MON_PATROL) * dt);
+        scentMon.stepDist += scentMon.x - px;
+        if (scentMon.stepDist >= 26) {
+          scentMon.stepDist = 0;
+          const h = heard(scentMon.x, PY, 700);
+          audio.scentStep(h.pan, 0.5 + 0.5 * danger);
+        }
+      }
+      lunge = clamp((st - (SC_HIT_T - 0.35)) / 0.35, 0, 1);
+      danger = clamp((st - SC_MON_T0) / (SC_HIT_T - SC_MON_T0), 0, 1);
+      if (mvoice && scentMon) {
+        const h = heard(scentMon.x, PY, 800);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.12 + 0.4 * danger), pan: h.pan, mood: 0.35 + 0.65 * danger, muffle: false });
+      }
+
+      // the headlamp gutters as it gets close
+      const wobble = 0.82 + 0.18 * Math.sin(time * 21) + (Math.random() - 0.5) * 0.12;
+      const dropout = danger > 0.5 && Math.sin(time * 9.3) * Math.sin(time * 4.1) > 0.82 ? 0.25 : 1;
+      lampFlicker = lampOn ? wobble * dropout : 0;
+
+      camX = lerp(camX, person.x + (st < SC_STOP_T ? 70 : -60), Math.min(1, dt * 2.5));
+      camY = 150;
+    }
+
     // ----------------------------------------------------------------- flow
-    function start() {
+    /** kind: 'intro' (before level 1) or 'scent' (the story beat between levels 5 and 6). */
+    function start(k = 'intro') {
+      kind = k;
+      sceneStart = kind === 'scent' ? SC_S : S;
+      pal = kind === 'scent' ? PAL_SCENT : PAL_INTRO;
+      smell = 0;
+      trail = null;
+      scentMon = null;
+      lunge = 0;
       active = true;
       time = 0;
       stage = buildStage();
@@ -322,12 +526,13 @@ const EchoCutscene = (() => {
       danger = 0;
       camX = person.x;
       camY = 150;
-      build();
+      if (kind === 'scent') buildScent();
+      else build();
       el.root.classList.remove('hidden');
       el.card.classList.remove('show');
       el.caption.classList.remove('show');
       el.sub.classList.remove('show');
-      audio.startAmbient(1);
+      audio.startAmbient(kind === 'scent' ? 6 : 1);
     }
 
     function cleanup() {
@@ -344,7 +549,7 @@ const EchoCutscene = (() => {
     function finish() {
       if (!active) return;
       cleanup();
-      env.finish();
+      env.finish(kind);
     }
 
     function skip() {
@@ -360,6 +565,11 @@ const EchoCutscene = (() => {
 
       env.updateRipples(dt);
       updateSub();
+
+      if (kind === 'scent') {
+        updateScentScene(dt);
+        return;
+      }
 
       if (time < S) {
         ringTimer -= dt;
@@ -428,17 +638,17 @@ const EchoCutscene = (() => {
 
     function drawPerson() {
       const lamp = lampFlicker;
-      const walking = Math.abs(personX(sceneT() + 0.05) - personX(sceneT())) > 0.001;
+      const walking = Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
       const phase = time * 9;
       ctx.save();
       ctx.translate(person.x + offX, person.y + (walking ? Math.sin(phase) * 0.8 : 0));
       ctx.scale(1.3, 1.3);
       ctx.globalCompositeOperation = 'lighter';
 
-      // a soft pool of warm light from the failing headlamp
+      // a soft pool of light from the failing headlamp (warm in the intro, a cooler white in the scent scene)
       let g = ctx.createRadialGradient(0, 0, 0, 0, 0, 140);
-      g.addColorStop(0, `rgba(255,208,140,${0.2 * lamp})`);
-      g.addColorStop(1, 'rgba(255,208,140,0)');
+      g.addColorStop(0, `rgba(${pal.glow},${0.2 * lamp})`);
+      g.addColorStop(1, `rgba(${pal.glow},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(0, 0, 140, 0, TAU);
@@ -446,8 +656,8 @@ const EchoCutscene = (() => {
 
       ctx.rotate(angle);
       g = ctx.createRadialGradient(0, 0, 4, 0, 0, 170);
-      g.addColorStop(0, `rgba(255,226,170,${0.17 * lamp})`);
-      g.addColorStop(1, 'rgba(255,226,170,0)');
+      g.addColorStop(0, `rgba(${pal.cone},${0.17 * lamp})`);
+      g.addColorStop(1, `rgba(${pal.cone},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -456,24 +666,24 @@ const EchoCutscene = (() => {
       ctx.fill();
 
       // the figure, seen from above: pack, shoulders, swinging hands, head
-      ctx.fillStyle = 'rgba(255,226,175,0.3)';
+      ctx.fillStyle = `rgba(${pal.body},0.3)`;
       ctx.fillRect(-13, -7, 8, 14);
-      ctx.fillStyle = 'rgba(255,226,175,0.5)';
+      ctx.fillStyle = `rgba(${pal.body},0.5)`;
       ctx.beginPath();
       ctx.ellipse(0, 0, 5, 12, 0, 0, TAU);
       ctx.fill();
       const swing = walking ? Math.sin(phase) * 4 : 0;
-      ctx.fillStyle = 'rgba(255,232,190,0.55)';
+      ctx.fillStyle = `rgba(${pal.hand},0.55)`;
       [-1, 1].forEach((side) => {
         ctx.beginPath();
         ctx.arc(2 + swing * side, side * 11.5, 2.3, 0, TAU);
         ctx.fill();
       });
-      ctx.fillStyle = 'rgba(255,240,212,0.9)';
+      ctx.fillStyle = `rgba(${pal.head},0.9)`;
       ctx.beginPath();
       ctx.arc(2, 0, 5.2, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = `rgba(255,250,232,${0.95 * lamp})`;
+      ctx.fillStyle = `rgba(${pal.lamp},${0.95 * lamp})`;
       ctx.beginPath();
       ctx.arc(6.6, 0, 1.7, 0, TAU);
       ctx.fill();
@@ -559,6 +769,118 @@ const EchoCutscene = (() => {
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    /** The scent monster: violet line-art with a long, sniffing snout and six wet legs. */
+    function drawScentMonster() {
+      const m = scentMon;
+      const soft = isCalm();
+      // a faint violet glow out in the dark, clearer as it comes into the explorer's light
+      const near = clamp((300 - Math.abs(m.x - person.x)) / 140, 0.3, 1);
+      const alpha = near * (soft ? 0.55 : 1);
+      const scale = 1 + (soft ? 0.15 : 0.45) * lunge;
+      const follow = m.state === 'follow';
+      ctx.save();
+      ctx.translate(m.x + 26 * lunge, PY);
+      ctx.scale(scale, scale);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const path = () => {
+        ctx.beginPath();
+        ctx.moveTo(16, 0);
+        ctx.arc(0, 0, 16, 0, TAU); // body
+        ctx.moveTo(8, 0);
+        ctx.arc(0, 0, 8, 0, TAU);
+        // the snout, sniffing up and down
+        const sn = Math.sin(time * (follow ? 14 : 7)) * 3;
+        ctx.moveTo(15, -5);
+        ctx.lineTo(36, -4 + sn);
+        ctx.moveTo(15, 5);
+        ctx.lineTo(36, 4 + sn);
+        ctx.moveTo(38 + 2, -2 + sn);
+        ctx.arc(38, -2 + sn, 2, 0, TAU);
+        ctx.moveTo(40, 3 + sn);
+        ctx.arc(38, 3 + sn, 2, 0, TAU);
+        // six legs
+        for (let i = 0; i < 6; i++) {
+          const base = (i / 6) * TAU + 0.5;
+          const sw = Math.sin(time * (follow ? 22 : 12) + i * 2.1) * 0.25;
+          ctx.moveTo(Math.cos(base) * 14, Math.sin(base) * 14);
+          ctx.lineTo(Math.cos(base + 0.3 + sw) * 28, Math.sin(base + 0.3 + sw) * 28);
+          ctx.lineTo(Math.cos(base - 0.1 + sw * 1.3) * 40, Math.sin(base - 0.1 + sw * 1.3) * 40);
+        }
+      };
+      path();
+      ctx.strokeStyle = `rgba(${VIOLET},${0.22 * alpha})`;
+      ctx.lineWidth = 11;
+      ctx.stroke();
+      path();
+      ctx.strokeStyle = `rgba(200,165,255,${0.95 * alpha})`;
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /** Everything in the scent scene: the puddle, the trail, the explorer and what is following them. */
+    function drawScentWorld() {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // the puddle, lit by the explorer's lamp as they approach
+      const lit = clamp(1 - Math.abs(person.x - SC_PUDDLE_X) / 240, 0, 1);
+      const pg = ctx.createRadialGradient(SC_PUDDLE_X, PY, 0, SC_PUDDLE_X, PY, 30);
+      pg.addColorStop(0, `rgba(${LIME},${0.22 + 0.4 * lit})`);
+      pg.addColorStop(1, `rgba(${LIME},0)`);
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.arc(SC_PUDDLE_X, PY, 30, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${LIME},${0.3 + 0.4 * lit})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(SC_PUDDLE_X, PY, 15, 0, TAU);
+      ctx.stroke();
+
+      // the trail they leave: brighter while it is being laid and while something is walking it
+      if (trail && trail.pts.length > 1) {
+        const busy = trail.active || (scentMon && scentMon.state === 'follow');
+        const pulse = busy ? 0.75 + 0.25 * Math.sin(time * 7) : 1;
+        ctx.beginPath();
+        ctx.moveTo(trail.pts[0].x, trail.pts[0].y);
+        for (let i = 1; i < trail.pts.length; i++) ctx.lineTo(trail.pts[i].x, trail.pts[i].y);
+        ctx.strokeStyle = `rgba(${LIME},${(busy ? 0.22 : 0.12) * pulse})`;
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(${LIME},${(busy ? 0.6 : 0.34) * pulse})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (personVisible) {
+        drawPerson();
+        if (smell > 0) {
+          // smelly: a lime halo and a ring that drains as they walk - the same as in the game
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(person.x, PY, 0, person.x, PY, 40);
+          g.addColorStop(0, `rgba(${LIME},0.24)`);
+          g.addColorStop(1, `rgba(${LIME},0)`);
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(person.x, PY, 40, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = `rgba(${LIME},0.8)`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(person.x, PY, 22, -Math.PI / 2, -Math.PI / 2 + TAU * (smell / SC_SMELL));
+          ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
+      if (scentMon) drawScentMonster();
+    }
+
     function draw() {
       if (!active) return;
       const { DPR, viewScale } = env.size();
@@ -569,7 +891,7 @@ const EchoCutscene = (() => {
       ctx.fillStyle = '#010206';
       ctx.fillRect(0, 0, cw, ch);
 
-      if (time < S) {
+      if (time < sceneStart) {
         drawRings(cw, ch);
         return;
       }
@@ -579,9 +901,13 @@ const EchoCutscene = (() => {
       const sx = (Math.random() - 0.5) * shake * DPR;
       const sy = (Math.random() - 0.5) * shake * DPR;
       ctx.setTransform(s, 0, 0, s, cw / 2 - camX * s + sx, ch / 2 - camY * s + sy);
-      env.drawRippleLayer();
-      if (personVisible) drawPerson();
-      if (monster) drawMonster();
+      if (kind === 'scent') {
+        drawScentWorld();
+      } else {
+        env.drawRippleLayer();
+        if (personVisible) drawPerson();
+        if (monster) drawMonster();
+      }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
 
       // heavy vignette: the world is only what little light there is
@@ -624,6 +950,9 @@ const EchoCutscene = (() => {
       },
       get active() {
         return active;
+      },
+      get kind() {
+        return kind;
       },
       // for tests: the current screen flash / shake amounts
       get fx() {
