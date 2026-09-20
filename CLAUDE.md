@@ -32,7 +32,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v5.3 | 76f1d29 | stepping on your own trail smells you again |
 | v5.4 | 0d27706 | ripples have a limited range (about half of what it was) - see "Ripple range" |
 | v5.5 | 7abfb31 | a monster is alerted only when the wave really touches it where it is now (see Monster rules) |
-| v5.6 | (this commit) | fix: stepping on your own trail now also works when you walk straight back along it, and when already smelly (latest) |
+| v5.6 | 19d4186 | fix: stepping on your own trail now also works when you walk straight back along it, and when already smelly (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
