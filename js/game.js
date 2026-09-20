@@ -1622,7 +1622,14 @@
     $('title-notice').classList.add('hidden');
     audio.init();
     audio.uiClick();
-    if (withIntro) startCutscene();
+    if (withIntro) {
+      startCutscene();
+      return;
+    }
+    // Continue / a level picked from the list normally goes straight in - but if the story scene that leads
+    // into this level has never been shown (for example you got past it before the scene existed), it plays first.
+    const scene = SCENE_BEFORE_LEVEL[fromLevel];
+    if (scene && !hasSeen(scene)) startCutscene(scene);
     else startLevel(fromLevel);
   }
 
@@ -1813,16 +1820,30 @@
     { kind: 'decoy', name: 'Somewhere Else To Go', blurb: 'How to buy five seconds.', locked: 'You will see it when you clear level 8.' },
   ];
 
+  /** The furthest level unlocked in any mode (the cutscenes are the same in every mode). */
+  const furthestReached = () => Math.max(...Object.keys(MODES).map((m) => getBest(m)));
+
   /**
-   * Has this cutscene played? Saves from before this was tracked count for the two that already existed
-   * if they got past them. The newer scenes count only once they have actually been shown.
+   * Has this cutscene actually been shown? Saves from before this was tracked count for the two that
+   * already existed if they got past them. The newer scenes count only once they have really played.
+   * A scene that has NOT been seen plays first the next time you enter the level it leads into
+   * (see newRun), so a save that got past that point before the scene existed still gets it.
    */
   function hasSeen(kind) {
     if (seen[kind]) return true;
-    const reached = Math.max(...Object.keys(MODES).map((m) => getBest(m)));
+    const reached = furthestReached();
     if (kind === 'intro') return reached > 1;
     if (kind === 'scent') return reached >= SCENT_FROM_LEVEL;
     return false;
+  }
+
+  /**
+   * Can this cutscene be watched from the replay screen? Yes once it has been seen - and also once you
+   * are past the point where it plays (you have unlocked the level it leads into), even if it was added
+   * after you got there and you have not actually seen it.
+   */
+  function canReplay(kind) {
+    return hasSeen(kind) || (kind !== 'intro' && furthestReached() >= SCENE_LEADS_TO[kind]);
   }
 
   /**
@@ -1836,7 +1857,7 @@
   }
 
   function replayAvailable() {
-    return clearedLevels() > 0 || SCENES.some((s) => hasSeen(s.kind));
+    return clearedLevels() > 0 || SCENES.some((s) => canReplay(s.kind));
   }
 
   /** Fill in and show the replay screen for the current mode. */
@@ -1874,7 +1895,7 @@
     const list = $('scene-list');
     list.textContent = '';
     for (const s of SCENES) {
-      const ok = hasSeen(s.kind);
+      const ok = canReplay(s.kind);
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'scene';
@@ -1910,7 +1931,7 @@
 
   /** Rewatch a cutscene that has already played. When it ends (or is skipped) you land back on the replay screen. */
   function playScene(kind) {
-    if (state !== 'title' || !hasSeen(kind)) return;
+    if (state !== 'title' || !canReplay(kind)) return;
     audio.init();
     audio.uiClick();
     replaying = true;
