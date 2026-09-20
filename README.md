@@ -12,6 +12,7 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | --- | --- |
 | `W` `A` `S` `D` (or arrows) | Move |
 | `SPACE` | Send a ripple |
+| `E` | Drop the sonar decoy you are carrying (level 8+) |
 | `P` / `Esc` | Pause |
 | `M` | Mute |
 | `C` | Toggle calm mode (any screen, any difficulty) |
@@ -29,6 +30,7 @@ Headphones recommended: echoes and monsters are stereo-panned.
 | Red | Echo monsters |
 | Violet | Scent monsters (level 6+) |
 | Lime | Smell puddles (level 6+) and your smell trail |
+| Pink | The sonar decoy (level 8+) |
 | Green | The way out |
 
 ## The intro
@@ -63,16 +65,25 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 
 ## Levels
 
-There are **seven levels so far**. Clearing level 7 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
+There are **eight levels so far**. Clearing level 8 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
 
 The monsters on each level are **exact, and the same in every mode** (the modes differ in speed, hearing, ripples and puddles, not in how many monsters there are):
 
-| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 |
-| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 |
+| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 |
+| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 
-Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it.
+Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** and the **sonar decoy** (below), and from here every level has a sonar decoy to find.
+
+### The mimic (level 8+)
+
+A monster that **pretends to be the exit**. It is exactly as big as the exit, sits still and silent, and looks and sounds like it: it glimmers the same green when you are close, it sends out the same chime as the real exit from where it stands (so you hear two exits), and a ripple registers it as the exit (green, with the exit's bell) right up to the moment the wave reaches it. It does not show up in the colour legend, and it gives no heartbeat or growl warning. **The second a ripple's wave touches it, it turns into an ordinary echo monster** (its green rays turn red, its exit bell becomes a moan, and it goes to the spot the ripple was sent from). Walking into it before that kills you, like any monster. It never turns back.
+
+### The sonar decoy (level 8+)
+
+Every level from 8 has one **sonar decoy** lying somewhere (it glimmers pink when you are near, blips faintly, and shows up pink in a ripple). Walk onto it to pick it up — you can carry **only one**, shown in the top right — and press **`E`** to drop it where you stand. It beeps (faster and higher) for **5 seconds**, then **calls**: every monster within **480 px** of it — an echo monster (whatever it was doing, even asleep or tracking you), a scent monster, or a mimic **even if it hasn't turned yet** — is drawn to it. They pathfind to it and are **trapped there for 5 seconds after they arrive**, deaf to ripples, footsteps and smell, and then go back to normal (echo monsters and disguised mimics stand idle where they are; scent monsters patrol again). It is **one time use**. A trapped monster is still deadly to touch, so get past it, don't bump it. A mimic that is dragged over stays disguised and silent while it walks (only its chime moves).
 
 Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change.
 
@@ -118,4 +129,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `rippleRange()`, `audio`) for poking at the game from the console.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `audio`) for poking at the game from the console.

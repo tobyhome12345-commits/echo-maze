@@ -51,6 +51,14 @@ const RIPPLE_RANGE_BASE = 360; // px at level 1, before the mode multiplier
 const RIPPLE_RANGE_PER_LEVEL = 9; // px lost per level
 const RIPPLE_RANGE_MIN = 240; // px floor, before the mode multiplier
 
+// The mimic and the sonar decoy (both arrive on level 8)
+const MIMIC_FROM_LEVEL = 8; // a monster that pretends to be the exit until a ripple touches it
+const DECOY_FROM_LEVEL = 8; // every level from here has one sonar decoy lying somewhere to find
+const DECOY_ARM_SECONDS = 5; // after it is dropped, seconds before it starts calling
+const DECOY_RADIUS = 480; // px: every monster within this of a decoy when it calls is drawn to it
+const DECOY_TRAP_SECONDS = 5; // seconds a monster stays trapped at the decoy once it has arrived
+const DECOY_PICKUP_R = 12; // px
+
 const PUDDLE_R = 14;
 const SCENT_FROM_LEVEL = 6; // the scent monster and the smell puddles arrive together
 const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in a puddle
@@ -60,16 +68,19 @@ const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before
 /**
  * The monsters on each level of the game so far - EXACT, and the same in every
  * mode (the modes differ in speed, hearing, ripples and so on, not in how many
- * monsters there are). The game currently ends after level 7.
- *   level:  1  2  3  4  5  6  7
- *   echo:   0  1  1  2  2  0  1
- *   scent:  0  0  0  0  0  1  1
- * Level 6 is scent-only (no echo monsters); level 7 brings one echo back.
- * Levels past 7 do not exist yet; the fallback formula below only keeps them
+ * monsters there are). The game currently ends after level 8.
+ *   level:  1  2  3  4  5  6  7  8
+ *   echo:   0  1  1  2  2  0  1  1
+ *   scent:  0  0  0  0  0  1  1  1
+ *   mimic:  0  0  0  0  0  0  0  1
+ * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8
+ * adds the mimic (and the sonar decoy to find).
+ * Levels past 8 do not exist yet; the fallback formula below only keeps them
  * generating sensibly (debug/testing) until they are designed.
  */
-const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1 };
-const SCENT_MONSTERS = { 6: 1, 7: 1 };
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1 };
+const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1 };
+const MIMIC_MONSTERS = { 8: 1 };
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {
@@ -79,6 +90,7 @@ function levelConfig(n, modeId = 'normal') {
   const basePuddles = n < SCENT_FROM_LEVEL ? 0 : Math.min(3 + (n - SCENT_FROM_LEVEL), 10);
   const echoCount = n in ECHO_MONSTERS ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
   const scentCount = n in ECHO_MONSTERS ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
+  const mimicCount = n in ECHO_MONSTERS ? MIMIC_MONSTERS[n] || 0 : n >= MIMIC_FROM_LEVEL ? 1 : 0;
   const enemySpeed = Math.min((70 + n * 8) * m.speed, m.speedCap); // px/s while hunting
   return {
     n,
@@ -100,6 +112,9 @@ function levelConfig(n, modeId = 'normal') {
     smellRange: m.smell,
     smellSeconds: SMELL_SECONDS,
     puddles: basePuddles === 0 ? 0 : Math.max(2, Math.round(basePuddles * m.puddles)),
+    // the mimic (level 8+) and the sonar decoy (level 8+)
+    mimics: mimicCount, // see MIMIC_MONSTERS
+    decoy: n >= DECOY_FROM_LEVEL, // one to find on the level
   };
 }
 
@@ -339,6 +354,58 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     });
   }
 
+  // 9. Mimics (level 8+): a monster that passes for the exit. It sits well away from the start (so it is a
+  //    plausible exit), and never right next to the real one. (These come after every other random draw so
+  //    that levels without a mimic generate exactly as they always did.)
+  const exitFar = dS[exitIdx];
+  for (let k = 0; k < cfg.mimics; k++) {
+    let pick = -1;
+    for (const [minSep, farFrac] of [[6, 0.5], [3, 0.3], [0, 0]]) {
+      for (const idx of spots) {
+        if (dS[idx] < Math.max(minStart, exitFar * farFrac) || dE[idx] < 8 || tooClose(idx, minSep)) continue;
+        pick = idx;
+        break;
+      }
+      if (pick >= 0) break;
+    }
+    if (pick < 0) pick = spots.find((i) => dS[i] >= 4 && dE[i] >= 4 && !tooClose(i, 0)) ?? -1;
+    if (pick < 0) continue;
+    const tx = pick % W;
+    const ty = (pick / W) | 0;
+    enemies.push({
+      kind: 'mimic',
+      tx,
+      ty,
+      x: (tx + 0.5) * TILE,
+      y: (ty + 0.5) * TILE,
+      sleeper: false,
+      pitch: 50 + rand() * 10, // its voice, once it has turned into an echo monster
+    });
+  }
+
+  // 10. The sonar decoy (level 8+): one to find, fairly early on, away from every monster, the exit and the puddles.
+  let decoy = null;
+  if (cfg.decoy) {
+    let pick = -1;
+    for (const [lo, hi, minSep] of [[5, 16, 5], [4, 22, 3], [3, 999, 0]]) {
+      for (const idx of spots) {
+        const tx = idx % W;
+        const ty = (idx / W) | 0;
+        if (dS[idx] < lo || dS[idx] > hi || tooClose(idx, minSep)) continue;
+        if (Math.max(Math.abs(tx - ex), Math.abs(ty - ey)) < 3) continue;
+        if (puddles.some((p) => Math.hypot(p.tx - tx, p.ty - ty) < 2)) continue;
+        pick = idx;
+        break;
+      }
+      if (pick >= 0) break;
+    }
+    if (pick >= 0) {
+      const tx = pick % W;
+      const ty = (pick / W) | 0;
+      decoy = { x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, r: DECOY_PICKUP_R, tx, ty, taken: false };
+    }
+  }
+
   return {
     cfg,
     W,
@@ -347,6 +414,7 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     blocked,
     obstacles,
     puddles,
+    decoy, // the sonar decoy lying on the floor waiting to be picked up (level 8+), or null
     trails: [], // smell trails laid by the player this level (see game.js)
     enemies,
     start: { x: (sx + 0.5) * TILE, y: (sy + 0.5) * TILE },

@@ -407,6 +407,126 @@ class SoundEngine {
     });
   }
 
+  // ------------------------------------------------- mimic + sonar decoy
+
+  /** A mimic's disguise breaks: the exit's bell goes sour and slides down into a monster's shriek. */
+  mimicReveal(pan, gain) {
+    if (this.calm) gain *= 0.4;
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    [880, 1318.5].forEach((f, i) => {
+      const o = this._osc('sawtooth', f, t, 0.9);
+      o.frequency.exponentialRampToValueAtTime(f * 0.28, t + 0.7);
+      const lp = this._filter('lowpass', 2600, 1.2);
+      const g = this._env(t, 0.01, 0.3 * gain * (i ? 0.6 : 1), 0.7);
+      o.connect(lp);
+      lp.connect(g);
+      this._route(g, pan, 0.5);
+      if (i === 0) this._track(o);
+    });
+    const n = this._noise(t, 0.4);
+    const bp = this._filter('bandpass', 1800, 1.5);
+    const ng = this._env(t, 0.005, 0.32 * gain, 0.3);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, pan, 0.4);
+    const low = this._osc('sine', 110, t, 0.7);
+    low.frequency.exponentialRampToValueAtTime(48, t + 0.6);
+    const lg = this._env(t, 0.02, 0.4 * gain, 0.55);
+    low.connect(lg);
+    this._route(lg, pan, 0.3);
+  }
+
+  /** Echo off a sonar decoy: a soft pink double blip (unlike the exit's bell or a monster's moan). */
+  echoDecoy(pan, vol) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    [0, 0.11].forEach((dt, i) => {
+      const o = this._osc('triangle', i ? 1760 : 1245, t + dt, 0.3);
+      const g = this._env(t + dt, 0.004, 0.2 * vol, 0.16);
+      o.connect(g);
+      this._route(g, pan, 0.5);
+      if (i === 0) this._track(o);
+    });
+  }
+
+  /** You pick up the sonar decoy: three quick rising notes. */
+  decoyPickup() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [659.25, 880, 1174.66].forEach((f, i) => {
+      const at = t + i * 0.08;
+      const o = this._osc('triangle', f, at, 0.4);
+      const g = this._env(at, 0.005, 0.22, 0.24);
+      o.connect(g);
+      this._route(g, 0, 0.4);
+      if (i === 0) this._track(o);
+    });
+  }
+
+  /** You put the decoy down: a soft click and a low thunk. */
+  decoyDrop() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 190, t, 0.3);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.16);
+    const g = this._env(t, 0.004, 0.36, 0.2);
+    o.connect(g);
+    this._route(g, 0, 0.2);
+    const n = this._noise(t, 0.08);
+    const bp = this._filter('bandpass', 2200, 3);
+    const ng = this._env(t, 0.002, 0.16, 0.05);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, 0, 0.15);
+    this._track(o);
+  }
+
+  /** The armed decoy's beep. `f` (0..1) is how close it is to calling: it rises in pitch as it gets there. */
+  decoyTick(pan, gain, f = 0) {
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 700 + 900 * f, t, 0.16);
+    const g = this._env(t, 0.004, 0.22 * gain, 0.09);
+    o.connect(g);
+    this._route(g, pan, 0.35);
+    this._track(o);
+  }
+
+  /** The decoy calls: a rising and falling siren sweep that every monster nearby answers. */
+  decoyCall(pan, gain) {
+    if (this._busy(100)) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sawtooth', 320, t, 1.4);
+    o.frequency.exponentialRampToValueAtTime(1500, t + 0.45);
+    o.frequency.exponentialRampToValueAtTime(380, t + 1.2);
+    const lp = this._filter('lowpass', 2400, 1);
+    const g = this._env(t, 0.03, 0.32 * gain, 1.1);
+    o.connect(lp);
+    lp.connect(g);
+    this._route(g, pan, 0.6);
+    const o2 = this._osc('sine', 640, t, 1.4);
+    o2.frequency.exponentialRampToValueAtTime(3000, t + 0.45);
+    o2.frequency.exponentialRampToValueAtTime(760, t + 1.2);
+    const g2 = this._env(t, 0.03, 0.16 * gain, 1.1);
+    o2.connect(g2);
+    this._route(g2, pan, 0.6);
+    this._track(o);
+  }
+
+  /** A faint blip from the decoy lying on the floor, so it can be found in the dark. */
+  decoyBlip(pan, gain) {
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    [0, 0.09].forEach((dt, i) => {
+      const o = this._osc('triangle', i ? 2093 : 1568, t + dt, 0.2);
+      const g = this._env(t + dt, 0.004, 0.12 * gain, 0.1);
+      o.connect(g);
+      this._route(g, pan, 0.45);
+      if (i === 0) this._track(o);
+    });
+  }
+
   // --------------------------------------------------------- enemy (monster)
 
   /**

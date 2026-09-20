@@ -9,7 +9,7 @@
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
-  const CAMPAIGN_LEVELS = 7; // the game so far: clearing level 7 ends it ("you finished") - more levels come later
+  const CAMPAIGN_LEVELS = 8; // the game so far: clearing level 8 ends it ("you finished") - more levels come later
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -22,7 +22,8 @@
   const T_EXIT = 4;
   const T_SCENT = 5; // scent monster (violet)
   const T_PUDDLE = 6; // smell puddle (lime) - never blocks a ripple, just shows up in it
-  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70'];
+  const T_DECOY = 7; // sonar decoy (pink) - lies flat like a puddle, shows up in a ripple but never blocks it
+  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217'];
   const LINE_W = [0, 2.4, 2.8, 3.4, 3.2, 3.4, 3]; // core stroke width per type
   const NRAYTYPES = 6; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster); 0 = nothing
   const ALPHA_LEVELS = 10;
@@ -46,6 +47,7 @@
     5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
     6: 'No echo monsters here. A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
     7: 'Your own trail can smell you again: step back onto it while it lasts and you are smelly, like a puddle. Give it about ten seconds between touches.',
+    8: 'Not every green glow is the way out: something here copies the exit, and turns on you when your ripple touches it. Find the pink sonar decoy - press E to drop it.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -123,6 +125,8 @@
   let enemies = [];
   let ripples = [];
   let marks = [];
+  let decoys = []; // sonar decoys the player has dropped this level (level 8+)
+  let decoyBlipTimer = 0;
   let cooldown = 0;
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -421,11 +425,17 @@
 
   // --------------------------------------------------------------- enemies
   /**
-   * Two kinds of monster:
+   * Three kinds of monster:
    *   'echo'  (red)    blind; learns of you only from a ripple hit or your close footsteps
    *   'scent' (violet) ignores ripples and footsteps; follows SMELL. It never stands still.
+   *   'mimic' (green)  passes for the EXIT: the exit's size, its green ripple echo, its glow when you are near
+   *                    and its chime. It sits still and silent until the wave of a ripple touches it, and
+   *                    then it becomes an ordinary 'echo' monster (see revealMimic). A sonar decoy can still
+   *                    drag it around while it is disguised.
    * `state` is idle | hunt (walking to a spot) | search (listening) | track (following you)
    * for an echo monster, and patrol | follow (along a smell trail) | track (smelling you) for a scent monster.
+   * Any monster a sonar decoy has called is `lured` (walking to it) and then `trapped` (held there for
+   * DECOY_TRAP_SECONDS) before it goes back to normal (see lureEnemy / updateLured).
    */
   function makeEnemy(spec) {
     const kind = spec.kind || 'echo';
@@ -433,7 +443,8 @@
       kind,
       x: spec.x,
       y: spec.y,
-      r: ENEMY_R,
+      r: kind === 'mimic' ? EXIT_R : ENEMY_R, // a disguised mimic is exactly as big as the exit it copies
+      pitch: spec.pitch, // kept so a mimic can get its echo-monster voice when it turns
       sleeper: spec.sleeper,
       state: kind === 'scent' ? 'patrol' : 'idle',
       path: null,
@@ -445,7 +456,7 @@
       alertCd: 0,
       followTrail: null, // scent monster: the trail it is following
       ignoreTrail: null, // scent monster: a trail it just finished; ignored until it walks away from it
-      voice: audio.ready ? audio.createEnemyVoice(spec.pitch, kind) : null,
+      voice: audio.ready && kind !== 'mimic' ? audio.createEnemyVoice(spec.pitch, kind) : null, // a disguised mimic makes no sound of its own
     };
   }
 
@@ -515,7 +526,52 @@
 
   function updateEnemy(e, dt) {
     e.alertCd = Math.max(0, e.alertCd - dt);
-    enemyAudio(e, e.kind === 'scent' ? updateScent(e, dt) : updateEcho(e, dt));
+    if (e.state === 'lured' || e.state === 'trapped') {
+      // a sonar decoy has called it: it ignores everything else (ripples, footsteps, smell) until it is released
+      enemyAudio(e, updateLured(e, dt));
+      return;
+    }
+    // a disguised mimic just sits there, silent, being an exit
+    const moved = e.kind === 'scent' ? updateScent(e, dt) : e.kind === 'mimic' ? 0 : updateEcho(e, dt);
+    enemyAudio(e, moved);
+  }
+
+  // ------------------------------------------------------------ sonar decoy
+  /** A decoy has called this monster: it walks to the decoy by the shortest path. Returns false if it can't get there. */
+  function lureEnemy(e, x, y) {
+    if (!setPathTo(e, x, y)) return false;
+    e.state = 'lured';
+    e.followTrail = null;
+    e.ignoreTrail = null;
+    return true;
+  }
+
+  /** Walk to the decoy, then stay trapped there for DECOY_TRAP_SECONDS; then go back to normal. */
+  function updateLured(e, dt) {
+    let moved = 0;
+    if (e.state === 'lured') {
+      moved = followPath(e, e.kind === 'scent' ? cfg.scentSpeed : cfg.enemySpeed, dt);
+      if (!e.path) {
+        e.state = 'trapped';
+        e.timer = DECOY_TRAP_SECONDS; // counts from the moment it arrives
+      }
+    } else {
+      e.timer -= dt;
+      if (e.timer <= 0) releaseLured(e);
+    }
+    return moved;
+  }
+
+  /** Back to normal: a scent monster patrols again; an echo monster or a still-disguised mimic goes idle where it is. */
+  function releaseLured(e) {
+    e.path = null;
+    if (e.kind === 'scent') {
+      e.state = 'patrol';
+      e.pause = 0.5;
+    } else {
+      e.state = 'idle';
+      e.pause = 1 + Math.random() * 2;
+    }
   }
 
   /** Echo monster AI. Returns the distance it moved this frame. */
@@ -769,6 +825,7 @@
 
   /** Footstep clicks / squelches and the continuous voice of one monster. */
   function enemyAudio(e, moved) {
+    if (e.kind === 'mimic') return; // disguised: no footsteps, no voice - the only sound it makes is the exit's chime
     const scent = e.kind === 'scent';
     const chasing = isChasing(e);
     e.stepDist += moved;
@@ -816,9 +873,10 @@
       if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE });
     });
     enemies.forEach((e) => {
-      // a ripple SEES a scent monster (violet) but only an echo monster (red) learns of you from it
+      // a ripple SEES a scent monster (violet) but only an echo monster (red) learns of you from it;
+      // a disguised mimic is seen as an EXIT (green, with the exit's bell) until the wave touches it
       if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) {
-        circles.push({ x: e.x, y: e.y, r: e.r, type: e.kind === 'scent' ? T_SCENT : T_ENEMY, enemy: e });
+        circles.push({ x: e.x, y: e.y, r: e.r, type: e.kind === 'scent' ? T_SCENT : e.kind === 'mimic' ? T_EXIT : T_ENEMY, enemy: e });
       }
     });
     const ex = level.exit;
@@ -860,7 +918,7 @@
         if (!bin) wallBins.set(key, (bin = { type: T_WALL, n: 0, sd: 0, sx: 0 }));
       } else {
         bin = objBins.get(hitId[i]);
-        if (!bin) objBins.set(hitId[i], (bin = { type: type[i], n: 0, sd: 0, sx: 0 }));
+        if (!bin) objBins.set(hitId[i], (bin = { type: type[i], n: 0, sd: 0, sx: 0, enemy: circles[hitId[i]].enemy }));
       }
       bin.n++;
       bin.sd += d;
@@ -875,15 +933,20 @@
         d,
         pan: clamp((b.sx / b.n) * 0.9, -1, 1),
         w: b.type === T_WALL ? Math.min(1, 0.3 + b.n / 12) : 1,
+        enemy: b.enemy, // which monster this echo is off (so a mimic's echo can turn into a monster's, see revealMimic)
       });
     }
     // Puddles lie flat on the floor, so the wave passes over them (they never block a ripple).
     // Any puddle the wave can see lights up lime when it arrives, and gives a wet "blorp" echo.
-    for (const p of level.puddles || []) {
+    // Sonar decoys (the one lying on the floor and any that have been dropped) are the same, in pink.
+    const flats = (level.puddles || []).map((p) => ({ x: p.x, y: p.y, r: p.r, type: T_PUDDLE }));
+    if (level.decoy && !level.decoy.taken) flats.push({ x: level.decoy.x, y: level.decoy.y, r: 12, type: T_DECOY });
+    for (const dc of decoys) flats.push({ x: dc.x, y: dc.y, r: 12, type: T_DECOY });
+    for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
       if (d > R || !hasLOS(ox, oy, p.x, p.y)) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[T_PUDDLE], r: p.r + 10, puddle: true });
-      echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_PUDDLE, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true });
+      echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
 
@@ -893,7 +956,7 @@
     const seen = new Set();
     for (const bin of objBins.keys()) if (circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy);
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6 });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6 });
   }
 
   /** Can the wave get from (ox,oy) to this monster? A wall, a boulder or another monster in the way stops it. */
@@ -923,6 +986,8 @@
           const t = rayCircle(ox, oy, vx, vy, o.x, o.y, o.r);
           if (t >= 0 && t < dd) { clear = false; break; }
         }
+        const t = rayCircle(ox, oy, vx, vy, level.exit.x, level.exit.y, level.exit.r); // the exit blocks the wave too
+        if (clear && t >= 0 && t < dd) clear = false;
       }
       if (clear) return true;
     }
@@ -939,12 +1004,17 @@
   function touchMonsters(rp, r0, r1) {
     if (state !== 'play' || r0 >= rp.R) return; // no monsters to alert, or the outgoing wave has ended
     for (const e of enemies) {
-      if (e.kind !== 'echo' || rp.touched.has(e)) continue;
+      if ((e.kind !== 'echo' && e.kind !== 'mimic') || rp.touched.has(e)) continue;
       const d = Math.hypot(e.x - rp.x, e.y - rp.y);
       if (d - e.r > r1 || d + e.r < r0) continue; // the front is not passing over it this frame
       if (!waveReaches(rp.x, rp.y, e)) continue;
       rp.touched.add(e);
-      if (e.state === 'track') continue;
+      if (e.kind === 'mimic') {
+        // the wave touched the "exit": it was a mimic all along, and it is an echo monster from now on
+        revealMimic(e);
+      }
+      // a monster a sonar decoy has called, and one already tracking you, ignore the ripple
+      if (e.state === 'track' || e.state === 'lured' || e.state === 'trapped') continue;
       if (!rp.seen.has(e)) {
         // it walked into the wave after the ripple was sent, so no echo of it was planned: show and sound it now
         marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_ENEMY], r: 34 });
@@ -952,6 +1022,33 @@
         rp.echoes.sort((a, b) => a.t - b.t);
       }
       alertEnemy(e, rp.x, rp.y);
+    }
+  }
+
+  /**
+   * A mimic's disguise breaks: a ripple's wave touched it. From now on it is an ordinary echo monster (it
+   * never goes back to being an exit). Every ripple still in the air that had bounced off it as an "exit"
+   * now shows it as a monster - its rays turn red and the echo that has not arrived yet becomes a monster's
+   * moan instead of the exit's bell - so what you see and hear matches what it is.
+   */
+  function revealMimic(e) {
+    e.kind = 'echo';
+    e.r = ENEMY_R;
+    e.voice = audio.ready ? audio.createEnemyVoice(e.pitch, 'echo') : null;
+    marks.push({ x: e.x, y: e.y, t: 0, life: 1.4, c: COLORS[T_ENEMY], r: 40 });
+    const sp = spatial(e.x, e.y, 950);
+    audio.mimicReveal(sp.pan, Math.max(sp.g, 0.25));
+    for (const rp of ripples) {
+      let hit = false;
+      for (let j = 0; j < RAYS; j++) {
+        const id = rp.hitId[j];
+        if (id >= 0 && rp.circles[id].enemy === e) {
+          rp.type[j] = T_ENEMY;
+          hit = true;
+        }
+      }
+      for (let i = rp.ei; i < rp.echoes.length; i++) if (rp.echoes[i].enemy === e) rp.echoes[i].type = T_ENEMY;
+      if (hit) rp.seen.add(e); // its echo is already planned (now as a monster), so it is not "walking into the wave"
     }
   }
 
@@ -964,6 +1061,7 @@
       case T_EXIT: audio.echoExit(ev.pan, vol); break;
       case T_SCENT: audio.echoScent(ev.pan, vol, ev.d); break;
       case T_PUDDLE: audio.echoPuddle(ev.pan, vol, ev.d); break;
+      case T_DECOY: audio.echoDecoy(ev.pan, vol, ev.d); break;
     }
   }
 
@@ -977,6 +1075,90 @@
     ripples = ripples.filter((rp) => rp.t < rp.life);
     for (const m of marks) m.t += dt;
     marks = marks.filter((m) => m.t < m.life);
+  }
+
+  // ------------------------------------------------- sonar decoy (level 8+)
+  /** Pick up the decoy lying on the floor by walking onto it (you can only carry one). */
+  function collectDecoy() {
+    const d = level.decoy;
+    if (!d || d.taken || player.hasDecoy) return;
+    if (Math.hypot(d.x - player.x, d.y - player.y) > d.r + PLAYER_R + 4) return;
+    d.taken = true;
+    player.hasDecoy = true;
+    audio.decoyPickup();
+    updateHud();
+    notify('Sonar decoy', 'Press E to drop it. A few seconds later it calls every monster nearby to it - and traps them there.');
+  }
+
+  /** E: drop the decoy you are carrying where you stand. */
+  function dropDecoy() {
+    if (state !== 'play' || !player.hasDecoy) return;
+    player.hasDecoy = false;
+    decoys.push({ x: player.x, y: player.y, t: 0, phase: 'arming', tick: 0, hum: 0, ring: 0, lured: [] });
+    marks.push({ x: player.x, y: player.y, t: 0, life: 0.9, c: COLORS[T_DECOY], r: 26 });
+    audio.decoyDrop();
+    updateHud();
+  }
+
+  /** The moment a dropped decoy calls: every monster within DECOY_RADIUS is drawn to it, whatever it was doing. */
+  function callMonsters(d) {
+    d.phase = 'active';
+    d.ring = 0;
+    d.hum = 1.2;
+    for (const e of enemies) {
+      if (e.state === 'lured' || e.state === 'trapped') continue;
+      if (Math.hypot(e.x - d.x, e.y - d.y) > DECOY_RADIUS) continue;
+      if (lureEnemy(e, d.x, d.y)) d.lured.push(e);
+    }
+    const sp = spatial(d.x, d.y, 1100);
+    audio.decoyCall(sp.pan, Math.max(sp.g, 0.3));
+  }
+
+  function updateDecoys(dt) {
+    // the decoy still lying on the floor gives a faint blip when you are near, so it can be found in the dark
+    const fd = level.decoy;
+    if (fd && !fd.taken) {
+      decoyBlipTimer -= dt;
+      if (decoyBlipTimer <= 0) {
+        decoyBlipTimer = 3.2;
+        const sp = spatial(fd.x, fd.y, 300);
+        if (sp.g > 0.02) audio.decoyBlip(sp.pan, sp.g);
+      }
+    }
+    for (let i = decoys.length - 1; i >= 0; i--) {
+      const d = decoys[i];
+      d.t += dt;
+      if (d.phase === 'arming') {
+        // a beep that speeds up and rises until it calls (one time use)
+        d.tick -= dt;
+        if (d.tick <= 0) {
+          const f = clamp(d.t / DECOY_ARM_SECONDS, 0, 1);
+          d.tick = 0.85 - 0.6 * f;
+          const sp = spatial(d.x, d.y, 700);
+          audio.decoyTick(sp.pan, Math.max(sp.g, 0.12), f);
+        }
+        if (d.t >= DECOY_ARM_SECONDS) callMonsters(d);
+      } else {
+        d.ring += dt;
+        d.hum -= dt;
+        if (d.hum <= 0) {
+          d.hum = 1.2;
+          const sp = spatial(d.x, d.y, 700);
+          audio.decoyTick(sp.pan, Math.max(sp.g, 0.1) * 0.7, 1);
+        }
+        // spent once everything it called has been let go again
+        if (d.ring > 1.2 && d.lured.every((e) => e.state !== 'lured' && e.state !== 'trapped')) decoys.splice(i, 1);
+      }
+    }
+  }
+
+  /** A short message in the banner (the level hint uses the same spot). */
+  function notify(title, text, ms = 6000) {
+    $('banner-title').textContent = title;
+    $('banner-text').textContent = text;
+    $('banner').classList.add('show');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => $('banner').classList.remove('show'), ms);
   }
 
   // ----------------------------------------------------------------- update
@@ -1020,21 +1202,30 @@
       if (!tr.active && levelTime >= tr.expireAt) level.trails.splice(i, 1);
     }
 
+    collectDecoy();
+    updateDecoys(dt);
+
     // --- world
     for (const e of enemies) updateEnemy(e, dt);
     updateRipples(dt);
 
-    // exit beacon
+    // exit beacon - and a mimic chimes exactly the same, from wherever it is
     beaconTimer -= dt;
     if (beaconTimer <= 0) {
       beaconTimer = 2.4;
       const sp = spatial(level.exit.x, level.exit.y, 620);
       if (sp.g > 0.015) audio.beacon(sp.pan, sp.g);
+      for (const e of enemies) {
+        if (e.kind !== 'mimic') continue;
+        const sm = spatial(e.x, e.y, 620);
+        if (sm.g > 0.015) audio.beacon(sm.pan, sm.g);
+      }
     }
 
-    // heartbeat + danger vignette as monsters close in
+    // heartbeat + danger vignette as monsters close in (a disguised mimic gives no warning: it is just an exit)
     let dmin = Infinity;
     for (const e of enemies) {
+      if (e.kind === 'mimic') continue;
       const d = Math.hypot(e.x - player.x, e.y - player.y) * (isChasing(e) ? 1 : 1.35);
       if (d < dmin) dmin = d;
     }
@@ -1203,17 +1394,46 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // the exit only glimmers when you are practically on top of it
-    const de = Math.hypot(level.exit.x - player.x, level.exit.y - player.y);
-    if (de < 130) {
+    // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically
+    const glimmerExit = (x, y) => {
+      const de = Math.hypot(x - player.x, y - player.y);
+      if (de >= 130) return;
       const a = (1 - de / 130) * 0.45;
-      const g = ctx.createRadialGradient(level.exit.x, level.exit.y, 0, level.exit.x, level.exit.y, 46);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 46);
       g.addColorStop(0, `rgba(${COLORS[T_EXIT]},${a})`);
       g.addColorStop(1, `rgba(${COLORS[T_EXIT]},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(level.exit.x, level.exit.y, 46, 0, TAU);
+      ctx.arc(x, y, 46, 0, TAU);
       ctx.fill();
+    };
+    glimmerExit(level.exit.x, level.exit.y);
+    for (const e of enemies) if (e.kind === 'mimic') glimmerExit(e.x, e.y);
+
+    // sonar decoys glimmer pink when you are close: the one lying on the floor, and any you have dropped
+    const glimmerDecoy = (x, y, pulse) => {
+      const dd = Math.hypot(x - player.x, y - player.y);
+      if (dd >= 110) return;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 30);
+      g.addColorStop(0, `rgba(${COLORS[T_DECOY]},${(1 - dd / 110) * 0.55 * pulse})`);
+      g.addColorStop(1, `rgba(${COLORS[T_DECOY]},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, 30, 0, TAU);
+      ctx.fill();
+    };
+    if (level.decoy && !level.decoy.taken) glimmerDecoy(level.decoy.x, level.decoy.y, 0.7 + 0.3 * Math.sin(levelTime * 5));
+    for (const d of decoys) {
+      glimmerDecoy(d.x, d.y, d.phase === 'arming' ? 0.6 + 0.4 * Math.sin(d.t * (6 + 10 * (d.t / DECOY_ARM_SECONDS))) : 1);
+      if (d.phase === 'active' && d.ring < 0.9) {
+        // the call: a pink ring sweeping out to the edge of its reach
+        const f = d.ring / 0.9;
+        ctx.strokeStyle = `rgba(${COLORS[T_DECOY]},${(1 - f) * 0.5})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, DECOY_RADIUS * f, 0, TAU);
+        ctx.stroke();
+      }
     }
 
     // a puddle only glimmers when you are practically about to step in it
@@ -1331,6 +1551,7 @@
   function updateHud() {
     $('hud-level').textContent = `Level ${levelNum} · ${MODES[mode].label}`;
     $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
+    $('hud-item').textContent = player && player.hasDecoy ? 'Sonar decoy · E' : '';
     $('hud-audio').textContent = [calm ? 'Calm' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
   }
 
@@ -1365,8 +1586,11 @@
       justLeft: null, // the trail you finished laying most recently, until you step off it
       trailCd: 0, // seconds until a trail can make you smelly again (TRAIL_RESMELL_COOLDOWN)
       inPuddle: false,
+      hasDecoy: false, // carrying a sonar decoy (level 8+): E drops it
     };
     enemies = level.enemies.map(makeEnemy);
+    decoys = [];
+    decoyBlipTimer = 1.5;
     ripples = [];
     marks = [];
     cooldown = 0;
@@ -1411,6 +1635,7 @@
       cfg = stage.cfg;
       player = stage.person;
       enemies = [];
+      decoys = [];
       ripples = [];
       marks = [];
       danger = 0;
@@ -1717,6 +1942,7 @@
     switch (state) {
       case 'play':
         if (e.code === 'Space') emitRipple();
+        else if (e.code === 'KeyE') dropDecoy();
         else if (e.code === 'Escape' || e.code === 'KeyP') pause();
         break;
       case 'paused':
@@ -1895,6 +2121,8 @@
       },
       advance: () => advanceLevel(),
       ripples: () => ripples,
+      decoys: () => decoys,
+      dropDecoy,
       rippleRange,
       freeze: (on) => {
         debugFrozen = !!on;
