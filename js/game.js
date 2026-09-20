@@ -882,17 +882,72 @@
     }
     echoes.sort((a, b) => a.t - b.t);
 
-    // A monster only learns of you if a ray of the wave actually reaches it
-    // (line of sight, within range). It reacts when the wave arrives.
-    const alerts = [];
-    for (const bin of objBins.keys()) {
-      if (circles[bin].type !== T_ENEMY) continue;
-      const b = objBins.get(bin);
-      alerts.push({ t: b.sd / b.n / RIPPLE_SPEED, e: circles[bin].enemy });
-    }
-    alerts.sort((a, b) => a.t - b.t);
+    // The echo monsters this wave's rays hit at the moment it was sent (they are in `echoes`).
+    // Whether a monster is really TOUCHED - and so learns of you - is not decided here: it is
+    // decided as the wavefront passes over wherever the monster is at that moment (touchMonsters).
+    const seen = new Set();
+    for (const bin of objBins.keys()) if (circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy);
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, echoes, ei: 0, alerts, ai: 0, life: (2 * R) / RIPPLE_SPEED + 2.6 });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6 });
+  }
+
+  /** Can the wave get from (ox,oy) to this monster? A wall, a boulder or another monster in the way stops it. */
+  function waveReaches(ox, oy, e) {
+    const dx = e.x - ox;
+    const dy = e.y - oy;
+    const d = Math.hypot(dx, dy);
+    if (d < 1) return true;
+    const ux = dx / d;
+    const uy = dy / d;
+    // aim at points across the monster's width: the wave touches it if it gets to any of them
+    for (const k of [0, -0.8, 0.8, -0.4, 0.4]) {
+      const tx = e.x - uy * k * e.r;
+      const ty = e.y + ux * k * e.r;
+      const dd = Math.hypot(tx - ox, ty - oy);
+      const vx = (tx - ox) / dd;
+      const vy = (ty - oy) / dd;
+      if (raycastWall(ox, oy, vx, vy, dd) < dd) continue;
+      let clear = true;
+      for (const o of level.obstacles) {
+        const t = rayCircle(ox, oy, vx, vy, o.x, o.y, o.r);
+        if (t >= 0 && t < dd) { clear = false; break; }
+      }
+      if (clear) {
+        for (const o of enemies) {
+          if (o === e) continue;
+          const t = rayCircle(ox, oy, vx, vy, o.x, o.y, o.r);
+          if (t >= 0 && t < dd) { clear = false; break; }
+        }
+      }
+      if (clear) return true;
+    }
+    return false;
+  }
+
+  /**
+   * An echo monster learns of you ONLY when the outgoing wave really touches it: its front passes
+   * over the monster, where the monster is at that moment (not where it was when you pressed SPACE),
+   * within the ripple's reach, with nothing blocking the wave. r0..r1 is how far the front travelled
+   * this frame. The monster then goes to where the ripple was sent from. (A monster already tracking
+   * you knows better; scent monsters never learn from a ripple.)
+   */
+  function touchMonsters(rp, r0, r1) {
+    if (state !== 'play' || r0 >= rp.R) return; // no monsters to alert, or the outgoing wave has ended
+    for (const e of enemies) {
+      if (e.kind !== 'echo' || rp.touched.has(e)) continue;
+      const d = Math.hypot(e.x - rp.x, e.y - rp.y);
+      if (d - e.r > r1 || d + e.r < r0) continue; // the front is not passing over it this frame
+      if (!waveReaches(rp.x, rp.y, e)) continue;
+      rp.touched.add(e);
+      if (e.state === 'track') continue;
+      if (!rp.seen.has(e)) {
+        // it walked into the wave after the ripple was sent, so no echo of it was planned: show and sound it now
+        marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_ENEMY], r: 34 });
+        rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_ENEMY, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
+        rp.echoes.sort((a, b) => a.t - b.t);
+      }
+      alertEnemy(e, rp.x, rp.y);
+    }
   }
 
   function playEcho(ev, R) {
@@ -909,13 +964,10 @@
 
   function updateRipples(dt) {
     for (const rp of ripples) {
+      const before = Math.min(rp.t * RIPPLE_SPEED, rp.R); // where the wavefront was
       rp.t += dt;
+      touchMonsters(rp, before, Math.min(rp.t * RIPPLE_SPEED, rp.R));
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
-      while (rp.ai < rp.alerts.length && rp.alerts[rp.ai].t <= rp.t) {
-        const a = rp.alerts[rp.ai++];
-        // a monster already tracking you knows better than the ripple spot
-        if (state === 'play' && a.e.state !== 'track') alertEnemy(a.e, rp.x, rp.y);
-      }
     }
     ripples = ripples.filter((rp) => rp.t < rp.life);
     for (const m of marks) m.t += dt;

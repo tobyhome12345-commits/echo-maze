@@ -30,14 +30,15 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v5.1 | af2dcf9 | level select and cutscene replay |
 | v5.2 | 7411670 | level 6 scent only |
 | v5.3 | 76f1d29 | stepping on your own trail smells you again |
-| v5.4 | 0d27706 | ripples have a limited range (about half of what it was) - see "Ripple range" (latest) |
+| v5.4 | 0d27706 | ripples have a limited range (about half of what it was) - see "Ripple range" |
+| v5.5 | (this commit) | a monster is alerted only when the wave really touches it where it is now (see Monster rules) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
 ## Monster rules (owner's design - don't loosen)
 
 - Touching a monster (circles overlapping) kills you.
-- A monster learns something only when a ripple ray hits it, and then goes to the *exact spot the ripple was sent from*. It never learns where the player is now.
+- A monster learns something only when a ripple's wave **actually touches it**, and then goes to the *exact spot the ripple was sent from*. It never learns where the player is now. "Touches" is physical and decided every frame in `touchMonsters()` (`js/game.js`): the outgoing wavefront must pass over the monster **where it is right then** (not where it was when SPACE was pressed - a monster that steps out of the way is missed, one that walks into the wave is caught), within the ripple's range, and `waveReaches()` must find a clear line (no wall, boulder or other monster in the way; it aims at five points across the monster's width). Each ripple touches a monster at most once (`rp.touched`). Monsters the snapshot rays hit at SPACE time (`rp.seen`) already have their echo planned; one that walks into the wave afterwards gets a reveal mark and echo sound added at that moment. Only echo monsters can be touched into hunting; scent monsters never can. There is exactly one route by which an echo monster starts hunting (`alertEnemy`, called only from `touchMonsters`); footsteps (`hearFootstep`) only matter for a monster already in its `search` window after such a touch.
 - After arriving it stands still and **listens for `searchTime`** (3.5-6.5s depending on the mode). Only during that window (state `search`) does it hear the player's footsteps, and only within `footstepRadius` (100-158px depending on the mode). Standing still is silent. If nothing is heard it goes idle and is deaf again.
 - If it hears a footstep it **locks on** (state `track`): it knows the player's live position and follows it with no time limit for as long as the player stays within `footstepRadius`. The moment the player is farther away it loses them, goes idle and is deaf; it can only be re-alerted by another ripple hit. (A ripple hit on a tracking monster is ignored.)
 - Everything else is ignored: no hearing while idle/hunting/sleeping, no bump hearing, no proximity sense.
