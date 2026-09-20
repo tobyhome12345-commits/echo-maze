@@ -42,6 +42,7 @@ const PUDDLE_R = 14;
 const SCENT_FROM_LEVEL = 6; // the scent monster and the smell puddles arrive together
 const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in a puddle
 const TRAIL_LIFETIME = 60; // seconds a finished smell trail lasts before it fades away
+const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before a trail can do it again
 
 /**
  * The monsters on each level of the game so far - EXACT, and the same in every

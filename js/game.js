@@ -28,6 +28,7 @@
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
+  const TRAIL_STEP_ON = 12; // px: how close the player must be to a finished trail to step on it (and smell again)
 
   const COS = new Float32Array(RAYS);
   const SIN = new Float32Array(RAYS);
@@ -43,6 +44,7 @@
     4: 'Two echo monsters now. Move after every ripple - a monster you hit will hunt the spot you rippled from.',
     5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
     6: 'No echo monsters here. A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
+    7: 'Your own trail can smell you again: step back onto it while it lasts and you are smelly, like a puddle. Give it about ten seconds between touches.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -688,11 +690,14 @@
     e.pause = 0.5;
   }
 
-  /** You step into a puddle: smelly for smellSeconds of walking (stepping in again just tops it up). */
-  function stepInPuddle() {
+  /**
+   * You step into a puddle: smelly for smellSeconds of walking (stepping in again just tops it up).
+   * Stepping back onto a trail you left does the same thing (see touchOwnTrail), a bit more quietly.
+   */
+  function stepInPuddle(vol = 1) {
     const fresh = player.smell <= 0;
     player.smell = cfg.smellSeconds;
-    audio.splash(fresh ? 1 : 0.5);
+    audio.splash(fresh ? vol : vol * 0.5);
     marks.push({ x: player.x, y: player.y, t: 0, life: 0.9, c: COLORS[T_PUDDLE], r: 26 });
     if (!fresh) return;
     // a new smell trail begins where you stepped in
@@ -701,14 +706,38 @@
     player.trail = tr;
   }
 
+  /**
+   * Stepping onto a smell trail you left earlier (one that is still there) makes you smelly again,
+   * exactly as if you had stepped in a puddle - at most once every TRAIL_RESMELL_COOLDOWN seconds.
+   * Only when you are not smelly already, and never the trail you have only just finished laying
+   * until you have stepped off it (you are standing on its tip the moment your smell runs out).
+   */
+  function touchOwnTrail() {
+    let touching = false;
+    for (const tr of level.trails) {
+      if (tr.active || tr.pts.length < 2) continue;
+      const on = nearestOnTrail(tr, player.x, player.y).d <= TRAIL_STEP_ON;
+      if (tr === player.justLeft) {
+        if (!on) player.justLeft = null; // stepped off: it counts from now on
+        continue;
+      }
+      if (on) touching = true;
+    }
+    if (!touching || player.trailCd > 0) return;
+    player.trailCd = TRAIL_RESMELL_COOLDOWN;
+    stepInPuddle(0.75);
+  }
+
   /** While smelly and walking: the smell timer runs and the trail grows behind you. */
   function updateSmell(dt, walked) {
+    player.trailCd = Math.max(0, player.trailCd - dt);
     const inside = level.puddles.some((p) => Math.hypot(player.x - p.x, player.y - p.y) < p.r);
     if (inside) {
       if (!player.inPuddle) stepInPuddle(); // just stepped in
       else player.smell = cfg.smellSeconds; // still in it: the smell stays topped up
     }
     player.inPuddle = inside;
+    if (player.smell <= 0 && level.trails.length) touchOwnTrail();
     if (player.smell <= 0) return;
     if (!walked) return; // the smell only wears off while you WALK - standing still never runs it out
     player.smell = Math.max(0, player.smell - dt);
@@ -728,6 +757,7 @@
         tr.active = false;
         tr.expireAt = levelTime + TRAIL_LIFETIME;
         player.trail = null;
+        player.justLeft = tr; // you are standing on its tip: it cannot re-smell you until you step off it
       }
     }
   }
@@ -1267,6 +1297,8 @@
       blocked: false,
       smell: 0, // seconds of WALKING left of being smelly (after stepping in a puddle)
       trail: null, // the smell trail being laid right now
+      justLeft: null, // the trail you finished laying most recently, until you step off it
+      trailCd: 0, // seconds until a trail can make you smelly again (TRAIL_RESMELL_COOLDOWN)
       inPuddle: false,
     };
     enemies = level.enemies.map(makeEnemy);
@@ -1778,7 +1810,7 @@
   // Test hook: only exposed when the page is opened with ?debug
   if (/[?&]debug\b/.test(location.search)) {
     window.__echo = {
-      info: () => ({ state, levelNum, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state }),
+      info: () => ({ state, levelNum, levelTime, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state }),
       tp: (x, y) => {
         player.x = x;
         player.y = y;
