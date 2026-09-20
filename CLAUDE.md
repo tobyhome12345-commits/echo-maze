@@ -4,14 +4,34 @@
 
 This repo is the home of the game. **Every time the game is changed, commit and push the change to `origin/main`** (owner requested this explicitly). Do it at the end of each round of changes — don't wait to be asked. Use clear commit messages that say what changed in the game.
 
-## Keep a copy of every version in `C:\Claude` (owner's PC)
+## Keep a copy of every version in `C:\Claude\echo game` (owner's PC)
+
+Everything for this game lives in `C:\Claude\echo game` on the owner's PC: the version folders (`Echo Maze\`), the shortcut `Play Echo Maze.lnk` and the link `Echo Maze on GitHub.url` (which points at the repo).
 
 The owner wants old versions preserved, **never overwritten**. Whenever the game itself changes (doc-only edits don't count), after committing and pushing:
 
-1. Save the committed tree as a **new** folder `C:\Claude\Echo Maze\vN - short description` (e.g. `git archive --format=zip -o x.zip HEAD`, extract it, delete `CLAUDE.md` and `.gitignore` from the copy). Never edit or delete earlier `vN` folders.
-2. Re-point the shortcut `C:\Claude\Play Echo Maze.lnk` at the new folder's `index.html`.
+1. Save the committed tree as a **new** folder `C:\Claude\echo game\Echo Maze\vX.Y - short description` (e.g. `git archive --format=zip -o x.zip <commit> index.html style.css README.md js`, then `Expand-Archive`, so `CLAUDE.md` and `.gitignore` never land in the copy). Never edit, rename or delete earlier version folders, and never edit the files inside them.
+2. Re-point the shortcut `C:\Claude\echo game\Play Echo Maze.lnk` at the new folder's `index.html`.
 
-Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters go to ripple spot`, `v4 - monsters listen 5s`, `v5 - monsters lock on`, `v6 - intro cutscene`, `v7 - difficulty modes and calm mode`, `v8 - hardcore returns to title`, `v9 - scent monster and puddles`, `v10 - scent cutscene and ending`, `v11 - level select and cutscene replay`, `v12 - level 6 scent only`, `v13 - trail smells you again` (latest). `C:\Claude\Echo Maze on GitHub.url` links to the repo.
+**Version numbers (owner's rule):** every version has a number `X.Y`. A **major** update - a new enemy, new lore/cutscene, or another big new feature/system - goes to the next whole number and the decimal resets (`1.4` -> `2.0`). A **minor** tweak goes to the next decimal (`1.2` -> `1.3`; after `1.9` comes `1.10`, not `2.0`). The number is only in the folder name (`vX.Y - ...`); it is NOT written inside the game's files. If it is unclear whether an update is major or minor, pick one and tell the owner which. When you add a version, add a row to the table below.
+
+| Version | Commit | What changed |
+| --- | --- | --- |
+| v1.0 | 7b56267 | first release |
+| v1.1 | 68091bd | blind monsters (only a ripple hit or touching you alerts them) |
+| v1.2 | 1d93cd2 | monsters go to the exact ripple spot; touching kills |
+| v1.3 | 4a5dfd7 | monsters listen 5s after arriving |
+| v1.4 | 6b318e0 | monsters lock on and keep tracking while close |
+| v2.0 | 52ce8af | intro cutscene (new lore) |
+| v3.0 | 5c84273 | difficulty modes and calm mode |
+| v3.1 | 4b8368c | hardcore dying returns to the title |
+| v4.0 | d5e3b24 | scent monster and smell puddles (new enemy) |
+| v5.0 | a3647db | scent cutscene and ending (new lore), exact monster schedule |
+| v5.1 | af2dcf9 | level select and cutscene replay |
+| v5.2 | 7411670 | level 6 scent only |
+| v5.3 | 76f1d29 | stepping on your own trail smells you again (latest) |
+
+These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
 ## Monster rules (owner's design - don't loosen)
 
@@ -29,7 +49,7 @@ Existing versions: `v1 - first release`, `v2 - blind monsters`, `v3 - monsters g
 
 ## Scent monster, smell puddles and trails (owner's design, level 6+)
 
-- **Monsters per level are EXACT and identical in every mode** (`ECHO_MONSTERS` / `SCENT_MONSTERS` in `js/level.js`, owner's schedule): echo 0,1,1,2,2,0,1 and scent 0,0,0,0,0,1,1 for levels 1-7. Levels 4-5 = 2 echo; **level 6 = scent only (no echo monsters, owner's later change - it was 1 echo + 1 scent in v10/v11)**; level 7 = 1 echo + 1 scent. The modes differ in speed, hearing, ripples and puddles - NOT in monster counts. (Levels past 7 use a placeholder formula only so debug/testing keeps working; they are not part of the game.)
+- **Monsters per level are EXACT and identical in every mode** (`ECHO_MONSTERS` / `SCENT_MONSTERS` in `js/level.js`, owner's schedule): echo 0,1,1,2,2,0,1 and scent 0,0,0,0,0,1,1 for levels 1-7. Levels 4-5 = 2 echo; **level 6 = scent only (no echo monsters, owner's later change - it was 1 echo + 1 scent up to v5.1)**; level 7 = 1 echo + 1 scent. The modes differ in speed, hearing, ripples and puddles - NOT in monster counts. (Levels past 7 use a placeholder formula only so debug/testing keeps working; they are not part of the game.)
 - **The game ends after level 7** (`CAMPAIGN_LEVELS` = 7): clearing it shows "You finished the game" with only a Back to title button (no endless mode, "more levels are coming"). Progress past the last level counts as finished (no Continue, tag "Finished"), which also covers old saves from when there were ten levels.
 - **Scent monster** (`kind: 'scent'`, violet, `T_SCENT`): a second monster type, from level 6 (`SCENT_FROM_LEVEL`). It **never stands still** (state `patrol`, walks to random tiles), **cannot track echoes or footsteps** (a ripple *sees* it - its own violet colour and echo sound - but never alerts it; it is not in `alerts`), and **touching it kills you** exactly like an echo monster (restart depends on the mode).
 - **Puddles** (`level.puddles`, lime, `PUDDLE_R`): stepping in makes you smelly for `SMELL_SECONDS` = 5 of **walking** time. **The clock only runs while the player actually moves** (`walked`, > 0.3px/frame): standing still or pushing into a wall never runs it out, and standing in a puddle tops it up. This is deliberate - it stops players just waiting out the 5 seconds. Puddles never block a ripple; a ripple that has line of sight lights them up (timed mark) and plays `echoPuddle`.
