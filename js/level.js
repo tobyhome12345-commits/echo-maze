@@ -51,9 +51,9 @@ const RIPPLE_RANGE_BASE = 360; // px at level 1, before the mode multiplier
 const RIPPLE_RANGE_PER_LEVEL = 9; // px lost per level
 const RIPPLE_RANGE_MIN = 240; // px floor, before the mode multiplier
 
-// The mimic and the sonar decoy (both arrive on level 8)
+// The mimic (arrives on level 8) and the sonar decoy (arrives on level 9)
 const MIMIC_FROM_LEVEL = 8; // a monster that pretends to be the exit until a ripple touches it
-const DECOY_FROM_LEVEL = 8; // every level from here has one sonar decoy lying somewhere to find
+const DECOY_FROM_LEVEL = 9; // every level from here has one sonar decoy lying somewhere to find
 const DECOY_ARM_SECONDS = 5; // after it is dropped, seconds before it starts calling
 const DECOY_RADIUS = 480; // px: every monster within this of a decoy when it calls is drawn to it
 const DECOY_TRAP_SECONDS = 5; // seconds a monster stays trapped at the decoy once it has arrived
@@ -68,19 +68,20 @@ const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before
 /**
  * The monsters on each level of the game so far - EXACT, and the same in every
  * mode (the modes differ in speed, hearing, ripples and so on, not in how many
- * monsters there are). The game currently ends after level 8.
- *   level:  1  2  3  4  5  6  7  8
- *   echo:   0  1  1  2  2  0  1  1
- *   scent:  0  0  0  0  0  1  1  1
- *   mimic:  0  0  0  0  0  0  0  1
+ * monsters there are). The game currently ends after level 9.
+ *   level:  1  2  3  4  5  6  7  8  9
+ *   echo:   0  1  1  2  2  0  1  1  2
+ *   scent:  0  0  0  0  0  1  1  1  1
+ *   mimic:  0  0  0  0  0  0  0  1  1
  * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8
- * adds the mimic (and the sonar decoy to find).
- * Levels past 8 do not exist yet; the fallback formula below only keeps them
+ * adds the mimic; level 9 adds a second echo monster and the sonar decoy to find
+ * (the owner did not give a monster mix for level 9 - this one is my choice).
+ * Levels past 9 do not exist yet; the fallback formula below only keeps them
  * generating sensibly (debug/testing) until they are designed.
  */
-const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1 };
-const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1 };
-const MIMIC_MONSTERS = { 8: 1 };
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 2 };
+const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 1 };
+const MIMIC_MONSTERS = { 8: 1, 9: 1 };
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {

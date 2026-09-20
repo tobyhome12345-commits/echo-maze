@@ -9,7 +9,10 @@
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
-  const CAMPAIGN_LEVELS = 8; // the game so far: clearing level 8 ends it ("you finished") - more levels come later
+  const CAMPAIGN_LEVELS = 9; // the game so far: clearing level 9 ends it ("you finished") - more levels come later
+  // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
+  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy' };
+  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9 };
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -47,7 +50,8 @@
     5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
     6: 'No echo monsters here. A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
     7: 'Your own trail can smell you again: step back onto it while it lasts and you are smelly, like a puddle. Give it about ten seconds between touches.',
-    8: 'Not every green glow is the way out: something here copies the exit, and turns on you when your ripple touches it. Find the pink sonar decoy - press E to drop it.',
+    8: 'Not every green glow is the way out: something here copies the exit, and turns on you the moment your ripple touches it.',
+    9: 'A pink sonar decoy lies somewhere on this level. Walk onto it, then press E to drop it: five seconds later it calls every monster nearby and traps them there.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -1653,13 +1657,13 @@
         toTitle();
         showReplay();
       } else {
-        // the intro leads into level 1; the scent-monster scene leads into level 6
-        startLevel(kind === 'scent' ? SCENT_FROM_LEVEL : 1);
+        // each scene leads into the level it introduces (see SCENE_LEADS_TO)
+        startLevel(SCENE_LEADS_TO[kind] || 1);
       }
     },
   });
 
-  /** kind: 'intro' (before level 1) or 'scent' (between levels 5 and 6). */
+  /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8) or 'decoy' (8 -> 9). */
   function startCutscene(kind = 'intro') {
     // remember that it has played, so it can be rewatched from the replay screen
     if (!seen[kind]) {
@@ -1675,10 +1679,11 @@
     cutscene.start(kind);
   }
 
-  /** On from a cleared level. Going from level 5 to 6 plays the scent-monster cutscene first. */
+  /** On from a cleared level. Going into level 6, 8 or 9 plays that level's story cutscene first (SCENE_BEFORE_LEVEL). */
   function advanceLevel() {
     audio.uiClick();
-    if (levelNum + 1 === SCENT_FROM_LEVEL) startCutscene('scent');
+    const scene = SCENE_BEFORE_LEVEL[levelNum + 1];
+    if (scene) startCutscene(scene);
     else startLevel(levelNum + 1);
   }
 
@@ -1804,13 +1809,20 @@
   const SCENES = [
     { kind: 'intro', name: 'The Lost Explorer', blurb: 'How it all began.', locked: 'Press Begin to see it for the first time.' },
     { kind: 'scent', name: 'Not Every Monster Listens', blurb: 'What follows the scent.', locked: 'You will see it when you clear level 5.' },
+    { kind: 'mimic', name: 'Not Everything That Glows', blurb: 'What waits at the end of the corridor.', locked: 'You will see it when you clear level 7.' },
+    { kind: 'decoy', name: 'Somewhere Else To Go', blurb: 'How to buy five seconds.', locked: 'You will see it when you clear level 8.' },
   ];
 
-  /** Has this cutscene played? Saves from before this was tracked count if they got past it. */
+  /**
+   * Has this cutscene played? Saves from before this was tracked count for the two that already existed
+   * if they got past them. The newer scenes count only once they have actually been shown.
+   */
   function hasSeen(kind) {
     if (seen[kind]) return true;
     const reached = Math.max(...Object.keys(MODES).map((m) => getBest(m)));
-    return kind === 'intro' ? reached > 1 : reached >= SCENT_FROM_LEVEL;
+    if (kind === 'intro') return reached > 1;
+    if (kind === 'scent') return reached >= SCENT_FROM_LEVEL;
+    return false;
   }
 
   /**

@@ -12,7 +12,7 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | --- | --- |
 | `W` `A` `S` `D` (or arrows) | Move |
 | `SPACE` | Send a ripple |
-| `E` | Drop the sonar decoy you are carrying (level 8+) |
+| `E` | Drop the sonar decoy you are carrying (level 9+) |
 | `P` / `Esc` | Pause |
 | `M` | Mute |
 | `C` | Toggle calm mode (any screen, any difficulty) |
@@ -30,7 +30,7 @@ Headphones recommended: echoes and monsters are stereo-panned.
 | Red | Echo monsters |
 | Violet | Scent monsters (level 6+) |
 | Lime | Smell puddles (level 6+) and your smell trail |
-| Pink | The sonar decoy (level 8+) |
+| Pink | The sonar decoy (level 9+) |
 | Green | The way out |
 
 ## The intro
@@ -45,7 +45,15 @@ Headphones recommended: echoes and monsters are stereo-panned.
 
 Clearing level 5 plays a second, shorter scene (~30 s, skippable, and **Continue** skips it) before level 6, showing what the new monster does. After a card reading *Not every monster listens.*, another explorer (day 12, a cooler, greener lamp) steps into a lime puddle and walks on, leaving a glowing trail and a draining smell ring — exactly as in the game. They rest, sure that with no pings and no noise nothing can find them. Something starts sniffing. A **scent monster** wanders in, touches the start of their trail and follows it to them. Cut to black; only the lime trail is left glowing in the dark, then *It can't hear you. It follows what you leave behind.* and level 6 begins.
 
-The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. Both scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens both (no flash or shake, dimmer monster, quieter sound).
+### The third scene (after level 7): the mimic
+
+Clearing level 7 plays a scene (~30 s, skippable, **Continue** skips it) before level 8. After a card reading *Not everything that glows is a way out.*, a third explorer (day 33, a coral lamp), worn out and stumbling down a corridor, hears the exit's chime and sees a green glow ahead. "That's the exit!" — but they have learned to ping before trusting anything, so they stop and send a ripple (the game's real sonar). The wave touches the glow, which turns red — it is a **mimic**, and it charges at the exact spot the ripple was sent from, where the explorer is still standing. Cut to black, their device clatters to the floor, and the card *It looks like the way out. Until your echo touches it.* Then level 8.
+
+### The fourth scene (after level 8): the sonar decoy
+
+Clearing level 8 plays a last scene (~30 s, skippable, **Continue** skips it) before level 9. After the card *You cannot outrun everything.*, a fourth explorer (day 19, a pink-white lamp) finds a **sonar decoy** glowing on the floor and takes it. An echo monster and a scent monster are closing in along the corridor, so they drop it (five seconds of faster, higher beeps), duck into a side passage and wait. It calls: a pink ring sweeps out, both monsters turn to it, and they are held there by pink tethers while the explorer slips away. The card *Give them somewhere else to go.* Then level 9.
+
+The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. All four scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens all of them (no flash or shake, dimmer monsters, quieter sound). Every scene can be rewatched from the replay screen once it has played.
 
 ## Replaying levels and cutscenes
 
@@ -65,25 +73,26 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 
 ## Levels
 
-There are **eight levels so far**. Clearing level 8 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
+There are **nine levels so far**. Clearing level 9 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
 
 The monsters on each level are **exact, and the same in every mode** (the modes differ in speed, hearing, ripples and puddles, not in how many monsters there are):
 
-| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 |
-| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 |
-| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 2 |
+| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 |
+| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
+| Sonar decoy to find | – | – | – | – | – | – | – | – | 1 |
 
-Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** and the **sonar decoy** (below), and from here every level has a sonar decoy to find.
+Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** brings a second echo monster and the **sonar decoy** (below), and from here every level has a sonar decoy to find.
 
 ### The mimic (level 8+)
 
 A monster that **pretends to be the exit**. It is exactly as big as the exit, sits still and silent, and looks and sounds like it: it glimmers the same green when you are close, it sends out the same chime as the real exit from where it stands (so you hear two exits), and a ripple registers it as the exit (green, with the exit's bell) right up to the moment the wave reaches it. It does not show up in the colour legend, and it gives no heartbeat or growl warning. **The second a ripple's wave touches it, it turns into an ordinary echo monster** (its green rays turn red, its exit bell becomes a moan, and it goes to the spot the ripple was sent from). Walking into it before that kills you, like any monster. It never turns back.
 
-### The sonar decoy (level 8+)
+### The sonar decoy (level 9+)
 
-Every level from 8 has one **sonar decoy** lying somewhere (it glimmers pink when you are near, blips faintly, and shows up pink in a ripple). Walk onto it to pick it up — you can carry **only one**, shown in the top right — and press **`E`** to drop it where you stand. It beeps (faster and higher) for **5 seconds**, then **calls**: every monster within **480 px** of it — an echo monster (whatever it was doing, even asleep or tracking you), a scent monster, or a mimic **even if it hasn't turned yet** — is drawn to it. They pathfind to it and are **trapped there for 5 seconds after they arrive**, deaf to ripples, footsteps and smell, and then go back to normal (echo monsters and disguised mimics stand idle where they are; scent monsters patrol again). It is **one time use**. A trapped monster is still deadly to touch, so get past it, don't bump it. A mimic that is dragged over stays disguised and silent while it walks (only its chime moves).
+Every level from 9 has one **sonar decoy** lying somewhere (it glimmers pink when you are near, blips faintly, and shows up pink in a ripple). Walk onto it to pick it up — you can carry **only one**, shown in the top right — and press **`E`** to drop it where you stand. It beeps (faster and higher) for **5 seconds**, then **calls**: every monster within **480 px** of it — an echo monster (whatever it was doing, even asleep or tracking you), a scent monster, or a mimic **even if it hasn't turned yet** — is drawn to it. They pathfind to it and are **trapped there for 5 seconds after they arrive**, deaf to ripples, footsteps and smell, and then go back to normal (echo monsters and disguised mimics stand idle where they are; scent monsters patrol again). It is **one time use**. A trapped monster is still deadly to touch, so get past it, don't bump it. A mimic that is dragged over stays disguised and silent while it walks (only its chime moves).
 
 Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change.
 

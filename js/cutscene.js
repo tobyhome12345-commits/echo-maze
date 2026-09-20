@@ -1,10 +1,12 @@
 'use strict';
 
 /**
- * The opening cutscene: a few lines of lore over black, then a scripted scene
- * in the dark maze. An explorer who has been lost for too long sends out a
- * ripple, hears something answer, and is taken by an echo monster. Then it is
- * your turn (level 1).
+ * The story cutscenes - four scripted scenes in the dark maze, chosen by start(kind):
+ *   'intro' (before level 1)   an explorer who has been lost for too long sends out a ripple, hears
+ *                              something answer, and is taken by an echo monster. Then it is your turn.
+ *   'scent' (level 5 -> 6)     an explorer steps in a puddle and a scent monster follows their trail.
+ *   'mimic' (level 7 -> 8)     an explorer follows the exit's chime to a glow, pings it - and it is a mimic.
+ *   'decoy' (level 8 -> 9)     an explorer finds a sonar decoy and uses it to trap two monsters.
  *
  * Everything runs off one clock (`time`, seconds since the cutscene began), and
  * everything you hear is synthesised - including the mumble of the explorer's
@@ -98,10 +100,77 @@ const EchoCutscene = (() => {
     [SC_TOUCH_T + 0.5, "It's following my trail!"],
   ];
 
+  // ------------------------------------------------ the mimic scene (levels 7 -> 8)
+  // A third explorer, worn out, hears the exit's chime and sees its green glow down the corridor. They
+  // have learned to ping before trusting anything - and the wave touches it. It is a mimic: it turns
+  // into an echo monster and goes to the spot the ripple was sent from, where the explorer is still
+  // standing. Plays after level 7 is cleared. Times are scene-relative (MM_S = when the scene proper begins).
+  const MM_S = 4.4;
+  const MM_WALK = [[0, 100], [8.0, 330], [10.6, 330], [13.6, 430], [99, 430]]; // [scene time, x]
+  const MM_X = 640; // the mimic, sitting in the corridor like an exit
+  const MM_R = 330; // reach of the explorer's ping
+  const MM_CHIME_T = 7.6; // the "exit" starts to chime and glow...
+  const MM_PING_T = 15.6; // ...they stop, and ping it
+  const MM_TOUCH_T = MM_PING_T + (MM_X - 16 - 430) / 520; // the wave reaches it: the disguise breaks
+  const MM_RUN = 250; // px/s once it has turned
+  const MM_HIT_T = MM_TOUCH_T + 0.12 + (MM_X - (430 + 26)) / MM_RUN; // it reaches the spot they pinged from
+  const MM_CARD_T = MM_HIT_T + 3.2;
+  const MM_END_T = MM_HIT_T + 8.0;
+  const MM_LINES = [
+    [0.9, 'Still walking. Still nothing.'],
+    [4.0, 'Every corner looks the same now.'],
+    [8.3, '...Wait. Do you hear that?'],
+    [11.0, "That chime. That's the exit. That's the way out!"],
+    [14.2, 'Ping first. Always ping first.'],
+    [MM_TOUCH_T + 0.3, "It's not—"],
+  ];
+
+  // ------------------------------------------------- the decoy scene (levels 8 -> 9)
+  // A fourth explorer finds a sonar decoy on the floor and takes it. Two monsters are closing in along
+  // the corridor; they drop it, hide in a side passage, and five seconds later it calls: both monsters
+  // turn, go to it and are held there while the explorer walks away. Plays after level 8 is cleared.
+  const DC_S = 4.6;
+  const DC_Y = 178; // the corridor row they walk along
+  const DC_FLOOR_X = 260; // the decoy lying on the floor
+  const DC_PICK_T = 4.7;
+  const DC_X = 560; // where it is dropped
+  const DC_DROP_T = 11.4;
+  const DC_CALL_T = DC_DROP_T + 5; // five seconds later, exactly as in the game
+  // [scene time, x, y]: down the corridor, pick it up, drop it, into the side passage, out again, away
+  const DC_PATH = [[0, 100, DC_Y], [4.6, 260, DC_Y], [6.4, 260, DC_Y], [11.2, 560, DC_Y], [12.2, 560, DC_Y], [13.0, 700, DC_Y], [14.2, 700, 80], [18.6, 700, 80], [19.8, 700, DC_Y], [24.0, 900, DC_Y], [99, 900, DC_Y]];
+  // the two monsters: they come along the corridor from the left, and at the call go to the decoy instead
+  const DC_ECHO = { y: 148, v: 95, vLured: 130, xCall: 370, stop: DC_X - 22 }; // xCall = where it is when the decoy calls
+  const DC_SCENT = { y: 178, v: 80, vLured: 117, xCall: 300, stop: DC_X - 54 };
+  const DC_ECHO_T0 = DC_CALL_T - (DC_ECHO.xCall - 60) / DC_ECHO.v; // when each sets off from the left edge
+  const DC_SCENT_T0 = DC_CALL_T - (DC_SCENT.xCall - 60) / DC_SCENT.v;
+  const DC_ECHO_TRAP_T = DC_CALL_T + (DC_ECHO.stop - DC_ECHO.xCall) / DC_ECHO.vLured; // when each is caught
+  const DC_SCENT_TRAP_T = DC_CALL_T + (DC_SCENT.stop - DC_SCENT.xCall) / DC_SCENT.vLured;
+  const DC_CARD_T = 20.6;
+  const DC_END_T = 25.0;
+  const DC_LINES = [
+    [1.0, 'Still alive. Barely.'],
+    [3.4, "Something's lying on the floor…"],
+    [5.6, 'A sonar decoy. Someone left it for whoever came next.'],
+    [8.7, 'One drop. Five seconds. Then it calls every monster nearby.'],
+    [11.8, 'Please work.'],
+    [14.7, '...Here they come.'],
+    [DC_CALL_T + 0.8, "They turned. They're all going to it."],
+    [DC_SCENT_TRAP_T + 0.6, "Five seconds. That's all I need."],
+  ];
+
   const PAL_INTRO = { glow: '255,208,140', cone: '255,226,170', body: '255,226,175', hand: '255,232,190', head: '255,240,212', lamp: '255,250,232' };
   const PAL_SCENT = { glow: '196,236,170', cone: '210,242,196', body: '206,236,196', hand: '214,242,204', head: '234,250,228', lamp: '246,255,240' };
+  const PAL_MIMIC = { glow: '255,176,156', cone: '255,200,182', body: '255,200,186', hand: '255,210,196', head: '255,228,216', lamp: '255,242,234' }; // a coral lamp
+  const PAL_DECOY = { glow: '255,196,236', cone: '255,214,242', body: '255,214,240', hand: '255,224,246', head: '255,240,250', lamp: '255,248,252' }; // a pink-white lamp
   const LIME = '190,240,70';
   const VIOLET = '176,124,255';
+  const EXITGREEN = '93,255,160'; // the exit's green, which the mimic copies
+  const PINK = '255,122,217'; // the sonar decoy's pink
+
+  // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY };
+  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9 };
 
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
@@ -185,10 +254,18 @@ const EchoCutscene = (() => {
     let mvoice = null; // its growl, heard before it is seen
     let danger = 0; // 0..1 how close the thing feels
 
-    // which scene is playing: 'intro' (before level 1) or 'scent' (between levels 5 and 6)
+    // which scene is playing: 'intro', 'scent', 'mimic' or 'decoy' (see the header comment)
     let kind = 'intro';
     let sceneStart = S;
     let pal = PAL_INTRO;
+    // mimic scene state
+    let mm = null; // the mimic: { phase: 'glow' | 'monster', x, stepDist }
+    let glowPulse = 0; // 0..1: it flares with each chime
+    let isWalking = false; // the mimic and decoy scenes move the explorer freely (and up into a passage)
+    // decoy scene state
+    let mm2 = { echoX: -200, scentX: -200 }; // where the two monsters are along the corridor (off in the dark until they set out)
+    let mvoice2 = null; // the scent monster's voice (the echo monster's is `mvoice`)
+    let dcStep = { echo: 0, scent: 0 }; // distance walked since each monster's last footstep
     // scent scene state
     let smell = 0; // seconds of walking left of being smelly
     let trail = null; // the smell trail behind the explorer: { pts, active }
@@ -205,17 +282,35 @@ const EchoCutscene = (() => {
     /** Explorer's x at scene time st, whichever scene is playing. */
     const xAt = (st) => (kind === 'scent' ? scWalkX(st) : personX(st));
 
-    function personX(st) {
-      if (st <= WALK[0][0]) return WALK[0][1];
-      for (let i = 1; i < WALK.length; i++) {
-        if (st <= WALK[i][0]) {
-          const [t0, x0] = WALK[i - 1];
-          const [t1, x1] = WALK[i];
+    /** Value of a piecewise-linear path at scene time st. Each point is [time, value] (or [time, x, y] for a 2D path, then use pathAt). */
+    function lerpPath(list, st) {
+      if (st <= list[0][0]) return list[0][1];
+      for (let i = 1; i < list.length; i++) {
+        if (st <= list[i][0]) {
+          const [t0, x0] = list[i - 1];
+          const [t1, x1] = list[i];
           return lerp(x0, x1, (st - t0) / (t1 - t0));
         }
       }
-      return WALK[WALK.length - 1][1];
+      return list[list.length - 1][1];
     }
+
+    /** Position on a [time, x, y] path at scene time st. */
+    function pathAt(list, st) {
+      if (st <= list[0][0]) return { x: list[0][1], y: list[0][2] };
+      for (let i = 1; i < list.length; i++) {
+        if (st <= list[i][0]) {
+          const [t0, x0, y0] = list[i - 1];
+          const [t1, x1, y1] = list[i];
+          const u = (st - t0) / (t1 - t0);
+          return { x: lerp(x0, x1, u), y: lerp(y0, y1, u) };
+        }
+      }
+      const last = list[list.length - 1];
+      return { x: last[1], y: last[2] };
+    }
+
+    const personX = (st) => lerpPath(WALK, st);
 
     /** Pan and loudness of something at (x,y) as heard by the explorer. */
     function heard(x, y, range) {
@@ -260,6 +355,8 @@ const EchoCutscene = (() => {
     function stopMonsterVoice() {
       if (mvoice) audio.destroyEnemyVoice(mvoice);
       mvoice = null;
+      if (mvoice2) audio.destroyEnemyVoice(mvoice2);
+      mvoice2 = null;
     }
 
     // ----------------------------------------------------------- the timeline
@@ -493,16 +590,289 @@ const EchoCutscene = (() => {
       camY = 150;
     }
 
+    // ------------------------------------------- the mimic scene: the timeline
+    function buildMimic() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S3 = MM_S;
+
+      at(0.6, () => {
+        showCard('Not everything that glows is a way out.');
+        audio.swell(50);
+      });
+      at(S3 - 1.0, hideCard);
+      at(S3, () => {
+        rings = [];
+      });
+      at(S3 + 0.8, () => {
+        el.caption.textContent = 'Day 33';
+        el.caption.classList.add('show');
+      });
+      at(S3 + 3.4, () => el.caption.classList.remove('show'));
+      MM_LINES.forEach(([t, text]) => at(S3 + t, () => say(text)));
+      [2.4, 6.0, 9.2, 13.0].forEach((t) => at(S3 + t, () => audio.breath(0.9)));
+
+      // the "exit" starts to chime - the very same sound as the real one - and to glow
+      for (let t = MM_CHIME_T; t < MM_TOUCH_T; t += 2.4) {
+        at(S3 + t, () => {
+          const h = heard(MM_X, PY, 900);
+          audio.beacon(h.pan, Math.max(h.g, 0.45));
+          glowPulse = 1;
+        });
+      }
+
+      // they ping it...
+      at(S3 + MM_PING_T, () => {
+        audio.ping(0.85);
+        stage.cfg.rippleRadius = MM_R;
+        env.castRipple(person.x, person.y);
+      });
+      // ...the wave touches it, and it turns into an echo monster
+      at(S3 + MM_TOUCH_T, () => {
+        if (!mm) return;
+        mm.phase = 'monster';
+        const h = heard(MM_X, PY, 900);
+        audio.mimicReveal(h.pan, 1);
+        mvoice = audio.createEnemyVoice(50);
+        noticed = true;
+      });
+      [[0.35, 0.55], [0.7, 0.8]].forEach(([dt, g]) => at(S3 + MM_TOUCH_T + dt, () => audio.heartbeat(g)));
+      at(S3 + MM_HIT_T - 0.35, () => audio.lunge());
+      at(S3 + MM_HIT_T, () => {
+        flash = isCalm() ? 0 : 1;
+        shake = isCalm() ? 0 : 14;
+        personVisible = false;
+        lampOn = false;
+        stopMonsterVoice();
+        clearSub();
+        audio.stopAmbient();
+        audio.silence(1.25);
+      });
+      at(S3 + MM_HIT_T + 0.25, () => {
+        dark = true;
+        mm = null;
+      });
+      at(S3 + MM_HIT_T + 1.3, () => audio.clank()); // their sonar device clatters to the floor
+      at(S3 + MM_CARD_T, () => {
+        showCard('It looks like the way out.\nUntil your echo touches it.');
+        audio.swell(46, 1.1);
+      });
+      at(S3 + MM_CARD_T + 4.2, hideCard);
+      at(S3 + MM_END_T, () => finish());
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the mimic scene. */
+    function updateMimicScene(dt) {
+      if (time < MM_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - MM_S;
+      flash = Math.max(0, flash - dt * 2.4);
+      shake = Math.max(0, shake - dt * 30);
+      glowPulse = Math.max(0, glowPulse - dt * 1.1);
+
+      // the explorer trudges, stops when they hear the chime, then hurries towards it, then stops to ping
+      const before = person.x;
+      person.x = lerpPath(MM_WALK, st);
+      person.y = PY;
+      isWalking = personVisible && Math.abs(person.x - before) > 0.01;
+      if (isWalking) {
+        stepDist += person.x - before;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(0.35);
+        }
+      }
+      angle = 0;
+      if (noticed) offX = lerp(offX, -12, Math.min(1, dt * 14));
+
+      // once it has turned it runs straight at the spot the ripple was sent from
+      if (mm && mm.phase === 'monster') {
+        const px = mm.x;
+        mm.x = Math.max(430 + 26, MM_X - MM_RUN * Math.max(0, st - (MM_TOUCH_T + 0.12)));
+        mm.stepDist += px - mm.x;
+        if (mm.stepDist >= 24) {
+          mm.stepDist = 0;
+          const h = heard(mm.x, PY, 700);
+          audio.enemyStep(h.pan, 0.5 + 0.5 * danger);
+        }
+      }
+      danger = clamp((st - MM_TOUCH_T) / (MM_HIT_T - MM_TOUCH_T), 0, 1);
+      if (mvoice && mm) {
+        const h = heard(mm.x, PY, 800);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.2 + 0.4 * danger), pan: h.pan, mood: 0.5 + 0.5 * danger, muffle: false });
+      }
+
+      // the headlamp gutters as it comes
+      const wobble = 0.82 + 0.18 * Math.sin(time * 21) + (Math.random() - 0.5) * 0.12;
+      const dropout = danger > 0.3 && Math.sin(time * 9.3) * Math.sin(time * 4.1) > 0.82 ? 0.25 : 1;
+      lampFlicker = lampOn ? wobble * dropout : 0;
+
+      camX = lerp(camX, person.x + 110, Math.min(1, dt * 2.5));
+      camY = 150;
+    }
+
+    // ------------------------------------------- the decoy scene: the timeline
+    /** Where a monster is at scene time st: it walks in from the left, then at the call heads for the decoy and stops there. */
+    function dcMonsterX(m, t0, st) {
+      if (st < t0) return -200; // still out of sight in the dark
+      if (st < DC_CALL_T) return 60 + m.v * (st - t0);
+      return Math.min(m.stop, m.xCall + m.vLured * (st - DC_CALL_T));
+    }
+
+    function buildDecoy() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S4 = DC_S;
+
+      at(0.6, () => {
+        showCard('You cannot outrun everything.');
+        audio.swell(50);
+      });
+      at(S4 - 1.0, hideCard);
+      at(S4, () => {
+        rings = [];
+      });
+      at(S4 + 0.8, () => {
+        el.caption.textContent = 'Day 19';
+        el.caption.classList.add('show');
+      });
+      at(S4 + 3.4, () => el.caption.classList.remove('show'));
+      DC_LINES.forEach(([t, text]) => at(S4 + t, () => say(text)));
+      [2.2, 7.4, 10.6, 15.0].forEach((t) => at(S4 + t, () => audio.breath(0.9)));
+
+      // they find it, and take it
+      at(S4 + DC_PICK_T, () => audio.decoyPickup());
+      // the monsters are heard long before they are seen
+      at(S4 + DC_CALL_T - 6.6, () => {
+        mvoice = audio.createEnemyVoice(50);
+        mvoice2 = audio.createEnemyVoice(78, 'scent');
+      });
+      // they put it down. It beeps - faster and higher - for five seconds, then it calls
+      at(S4 + DC_DROP_T, () => audio.decoyDrop());
+      for (let t = 0.4; t < 5; ) {
+        const f = t / 5;
+        at(S4 + DC_DROP_T + t, () => {
+          const h = heard(DC_X, DC_Y, 900);
+          audio.decoyTick(h.pan, Math.max(h.g, 0.4), f);
+        });
+        t += 0.85 - 0.6 * f;
+      }
+      at(S4 + DC_CALL_T, () => {
+        const h = heard(DC_X, DC_Y, 1100);
+        audio.decoyCall(h.pan, Math.max(h.g, 0.5));
+      });
+      at(S4 + DC_CARD_T, () => {
+        showCard('Give them somewhere else to go.');
+        audio.swell(52, 1.1);
+      });
+      at(S4 + DC_CARD_T + 3.8, hideCard);
+      at(S4 + DC_END_T, () => finish());
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the decoy scene. */
+    function updateDecoyScene(dt) {
+      if (time < DC_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - DC_S;
+      flash = Math.max(0, flash - dt * 2.4);
+      shake = Math.max(0, shake - dt * 30);
+
+      // the explorer: down the corridor, picks it up, drops it, ducks into the side passage, waits, slips away
+      const bx = person.x;
+      const by = person.y;
+      const p = pathAt(DC_PATH, st);
+      person.x = p.x;
+      person.y = p.y;
+      const moved = Math.hypot(person.x - bx, person.y - by);
+      isWalking = moved > 0.01;
+      if (isWalking) {
+        angle = Math.atan2(person.y - by, person.x - bx);
+        stepDist += moved;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(0.35);
+        }
+      } else if (st > 14.0 && st < 19.6) {
+        angle = Math.atan2(DC_Y - person.y, DC_X - person.x); // watching the corridor from the passage
+      }
+      lampFlicker = 0.86 + 0.14 * Math.sin(time * 19) + (Math.random() - 0.5) * 0.08;
+
+      // the two monsters: their footsteps and voices
+      const xe = dcMonsterX(DC_ECHO, DC_ECHO_T0, st);
+      const xs = dcMonsterX(DC_SCENT, DC_SCENT_T0, st);
+      const prev = { e: mm2.echoX, s: mm2.scentX };
+      mm2.echoX = xe;
+      mm2.scentX = xs;
+      if (xe > 0 && prev.e > 0) {
+        dcStep.echo += Math.abs(xe - prev.e);
+        if (dcStep.echo >= 22) {
+          dcStep.echo = 0;
+          const h = heard(xe, DC_ECHO.y, 700);
+          audio.enemyStep(h.pan, 0.45 + 0.4 * h.g);
+        }
+      }
+      if (xs > 0 && prev.s > 0) {
+        dcStep.scent += Math.abs(xs - prev.s);
+        if (dcStep.scent >= 24) {
+          dcStep.scent = 0;
+          const h = heard(xs, DC_SCENT.y, 700);
+          audio.scentStep(h.pan, 0.45 + 0.4 * h.g);
+        }
+      }
+      const calledIn = clamp((st - (DC_CALL_T - 4)) / 4, 0, 1);
+      if (mvoice) {
+        const h = heard(xe, DC_ECHO.y, 900);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.1 + 0.32 * calledIn), pan: h.pan, mood: st > DC_ECHO_TRAP_T ? 0.3 : 0.4 + 0.6 * calledIn, muffle: false });
+      }
+      if (mvoice2) {
+        const h = heard(xs, DC_SCENT.y, 900);
+        audio.updateEnemyVoice(mvoice2, { gain: h.g * (0.1 + 0.3 * calledIn), pan: h.pan, mood: st > DC_SCENT_TRAP_T ? 0.3 : 0.4 + 0.5 * calledIn, muffle: false });
+      }
+
+      // the camera: with them, then held on the decoy while it does its work, then with them again
+      let target = person.x + 80;
+      if (st >= DC_DROP_T - 0.3 && st < 19.6) target = 610;
+      camX = lerp(camX, target, Math.min(1, dt * 2.2));
+      camY = 150;
+    }
+
     // ----------------------------------------------------------------- flow
-    /** kind: 'intro' (before level 1) or 'scent' (the story beat between levels 5 and 6). */
+    /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8) or 'decoy' (8 -> 9). */
     function start(k = 'intro') {
-      kind = k;
-      sceneStart = kind === 'scent' ? SC_S : S;
-      pal = kind === 'scent' ? PAL_SCENT : PAL_INTRO;
+      kind = SCENE_START[k] !== undefined ? k : 'intro';
+      sceneStart = SCENE_START[kind];
+      pal = SCENE_PAL[kind];
       smell = 0;
       trail = null;
       scentMon = null;
       lunge = 0;
+      mm = kind === 'mimic' ? { phase: 'glow', x: MM_X, stepDist: 0 } : null;
+      mm2 = { echoX: -200, scentX: -200 };
+      dcStep = { echo: 0, scent: 0 };
+      glowPulse = 0;
+      isWalking = false;
       active = true;
       time = 0;
       stage = buildStage();
@@ -527,12 +897,14 @@ const EchoCutscene = (() => {
       camX = person.x;
       camY = 150;
       if (kind === 'scent') buildScent();
+      else if (kind === 'mimic') buildMimic();
+      else if (kind === 'decoy') buildDecoy();
       else build();
       el.root.classList.remove('hidden');
       el.card.classList.remove('show');
       el.caption.classList.remove('show');
       el.sub.classList.remove('show');
-      audio.startAmbient(kind === 'scent' ? 6 : 1);
+      audio.startAmbient(SCENE_AMBIENT[kind]);
     }
 
     function cleanup() {
@@ -568,6 +940,14 @@ const EchoCutscene = (() => {
 
       if (kind === 'scent') {
         updateScentScene(dt);
+        return;
+      }
+      if (kind === 'mimic') {
+        updateMimicScene(dt);
+        return;
+      }
+      if (kind === 'decoy') {
+        updateDecoyScene(dt);
         return;
       }
 
@@ -638,7 +1018,7 @@ const EchoCutscene = (() => {
 
     function drawPerson() {
       const lamp = lampFlicker;
-      const walking = Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
+      const walking = kind === 'mimic' || kind === 'decoy' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
       const phase = time * 9;
       ctx.save();
       ctx.translate(person.x + offX, person.y + (walking ? Math.sin(phase) * 0.8 : 0));
@@ -719,7 +1099,11 @@ const EchoCutscene = (() => {
       const scale = lerp(0.9, soft ? 1.15 : 1.7, smooth(u));
       const alpha = (t > 1 ? Math.max(0, 1 - (t - 1) * 2.5) : 1) * (soft ? 0.45 : 1);
       if (alpha <= 0) return;
+      drawEchoBody(mx, my, heading, scale, alpha);
+    }
 
+    /** An echo monster's body at (mx,my), facing `heading`: red glowing line-art. */
+    function drawEchoBody(mx, my, heading, scale, alpha) {
       ctx.save();
       ctx.translate(mx, my);
       ctx.rotate(heading);
@@ -777,9 +1161,13 @@ const EchoCutscene = (() => {
       const near = clamp((300 - Math.abs(m.x - person.x)) / 140, 0.3, 1);
       const alpha = near * (soft ? 0.55 : 1);
       const scale = 1 + (soft ? 0.15 : 0.45) * lunge;
-      const follow = m.state === 'follow';
+      drawScentBody(m.x + 26 * lunge, PY, scale, alpha, m.state === 'follow');
+    }
+
+    /** A scent monster's body at (x,y): violet line-art with a sniffing snout. `follow` = it has a trail (faster sniffing and legs). */
+    function drawScentBody(x, y, scale, alpha, follow) {
       ctx.save();
-      ctx.translate(m.x + 26 * lunge, PY);
+      ctx.translate(x, y);
       ctx.scale(scale, scale);
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
@@ -881,6 +1269,142 @@ const EchoCutscene = (() => {
       if (scentMon) drawScentMonster();
     }
 
+    /** The mimic: at first just the exit's green glow (which brightens with each chime), then, when the wave touches it, an echo monster. */
+    function drawMimicThing() {
+      if (!mm) return;
+      const st = sceneT();
+      ctx.globalCompositeOperation = 'lighter';
+      if (mm.phase === 'glow') {
+        if (st < MM_CHIME_T - 0.4) return; // nothing to see until it starts to chime
+        const appear = smooth((st - (MM_CHIME_T - 0.4)) / 1.2);
+        const near = clamp(1 - (MM_X - person.x) / 520, 0.15, 1);
+        const pulse = 0.7 + 0.3 * Math.sin(time * 2.6) + 0.5 * glowPulse;
+        const g = ctx.createRadialGradient(MM_X, PY, 0, MM_X, PY, 70);
+        g.addColorStop(0, `rgba(${EXITGREEN},${appear * (0.16 + 0.34 * near) * pulse})`);
+        g.addColorStop(1, `rgba(${EXITGREEN},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(MM_X, PY, 70, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${EXITGREEN},${0.4 * appear * pulse})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(MM_X, PY, 16, 0, TAU);
+        ctx.stroke();
+      } else {
+        const t = st - MM_TOUCH_T;
+        const soft = isCalm();
+        if (t < 0.7) {
+          // the disguise breaks: a red flare rolls out from where the exit was
+          ctx.strokeStyle = `rgba(255,59,92,${(1 - t / 0.7) * (soft ? 0.3 : 0.7)})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(MM_X, PY, 10 + t * 420, 0, TAU);
+          ctx.stroke();
+        }
+        drawEchoBody(mm.x, PY, Math.PI, lerp(0.9, soft ? 1.1 : 1.45, smooth(t / 0.8)), soft ? 0.5 : 1);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /** Faint wall edges near a light (the explorer's lamp, the decoy's glow), so the passages can be made out. */
+    function drawLitWalls(cx, cy, radius, alpha) {
+      const { W, H, walls } = stage;
+      const x0 = Math.max(0, Math.floor((cx - radius) / TILE));
+      const x1 = Math.min(W - 1, Math.floor((cx + radius) / TILE));
+      const y0 = Math.max(0, Math.floor((cy - radius) / TILE));
+      const y1 = Math.min(H - 1, Math.floor((cy + radius) / TILE));
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'butt'; // flat ends, so the little pieces run together instead of showing as dots
+      ctx.lineWidth = 2;
+      const edge = (ax, ay, bx, by) => {
+        for (let k = 0; k < 4; k++) {
+          const sx = ax + ((bx - ax) * k) / 4;
+          const sy = ay + ((by - ay) * k) / 4;
+          const ex = ax + ((bx - ax) * (k + 1)) / 4;
+          const ey = ay + ((by - ay) * (k + 1)) / 4;
+          const a = alpha * (1 - Math.hypot((sx + ex) / 2 - cx, (sy + ey) / 2 - cy) / radius);
+          if (a <= 0.01) continue;
+          ctx.strokeStyle = `rgba(95,212,255,${a})`;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+        }
+      };
+      for (let ty = y0; ty <= y1; ty++) {
+        for (let tx = x0; tx <= x1; tx++) {
+          if (walls[ty * W + tx]) continue; // an open tile: draw the sides of it that face a wall
+          const px = tx * TILE;
+          const py = ty * TILE;
+          if (tx === 0 || walls[ty * W + tx - 1]) edge(px, py, px, py + TILE);
+          if (tx === W - 1 || walls[ty * W + tx + 1]) edge(px + TILE, py, px + TILE, py + TILE);
+          if (ty === 0 || walls[(ty - 1) * W + tx]) edge(px, py, px + TILE, py);
+          if (ty === H - 1 || walls[(ty + 1) * W + tx]) edge(px, py + TILE, px + TILE, py + TILE);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /** Everything in the decoy scene: the decoy (on the floor, then dropped), its call, the two monsters and the explorer. */
+    function drawDecoyWorld() {
+      const st = sceneT();
+      const soft = isCalm();
+      drawLitWalls(person.x, person.y, 170, 0.45);
+      if (st >= DC_DROP_T) drawLitWalls(DC_X, DC_Y, 120, 0.25);
+
+      ctx.globalCompositeOperation = 'lighter';
+      const pinkGlow = (x, y, strength) => {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, 42);
+        g.addColorStop(0, `rgba(${PINK},${0.55 * strength})`);
+        g.addColorStop(1, `rgba(${PINK},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, 42, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${PINK},${0.7 * strength})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(x, y, 9, 0, TAU);
+        ctx.stroke();
+      };
+      // lying on the floor, glimmering, until they take it
+      if (st < DC_PICK_T) pinkGlow(DC_FLOOR_X, DC_Y, clamp(1 - Math.abs(DC_FLOOR_X - person.x) / 260, 0.15, 1) * (0.7 + 0.3 * Math.sin(time * 4)));
+      // dropped: it pulses with its beeps, faster as it nears the call - then the call sweeps out
+      if (st >= DC_DROP_T) {
+        const since = st - DC_DROP_T;
+        const arming = st < DC_CALL_T;
+        pinkGlow(DC_X, DC_Y, arming ? 0.7 + 0.3 * Math.sin(since * (6 + 10 * clamp(since / 5, 0, 1))) : 1);
+        const r = (st - DC_CALL_T) / 0.9;
+        if (!arming && r < 1) {
+          ctx.strokeStyle = `rgba(${PINK},${(1 - r) * 0.5})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(DC_X, DC_Y, 480 * r, 0, TAU);
+          ctx.stroke();
+        }
+      }
+
+      // held at the decoy: pink tethers that shiver, and monsters that cannot quite keep still
+      const heldE = st >= DC_ECHO_TRAP_T;
+      const heldS = st >= DC_SCENT_TRAP_T;
+      const jit = () => (Math.random() - 0.5) * 2.4;
+      ctx.lineWidth = 1.5;
+      [[heldE, mm2.echoX, DC_ECHO.y], [heldS, mm2.scentX, DC_SCENT.y]].forEach(([held, mx, my]) => {
+        if (!held) return;
+        ctx.strokeStyle = `rgba(${PINK},${0.22 + 0.16 * Math.sin(time * 11)})`;
+        ctx.beginPath();
+        ctx.moveTo(DC_X, DC_Y);
+        ctx.lineTo(mx + jit(), my + jit());
+        ctx.stroke();
+      });
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (mm2.echoX > 0) drawEchoBody(mm2.echoX + (heldE ? jit() : 0), DC_ECHO.y + (heldE ? jit() : 0), 0, 1, soft ? 0.55 : 0.95);
+      if (mm2.scentX > 0) drawScentBody(mm2.scentX + (heldS ? jit() : 0), DC_SCENT.y + (heldS ? jit() : 0), 1, soft ? 0.6 : 1, !heldS);
+      if (personVisible) drawPerson();
+    }
+
     function draw() {
       if (!active) return;
       const { DPR, viewScale } = env.size();
@@ -903,6 +1427,12 @@ const EchoCutscene = (() => {
       ctx.setTransform(s, 0, 0, s, cw / 2 - camX * s + sx, ch / 2 - camY * s + sy);
       if (kind === 'scent') {
         drawScentWorld();
+      } else if (kind === 'mimic') {
+        env.drawRippleLayer(); // the explorer's real ping lights the corridor
+        drawMimicThing();
+        if (personVisible) drawPerson();
+      } else if (kind === 'decoy') {
+        drawDecoyWorld();
       } else {
         env.drawRippleLayer();
         if (personVisible) drawPerson();
