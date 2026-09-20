@@ -48,7 +48,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v6.0 | 8d8e4fd | level 8: the mimic (new enemy) and the sonar decoy (new item); the game now ends after level 8 |
 | v7.0 | f02341e | new level 9; the sonar decoy moves to level 9; two new cutscenes (mimic, before level 8; decoy, before level 9); the game now ends after level 9 |
 | v7.1 | 495b690 | fix: a story scene you never saw plays first on Continue / level pick (so no need to redo level 7), and is unlocked in the replay screen once you are past it |
-| v8.0 | (this commit) | MAJOR: crouching (hold Shift), the stalker (new enemy, orange), level 10, and a fifth cutscene about the stalker (before level 10); the game now ends after level 10 (latest) |
+| v8.0 | ad2202e | MAJOR: crouching (hold Shift), the stalker (new enemy, orange), level 10, and a fifth cutscene about the stalker (before level 10); the game now ends after level 10 (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
