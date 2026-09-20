@@ -55,6 +55,11 @@ canvas {
   margin-left: 18px;
 }
 
+/* shown only while Shift is held: you are crouching (silent, and no ripples) */
+#hud-crouch {
+  color: rgba(205, 232, 245, 0.85);
+}
+
 #banner {
   position: fixed;
   left: 0;

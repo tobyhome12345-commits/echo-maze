@@ -12,6 +12,7 @@
   <div id="hud" class="hidden">
     <div id="hud-level"></div>
     <div id="hud-right">
+      <span id="hud-crouch"></span>
       <span id="hud-item"></span>
       <span id="hud-ripples"></span>
       <span id="hud-audio"></span>
@@ -42,6 +43,7 @@
       <div class="controls">
         <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>move</span></div>
         <div><kbd class="wide">SPACE</kbd><span>send a ripple</span></div>
+        <div><kbd class="wide">SHIFT</kbd><span>hold to crouch: silent, but no ripples</span></div>
         <div><kbd>M</kbd><span>mute</span><kbd>P</kbd><span>pause</span><kbd>C</kbd><span>calm</span></div>
         <div><kbd>E</kbd><span>use an item you have found</span></div>
       </div>
@@ -51,12 +53,13 @@
         <li><i style="--c:#ffb347"></i>Obstacles</li>
         <li><i style="--c:#ff3b5c"></i>Echo monsters</li>
         <li><i style="--c:#b07cff"></i>Scent monsters</li>
+        <li><i style="--c:#ff7410"></i>Stalkers</li>
         <li><i style="--c:#bef046"></i>Smell puddles</li>
         <li><i style="--c:#ff7ad9"></i>Sonar decoy</li>
         <li><i style="--c:#5dffa0"></i>The way out</li>
       </ul>
 
-      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. Find the green resonance and get out.</p>
+      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. Hold Shift to crouch: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Find the green resonance and get out.</p>
 
       <div class="modes" role="radiogroup" aria-label="Difficulty">
         <button type="button" class="mode" role="radio" data-mode="easy"><b>Easy</b><small data-best="easy"></small></button>
@@ -105,6 +108,12 @@
     <div class="panel small">
       <h2>Paused</h2>
       <p id="pause-mode" class="mode-desc"></p>
+      <div class="controls">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>move</span></div>
+        <div><kbd class="wide">SPACE</kbd><span>send a ripple</span></div>
+        <div><kbd class="wide">SHIFT</kbd><span>hold to crouch: silent, but no ripples</span></div>
+        <div><kbd>E</kbd><span>use an item</span><kbd>P</kbd><span>resume</span></div>
+      </div>
       <label class="calm">
         <input type="checkbox" class="calm-toggle">
         <span><b>Calm mode</b> &mdash; softer visuals and sound <kbd>C</kbd></span>

@@ -12,6 +12,7 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | --- | --- |
 | `W` `A` `S` `D` (or arrows) | Move |
 | `SPACE` | Send a ripple |
+| `SHIFT` (hold) | Crouch: same speed, no footstep sound, no ripples (see below) |
 | `E` | Drop the sonar decoy you are carrying (level 9+) |
 | `P` / `Esc` | Pause |
 | `M` | Mute |
@@ -29,6 +30,7 @@ Headphones recommended: echoes and monsters are stereo-panned.
 | Amber | Obstacles (boulders and pillars) |
 | Red | Echo monsters |
 | Violet | Scent monsters (level 6+) |
+| Orange | Stalkers (level 10+) |
 | Lime | Smell puddles (level 6+) and your smell trail |
 | Pink | The sonar decoy (level 9+) |
 | Green | The way out |
@@ -53,14 +55,18 @@ Clearing level 7 plays a scene (~30 s, skippable, **Continue** skips it) before 
 
 Clearing level 8 plays a last scene (~30 s, skippable, **Continue** skips it) before level 9. After the card *You cannot outrun everything.*, a fourth explorer (day 19, a pink-white lamp) finds a **sonar decoy** glowing on the floor and takes it. An echo monster and a scent monster are closing in along the corridor, so they drop it (five seconds of faster, higher beeps), duck into a side passage and wait. It calls: a pink ring sweeps out, both monsters turn to it, and they are held there by pink tethers while the explorer slips away. The card *Give them somewhere else to go.* Then level 9.
 
-The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. All four scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens all of them (no flash or shake, dimmer monsters, quieter sound). Every scene can be rewatched from the replay screen once it has played.
+### The fifth scene (after level 9): the stalker — the one who gets away
+
+Clearing level 9 plays a scene (~25 s, skippable, **Continue** skips it) before level 10, and it is the only one where the explorer survives. After the card *Some things do not need a ripple to find you.*, a fifth explorer (day 47, a cold white lamp) is walking softly along a corridor when something breathes in behind them: a **stalker** (orange) has heard their steps. It keeps coming. They stop, drop into a **crouch** and creep up out of its way; it reaches the exact spot it heard them, stands there listening with its feelers sweeping while they hold their breath beside it, hears nothing for three seconds and walks on. "It couldn't hear me. Not a thing." / "Can't ping down here. But nothing can hear me either." The closing card is the hint: *It hears every step, even you standing still. Hold SHIFT to crouch.* Then level 10.
+
+The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. All five scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens all of them (no flash or shake, dimmer monsters, quieter sound). Every scene can be rewatched from the replay screen once it has played.
 
 ## Replaying levels and cutscenes
 
 Once there is something to replay, a **Levels & cutscenes** button appears under Begin on the title screen (`Esc` goes back).
 
 - **Levels:** every level you have already **cleared on the selected difficulty** can be picked and played again (1 up to the one before your best). Levels you haven't cleared — including the one you're currently up to, which is what **Continue** is for — are dimmed and can't be picked. Each mode has its own list, so switch mode on the title screen to see another mode's levels. Replaying never lowers your saved progress, and it starts straight in the level with no cutscene, like Continue (except that a story scene you have never seen plays first — see below). **Hardcore has no level select**: it is one life from level 1 and can't be resumed, so a level select would just be a way around that.
-- **Cutscenes:** the four story scenes can be rewatched once they have played — or once you are past the point where they play, even if the scene was added after you got there (the ones you haven't reached yet show as locked "???"). They work in every mode, honour calm mode, can be skipped, and drop you back on this screen when they end.
+- **Cutscenes:** the five story scenes can be rewatched once they have played — or once you are past the point where they play, even if the scene was added after you got there (the ones you haven't reached yet show as locked "???"). They work in every mode, honour calm mode, can be skipped, and drop you back on this screen when they end.
 - **A scene you never saw plays first:** **Continue** (and picking a level from the list) normally skips the story scenes, but if the scene that leads into that level has never been shown — for example you cleared level 7 before the mimic scene existed — it plays once before the level, then never again on Continue.
 
 ## How it works
@@ -74,18 +80,39 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 
 ## Levels
 
-There are **nine levels so far**. Clearing level 9 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
+There are **ten levels so far**. Clearing level 10 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
 
 The monsters on each level are **exact, and the same in every mode** (the modes differ in speed, hearing, ripples and puddles, not in how many monsters there are):
 
-| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 2 |
-| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 |
-| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
-| Sonar decoy to find | – | – | – | – | – | – | – | – | 1 |
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 2 | 0 |
+| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 1 |
+| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 |
+| Stalker (orange) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| Sonar decoy to find | – | – | – | – | – | – | – | – | 1 | 1 |
 
-Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** brings a second echo monster and the **sonar decoy** (below), and from here every level has a sonar decoy to find.
+Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** brings a second echo monster and the **sonar decoy** (below), and from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker, one scent monster and one mimic, and no echo monsters at all — so no monster on it can be alerted by a ripple except the mimic, when it turns.
+
+### Crouching (every level, every mode)
+
+**Hold `SHIFT`** to crouch (not `Ctrl`, which closes the tab in a browser). You move at exactly the same speed, but:
+
+- you make **no footstep sound** — so nothing can hear one;
+- you **cannot send a ripple**;
+- the top right shows **Crouching**, and your dot shrinks and dims;
+- **the instant you start crouching, everything your ripples showed you is wiped**: waves still travelling, the echoes they hadn't returned yet (their sounds are cancelled and never play), every fading mark on walls, obstacles, monsters, puddles and the sonar decoy, and the exit's glimmer (the mimic's too, or the difference would give it away). **Standing up does not bring any of it back** — only a new ripple shows anything again (that includes the exit's glimmer, which stays hidden until you next send one).
+
+Crouching works in every mode, on every level. (Bumping into a wall still makes its small mark; that is you feeling the wall, not a footstep.)
+
+### The stalker (level 10+)
+
+An **orange** monster, a little slower than an echo monster (**0.95 x** its speed on the same level and mode, and always well under your 170 px/s). It **ignores ripples, echoes and the sonar decoy**: a ripple lets you *see* it (in orange) but it learns nothing from it, and a decoy never calls it. It only ever **hears you**, and only while you are **not crouching**, in two ways, both working at all times (it has no listening window):
+
+- **Footsteps** — while you are moving, from within the mode's "too close" distance (100 / 124 / 148 / 158 px).
+- **Presence** — while you are standing, **even completely still**, from within a smaller radius (**60 / 75 / 90 / 100 px** on Easy / Normal / Hard / Hardcore; always smaller than that mode's footstep distance).
+
+A presence hit counts exactly like a footstep: it **walks to the exact spot it heard you**, keeps updating that spot for as long as it keeps hearing you, and **loses you if it hears nothing for 3 seconds** (even if it has not got there yet). When it hears nothing it **patrols to random tiles at a steady pace and never stands still**, so waiting in a corner does not work. **Crouching silences both.** It has its own voice — slow breathing and soft clicks, no growl — its own footsteps and a soft breath-and-click when it hears you. Touching it kills you.
 
 ### The mimic (level 8+)
 
@@ -106,6 +133,8 @@ Pick one on the title screen. Each mode scales the level curve (the table shows 
 | Monster speed | 85 px/s | 113 | 130 | 135 |
 | Listens after arriving | 3.5 s | 4.8 s | 6 s | 6.5 s |
 | "Too close" (hears footsteps / keeps tracking) | 100 px | 124 px | 148 px | 158 px |
+| Stalker hears you standing still within | 60 px | 75 px | 90 px | 100 px |
+| Stalker speed on level 10 (0.95 x an echo monster's) | 100 px/s | 133 | 143 | 147 |
 | Ripple range | 367 px | 315 px | 269 px | 260 px |
 | Ripple recharge | 0.90 s | 1.09 s | 1.29 s | 1.34 s |
 | Smell puddles on level 6 | 2 | 3 | 4 | 4 |
@@ -131,7 +160,7 @@ index.html      page + overlay screens (title, replay, pause, caught, level comp
 style.css       styling
 js/audio.js     SoundEngine - procedural Web Audio synthesis
 js/level.js     level generation + difficulty curve (levelConfig)
-js/cutscene.js  the opening cutscene: lore cards + scripted scene (timeline at the top)
+js/cutscene.js  the five story cutscenes: lore cards + scripted scenes (timelines at the top)
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
 ```
 
@@ -139,4 +168,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `audio`) for poking at the game from the console.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `audio`) for poking at the game from the console.

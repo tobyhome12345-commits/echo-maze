@@ -1,12 +1,15 @@
 'use strict';
 
 /**
- * The story cutscenes - four scripted scenes in the dark maze, chosen by start(kind):
- *   'intro' (before level 1)   an explorer who has been lost for too long sends out a ripple, hears
+ * The story cutscenes - five scripted scenes in the dark maze, chosen by start(kind):
+ *   'intro'   (before level 1) an explorer who has been lost for too long sends out a ripple, hears
  *                              something answer, and is taken by an echo monster. Then it is your turn.
- *   'scent' (level 5 -> 6)     an explorer steps in a puddle and a scent monster follows their trail.
- *   'mimic' (level 7 -> 8)     an explorer follows the exit's chime to a glow, pings it - and it is a mimic.
- *   'decoy' (level 8 -> 9)     an explorer finds a sonar decoy and uses it to trap two monsters.
+ *   'scent'   (level 5 -> 6)   an explorer steps in a puddle and a scent monster follows their trail.
+ *   'mimic'   (level 7 -> 8)   an explorer follows the exit's chime to a glow, pings it - and it is a mimic.
+ *   'decoy'   (level 8 -> 9)   an explorer finds a sonar decoy and uses it to trap two monsters.
+ *   'stalker' (level 9 -> 10)  a stalker hears an explorer's steps and comes for the spot; they crouch, creep
+ *                              clear and it finds nothing. The one scene where the explorer gets away, and
+ *                              it shows the player how (hold SHIFT to crouch).
  *
  * Everything runs off one clock (`time`, seconds since the cutscene began), and
  * everything you hear is synthesised - including the mumble of the explorer's
@@ -158,19 +161,54 @@ const EchoCutscene = (() => {
     [DC_SCENT_TRAP_T + 0.6, "Five seconds. That's all I need."],
   ];
 
+  // ------------------------------------------------ the stalker scene (levels 9 -> 10)
+  // A fifth explorer walks softly along the corridor when something they cannot see breathes in: a stalker has
+  // heard their steps. They stop to listen, and it keeps coming - a stalker hears you even standing still, if you
+  // are close. They drop into a crouch and creep out of its way. It reaches the exact spot it heard them, finds
+  // nothing, and after three quiet seconds (as in the game) gives up and walks on. The explorer gets away, and
+  // the scene ends on the way to do it. Plays after level 9 is cleared. Times are scene-relative (ST_S = when the
+  // scene proper begins, after one lore card).
+  const ST_S = 4.4;
+  const ST_Y = 178; // the corridor row the explorer walks along
+  const ST_MON_Y = ST_Y + 6; // the stalker walks a little below it, so a crouching explorer beside it is not overlapped
+  const ST_STOP_X = 300; // where the explorer stops, and so the exact spot the stalker is heading for
+  const ST_WALK_END_T = 5.6; // they reach it and stop
+  const ST_CROUCH_T = 6.2; // they drop to a crouch...
+  const ST_CREEP_T = 1.7; // ...and creep up out of the lane, this long
+  const ST_CREEP_Y = 132; // beside where it will stand
+  const ST_MON_X0 = 60; // it steps in out of the dark here
+  const ST_MON_T0 = 3.6;
+  const ST_MON_V = 55; // its steady pace, px/s, hunting and patrolling alike
+  const ST_ARRIVE_T = ST_MON_T0 + (ST_STOP_X - ST_MON_X0) / ST_MON_V; // it reaches the spot it heard them at
+  const ST_LOSE_T = ST_CROUCH_T + 3; // nothing heard for 3 s, exactly as in the game: it gives up and walks on
+  const ST_CARD_T = 15.6;
+  const ST_END_T = 20.4;
+  // the explorer: walk to the spot, stand, crouch and creep out of the lane, stay low, edge away
+  const ST_PATH = [[0, 100, ST_Y], [ST_WALK_END_T, ST_STOP_X, ST_Y], [ST_CROUCH_T, ST_STOP_X, ST_Y], [ST_CROUCH_T + ST_CREEP_T, ST_STOP_X, ST_CREEP_Y], [12.6, ST_STOP_X, ST_CREEP_Y], [16.5, 272, ST_CREEP_Y], [99, 272, ST_CREEP_Y]];
+  const ST_LINES = [
+    [1.0, 'Soft steps. Keep them soft.'],
+    [3.9, '...Something just breathed in.'],
+    [5.4, "It's still coming. Get low."],
+    // (then silence: it is standing right beside them and must hear nothing)
+    [10.6, "It couldn't hear me. Not a thing."],
+    [12.8, "Can't ping down here. But nothing can hear me either."],
+  ];
+
   const PAL_INTRO = { glow: '255,208,140', cone: '255,226,170', body: '255,226,175', hand: '255,232,190', head: '255,240,212', lamp: '255,250,232' };
   const PAL_SCENT = { glow: '196,236,170', cone: '210,242,196', body: '206,236,196', hand: '214,242,204', head: '234,250,228', lamp: '246,255,240' };
   const PAL_MIMIC = { glow: '255,176,156', cone: '255,200,182', body: '255,200,186', hand: '255,210,196', head: '255,228,216', lamp: '255,242,234' }; // a coral lamp
   const PAL_DECOY = { glow: '255,196,236', cone: '255,214,242', body: '255,214,240', hand: '255,224,246', head: '255,240,250', lamp: '255,248,252' }; // a pink-white lamp
+  const PAL_STALKER = { glow: '170,226,240', cone: '196,238,248', body: '196,232,242', hand: '206,240,248', head: '228,248,253', lamp: '242,254,255' }; // a cold white lamp, so the orange stalker stands out
   const LIME = '190,240,70';
   const VIOLET = '176,124,255';
   const EXITGREEN = '93,255,160'; // the exit's green, which the mimic copies
   const PINK = '255,122,217'; // the sonar decoy's pink
+  const ORANGE = '255,116,16'; // the stalker's orange
 
   // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
-  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S };
-  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY };
-  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9 };
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER };
+  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10 };
 
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
@@ -254,7 +292,7 @@ const EchoCutscene = (() => {
     let mvoice = null; // its growl, heard before it is seen
     let danger = 0; // 0..1 how close the thing feels
 
-    // which scene is playing: 'intro', 'scent', 'mimic' or 'decoy' (see the header comment)
+    // which scene is playing: 'intro', 'scent', 'mimic', 'decoy' or 'stalker' (see the header comment)
     let kind = 'intro';
     let sceneStart = S;
     let pal = PAL_INTRO;
@@ -266,6 +304,9 @@ const EchoCutscene = (() => {
     let mm2 = { echoX: -200, scentX: -200 }; // where the two monsters are along the corridor (off in the dark until they set out)
     let mvoice2 = null; // the scent monster's voice (the echo monster's is `mvoice`)
     let dcStep = { echo: 0, scent: 0 }; // distance walked since each monster's last footstep
+    // stalker scene state
+    let crouchAmt = 0; // 0..1: how far down the explorer is (smaller, and the lamp dims)
+    let stMon = { x: -200, heading: 0, stepDist: 0, clickCd: 0.8, listening: false, moving: false }; // the stalker
     // scent scene state
     let smell = 0; // seconds of walking left of being smelly
     let trail = null; // the smell trail behind the explorer: { pts, active }
@@ -858,8 +899,142 @@ const EchoCutscene = (() => {
       camY = 150;
     }
 
+    // ------------------------------------------- the stalker scene: the timeline
+    /** Where the stalker is at scene time st: out of sight, then walking in, standing at the spot it heard, then walking on. */
+    function stalkerX(st) {
+      if (st < ST_MON_T0) return -200;
+      if (st < ST_ARRIVE_T) return ST_MON_X0 + ST_MON_V * (st - ST_MON_T0);
+      if (st < ST_LOSE_T) return ST_STOP_X;
+      return ST_STOP_X + ST_MON_V * (st - ST_LOSE_T);
+    }
+
+    function buildStalker() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S5 = ST_S;
+
+      at(0.6, () => {
+        showCard('Some things do not need a ripple to find you.');
+        audio.swell(50);
+      });
+      at(S5 - 1.0, hideCard);
+      at(S5, () => {
+        rings = [];
+      });
+      at(S5 + 0.8, () => {
+        el.caption.textContent = 'Day 47';
+        el.caption.classList.add('show');
+      });
+      at(S5 + 3.4, () => el.caption.classList.remove('show'));
+      ST_LINES.forEach(([t, text]) => at(S5 + t, () => say(text)));
+      // their breathing: normal, then held while it stands beside them, then let go
+      [2.0, 4.8].forEach((t) => at(S5 + t, () => audio.breath(0.9)));
+      at(S5 + ST_LOSE_T + 1.0, () => audio.breath(1.3));
+
+      // it is heard before it is seen: breathing in the dark, then it hears their steps and turns
+      at(S5 + ST_MON_T0 - 0.6, () => {
+        mvoice = audio.createEnemyVoice(64, 'stalker');
+      });
+      at(S5 + ST_MON_T0 + 0.1, () => {
+        const h = heard(stMon.x > 0 ? stMon.x : ST_MON_X0, ST_MON_Y, 900);
+        audio.stalkerAlert(h.pan, Math.max(h.g, 0.5));
+      });
+      at(S5 + 4.0, () => {
+        noticed = true;
+      });
+      at(S5 + ST_CROUCH_T - 0.3, () => {
+        noticed = false;
+      });
+      [[5.4, 0.5], [6.3, 0.65], [7.1, 0.8], [7.9, 0.9], [8.7, 0.85], [9.5, 0.7]].forEach(([t, g]) => at(S5 + t, () => audio.heartbeat(g)));
+
+      at(S5 + ST_CARD_T, () => {
+        showCard('It hears every step, even you standing still.\nHold SHIFT to crouch.');
+        audio.swell(52, 1.1);
+      });
+      at(S5 + ST_CARD_T + 4.6, hideCard);
+      at(S5 + ST_END_T, () => finish());
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the stalker scene. */
+    function updateStalkerScene(dt) {
+      if (time < ST_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - ST_S;
+      flash = 0;
+      shake = 0;
+
+      // the explorer: walks to the spot, stops, drops into a crouch and creeps out of the lane; a crouch makes no footsteps
+      crouchAmt = smooth((st - ST_CROUCH_T) / 0.5);
+      const bx = person.x;
+      const by = person.y;
+      const p = pathAt(ST_PATH, st);
+      person.x = p.x;
+      person.y = p.y;
+      const moved = Math.hypot(person.x - bx, person.y - by);
+      isWalking = moved > 0.01;
+      if (isWalking && crouchAmt < 0.5) {
+        stepDist += moved;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(0.35);
+        }
+      }
+      // they turn to face the sound when they stop, and look ahead again once it has gone
+      const lookBack = st > ST_LOSE_T + 1.3 ? smooth((st - (ST_LOSE_T + 1.3)) / 0.8) : 0;
+      angle = Math.PI * smooth((st - (ST_WALK_END_T - 0.2)) / 0.5) * (1 - lookBack);
+
+      // the stalker: a steady walk in, stands at the exact spot listening, gives up, walks on
+      const px = stMon.x;
+      stMon.x = stalkerX(st);
+      stMon.listening = st >= ST_ARRIVE_T && st < ST_LOSE_T;
+      stMon.moving = stMon.x > 0 && !stMon.listening && px > 0 && Math.abs(stMon.x - px) > 0.01;
+      stMon.heading = stMon.listening ? 0.55 * Math.sin(time * 2.3) : 0;
+      if (stMon.moving) {
+        stMon.stepDist += Math.abs(stMon.x - px);
+        if (stMon.stepDist >= 19) {
+          stMon.stepDist = 0;
+          const h = heard(stMon.x, ST_MON_Y, 700);
+          audio.stalkerStep(h.pan, 0.45 + 0.4 * h.g);
+        }
+      }
+      if (stMon.x > 0) {
+        stMon.clickCd -= dt;
+        if (stMon.clickCd <= 0) {
+          stMon.clickCd = 0.9 + Math.random() * 0.9;
+          const h = heard(stMon.x, ST_MON_Y, 700);
+          audio.stalkerClick(h.pan, 0.4 + 0.5 * h.g);
+        }
+      }
+      // the breathing swells as it comes close, and thins out once it has lost them
+      danger = st < ST_LOSE_T ? clamp((st - ST_MON_T0) / (ST_ARRIVE_T - ST_MON_T0), 0, 1) : clamp(1 - (st - ST_LOSE_T) / 3, 0, 1);
+      if (mvoice) {
+        const h = heard(stMon.x > 0 ? stMon.x : ST_MON_X0, ST_MON_Y, 800);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.14 + 0.32 * danger), pan: h.pan, mood: 0.4 + 0.6 * danger, muffle: false });
+      }
+
+      // the lamp gutters as it nears, and is turned down while they are crouched
+      const wobble = 0.86 + 0.14 * Math.sin(time * 19) + (Math.random() - 0.5) * 0.08;
+      const dropout = danger > 0.5 && st < ST_LOSE_T && Math.sin(time * 9.3) * Math.sin(time * 4.1) > 0.85 ? 0.3 : 1;
+      lampFlicker = wobble * dropout * (1 - 0.4 * crouchAmt);
+
+      // the camera stays with them - then, for the closing card, drifts aside so the explorer is not under the text
+      camX = lerp(camX, person.x + (st > ST_CARD_T - 1.2 ? 300 : 70), Math.min(1, dt * 2.5));
+      camY = 150;
+    }
+
     // ----------------------------------------------------------------- flow
-    /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8) or 'decoy' (8 -> 9). */
+    /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8), 'decoy' (8 -> 9) or 'stalker' (9 -> 10). */
     function start(k = 'intro') {
       kind = SCENE_START[k] !== undefined ? k : 'intro';
       sceneStart = SCENE_START[kind];
@@ -871,6 +1046,8 @@ const EchoCutscene = (() => {
       mm = kind === 'mimic' ? { phase: 'glow', x: MM_X, stepDist: 0 } : null;
       mm2 = { echoX: -200, scentX: -200 };
       dcStep = { echo: 0, scent: 0 };
+      crouchAmt = 0;
+      stMon = { x: -200, heading: 0, stepDist: 0, clickCd: 0.8, listening: false, moving: false };
       glowPulse = 0;
       isWalking = false;
       active = true;
@@ -899,6 +1076,7 @@ const EchoCutscene = (() => {
       if (kind === 'scent') buildScent();
       else if (kind === 'mimic') buildMimic();
       else if (kind === 'decoy') buildDecoy();
+      else if (kind === 'stalker') buildStalker();
       else build();
       el.root.classList.remove('hidden');
       el.card.classList.remove('show');
@@ -948,6 +1126,10 @@ const EchoCutscene = (() => {
       }
       if (kind === 'decoy') {
         updateDecoyScene(dt);
+        return;
+      }
+      if (kind === 'stalker') {
+        updateStalkerScene(dt);
         return;
       }
 
@@ -1018,11 +1200,11 @@ const EchoCutscene = (() => {
 
     function drawPerson() {
       const lamp = lampFlicker;
-      const walking = kind === 'mimic' || kind === 'decoy' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
+      const walking = kind === 'mimic' || kind === 'decoy' || kind === 'stalker' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
       const phase = time * 9;
       ctx.save();
       ctx.translate(person.x + offX, person.y + (walking ? Math.sin(phase) * 0.8 : 0));
-      ctx.scale(1.3, 1.3);
+      ctx.scale(1.3 - 0.34 * crouchAmt, 1.3 - 0.34 * crouchAmt); // a crouching explorer is smaller
       ctx.globalCompositeOperation = 'lighter';
 
       // a soft pool of light from the failing headlamp (warm in the intro, a cooler white in the scent scene)
@@ -1405,6 +1587,76 @@ const EchoCutscene = (() => {
       if (personVisible) drawPerson();
     }
 
+    /**
+     * A stalker's body at (x,y), facing `heading`: orange line-art, long and lean - a narrow body, a small blind
+     * head with two long feelers that flick, and tall thin legs. `walking` sets the legs going; `listening` makes
+     * the feelers sweep wide, the way it does when it stands still and strains to hear.
+     */
+    function drawStalkerBody(x, y, heading, alpha, walking, listening) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(heading);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const flick = Math.sin(time * (listening ? 8 : 5)) * (listening ? 6 : 2.5);
+      const path = () => {
+        ctx.beginPath();
+        ctx.moveTo(15, 0);
+        ctx.ellipse(-2, 0, 17, 8, 0, 0, TAU); // the long body
+        ctx.moveTo(27, 0);
+        ctx.arc(22, 0, 5, 0, TAU); // the small head - no eyes, nothing to look with
+        // two long feelers that sweep about, listening
+        ctx.moveTo(26, -3);
+        ctx.quadraticCurveTo(38, -4, 50, -16 + flick);
+        ctx.moveTo(26, 3);
+        ctx.quadraticCurveTo(38, 4, 50, 16 - flick);
+        // six tall, thin legs
+        for (let i = 0; i < 3; i++) {
+          const lx = -11 + i * 9;
+          const sw = walking ? Math.sin(time * 12 + i * 2.1) * 6 : 0;
+          [-1, 1].forEach((side) => {
+            ctx.moveTo(lx, side * 7);
+            ctx.lineTo(lx + 5 + sw * side * 0.4, side * 21);
+            ctx.lineTo(lx + 2 + sw, side * 35);
+          });
+        }
+      };
+      path();
+      ctx.strokeStyle = `rgba(${ORANGE},${0.22 * alpha})`;
+      ctx.lineWidth = 11;
+      ctx.stroke();
+      path();
+      ctx.strokeStyle = `rgba(255,178,100,${0.95 * alpha})`;
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /** Everything in the stalker scene: the lit walls, the stalker (fading into the dark as it gets farther from the lamp) and the explorer. */
+    function drawStalkerWorld() {
+      const st = sceneT();
+      drawLitWalls(person.x, person.y, 170, 0.45);
+      if (stMon.x > 0) {
+        const soft = isCalm();
+        const near = clamp((300 - Math.abs(stMon.x - person.x)) / 150, 0.22, 1);
+        // the moment it hears them: a ring rolls out from it
+        const since = st - (ST_MON_T0 + 0.1);
+        if (since > 0 && since < 0.9) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = `rgba(${ORANGE},${(1 - since / 0.9) * (soft ? 0.25 : 0.55)})`;
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.arc(stMon.x, ST_MON_Y, 14 + since * 170, 0, TAU);
+          ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        drawStalkerBody(stMon.x, ST_MON_Y, stMon.heading, near * (soft ? 0.6 : 1), stMon.moving, stMon.listening);
+      }
+      if (personVisible) drawPerson();
+    }
+
     function draw() {
       if (!active) return;
       const { DPR, viewScale } = env.size();
@@ -1433,6 +1685,8 @@ const EchoCutscene = (() => {
         if (personVisible) drawPerson();
       } else if (kind === 'decoy') {
         drawDecoyWorld();
+      } else if (kind === 'stalker') {
+        drawStalkerWorld();
       } else {
         env.drawRippleLayer();
         if (personVisible) drawPerson();

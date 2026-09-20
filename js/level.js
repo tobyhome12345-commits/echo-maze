@@ -28,15 +28,22 @@ function mulberry32(seed) {
  *   puddles           multiplier on how many smell puddles a level has (level 6+)
  *   smell             px: how far away a scent monster can smell you while you
  *                     are smelly (it loses you beyond this)
+ *   presenceRadius    px: how close a stalker (level 10+) must be to hear you just
+ *                     STANDING there (a footstep is heard from `hear`). Always
+ *                     smaller than `hear`: levelConfig() clamps it and the check
+ *                     below warns if a mode breaks that.
  *   oneLife           being caught ends the whole run
  */
 const MODES = {
-  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240 },
-  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300 },
-  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360 },
-  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, oneLife: true },
+  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240 },
+  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300 },
+  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360 },
+  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, oneLife: true },
 };
 const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
+for (const id of MODE_ORDER) {
+  if (!(MODES[id].presenceRadius < MODES[id].hear)) console.warn(`MODES.${id}: presenceRadius must be smaller than hear (its footstep radius)`);
+}
 
 /**
  * How far a ripple reaches from where the player was standing when they sent it. It
@@ -59,6 +66,13 @@ const DECOY_RADIUS = 480; // px: every monster within this of a decoy when it ca
 const DECOY_TRAP_SECONDS = 5; // seconds a monster stays trapped at the decoy once it has arrived
 const DECOY_PICKUP_R = 12; // px
 
+// The stalker (arrives on level 10): ignores ripples, echoes and the sonar decoy; it only ever HEARS you, and only
+// when you are not crouching (see game.js: updateStalker / stalkersListen).
+const STALKER_FROM_LEVEL = 10;
+const STALKER_SPEED_FACTOR = 0.95; // of an echo monster's speed on the same level and mode (patrolling and hunting alike)
+const STALKER_TOP_SPEED = 169; // px/s: whatever the factor works out to, a stalker is always slower than the player's 170
+const STALKER_LOSE_SECONDS = 3; // it loses you when nothing has been heard for this long
+
 const PUDDLE_R = 14;
 const SCENT_FROM_LEVEL = 6; // the scent monster and the smell puddles arrive together
 const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in a puddle
@@ -68,20 +82,24 @@ const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before
 /**
  * The monsters on each level of the game so far - EXACT, and the same in every
  * mode (the modes differ in speed, hearing, ripples and so on, not in how many
- * monsters there are). The game currently ends after level 9.
- *   level:  1  2  3  4  5  6  7  8  9
- *   echo:   0  1  1  2  2  0  1  1  2
- *   scent:  0  0  0  0  0  1  1  1  1
- *   mimic:  0  0  0  0  0  0  0  1  1
+ * monsters there are). The game currently ends after level 10.
+ *   level:   1  2  3  4  5  6  7  8  9  10
+ *   echo:    0  1  1  2  2  0  1  1  2  0
+ *   scent:   0  0  0  0  0  1  1  1  1  1
+ *   mimic:   0  0  0  0  0  0  0  1  1  1
+ *   stalker: 0  0  0  0  0  0  0  0  0  1
  * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8
  * adds the mimic; level 9 adds a second echo monster and the sonar decoy to find
- * (the owner did not give a monster mix for level 9 - this one is my choice).
- * Levels past 9 do not exist yet; the fallback formula below only keeps them
+ * (the owner did not give a monster mix for level 9 - this one is my choice);
+ * level 10 is the stalker's (the owner's mix: 1 stalker, 1 scent, 1 mimic, NO echo
+ * monsters; it has the sonar decoy too, like every level from 9).
+ * Levels past 10 do not exist yet; the fallback formula below only keeps them
  * generating sensibly (debug/testing) until they are designed.
  */
-const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 2 };
-const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 1 };
-const MIMIC_MONSTERS = { 8: 1, 9: 1 };
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 2, 10: 0 };
+const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
+const MIMIC_MONSTERS = { 8: 1, 9: 1, 10: 1 };
+const STALKER_MONSTERS = { 10: 1 };
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {
@@ -92,6 +110,7 @@ function levelConfig(n, modeId = 'normal') {
   const echoCount = n in ECHO_MONSTERS ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
   const scentCount = n in ECHO_MONSTERS ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
   const mimicCount = n in ECHO_MONSTERS ? MIMIC_MONSTERS[n] || 0 : n >= MIMIC_FROM_LEVEL ? 1 : 0;
+  const stalkerCount = n in ECHO_MONSTERS ? STALKER_MONSTERS[n] || 0 : n >= STALKER_FROM_LEVEL ? 1 : 0;
   const enemySpeed = Math.min((70 + n * 8) * m.speed, m.speedCap); // px/s while hunting
   return {
     n,
@@ -105,6 +124,7 @@ function levelConfig(n, modeId = 'normal') {
     enemySpeed,
     searchTime: m.listen, // seconds a monster listens after reaching the spot it was sent to
     footstepRadius: m.hear, // px, see MODES
+    presenceRadius: Math.min(m.presenceRadius, m.hear - 1), // px, see MODES: always smaller than footstepRadius
     rippleRadius: Math.max(RIPPLE_RANGE_BASE - n * RIPPLE_RANGE_PER_LEVEL, RIPPLE_RANGE_MIN) * m.ripple, // px from where it is sent
     cooldown: Math.min(0.7 + n * 0.07, 1.5) * m.cooldown,
     // scent monsters + smell puddles (level 6+)
@@ -116,6 +136,9 @@ function levelConfig(n, modeId = 'normal') {
     // the mimic (level 8+) and the sonar decoy (level 8+)
     mimics: mimicCount, // see MIMIC_MONSTERS
     decoy: n >= DECOY_FROM_LEVEL, // one to find on the level
+    // the stalker (level 10+): hears you (never a ripple, an echo or a decoy), a little slower than an echo monster
+    stalkers: stalkerCount, // see STALKER_MONSTERS
+    stalkerSpeed: Math.min(enemySpeed * STALKER_SPEED_FACTOR, STALKER_TOP_SPEED), // px/s, patrolling and hunting alike
   };
 }
 
@@ -405,6 +428,33 @@ function generateLevel(n, runSeed, modeId = 'normal') {
       const ty = (pick / W) | 0;
       decoy = { x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, r: DECOY_PICKUP_R, tx, ty, taken: false };
     }
+  }
+
+  // 11. Stalkers (level 10+): far from the start and from every other monster. (Last, after every other random
+  //     draw, and it draws nothing on a level without one, so levels 1-9 generate exactly as they always did.)
+  for (let k = 0; k < cfg.stalkers; k++) {
+    let pick = -1;
+    for (const minSep of [8, 5, 2, 0]) {
+      for (const idx of spots) {
+        if (dS[idx] < minStart || tooClose(idx, minSep)) continue;
+        pick = idx;
+        break;
+      }
+      if (pick >= 0) break;
+    }
+    if (pick < 0) pick = spots.find((i) => dS[i] >= 4 && !tooClose(i, 0)) ?? -1;
+    if (pick < 0) continue;
+    const tx = pick % W;
+    const ty = (pick / W) | 0;
+    enemies.push({
+      kind: 'stalker',
+      tx,
+      ty,
+      x: (tx + 0.5) * TILE,
+      y: (ty + 0.5) * TILE,
+      sleeper: false,
+      pitch: 60 + rand() * 12, // its breathing
+    });
   }
 
   return {

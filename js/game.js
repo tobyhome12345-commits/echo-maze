@@ -9,10 +9,10 @@
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
-  const CAMPAIGN_LEVELS = 9; // the game so far: clearing level 9 ends it ("you finished") - more levels come later
+  const CAMPAIGN_LEVELS = 10; // the game so far: clearing level 10 ends it ("you finished") - more levels come later
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
-  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy' };
-  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9 };
+  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker' };
+  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10 };
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -26,9 +26,10 @@
   const T_SCENT = 5; // scent monster (violet)
   const T_PUDDLE = 6; // smell puddle (lime) - never blocks a ripple, just shows up in it
   const T_DECOY = 7; // sonar decoy (pink) - lies flat like a puddle, shows up in a ripple but never blocks it
-  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217'];
-  const LINE_W = [0, 2.4, 2.8, 3.4, 3.2, 3.4, 3]; // core stroke width per type
-  const NRAYTYPES = 6; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster); 0 = nothing
+  const T_STALKER = 8; // stalker (orange) - a ripple can show it, but it learns nothing from it
+  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217', '255,116,16'];
+  const LINE_W = [0, 2.4, 2.8, 3.4, 3.2, 3.4, 3, 3, 3.4]; // core stroke width per type
+  const NRAYTYPES = 9; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster) and 8 (stalker); 0 = nothing. 6 and 7 are flat marks (puddle, decoy), never rays
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
@@ -52,6 +53,7 @@
     7: 'Your own trail can smell you again: step back onto it while it lasts and you are smelly, like a puddle. Give it about ten seconds between touches.',
     8: 'Not every green glow is the way out: something here copies the exit, and turns on you the moment your ripple touches it.',
     9: 'A pink sonar decoy lies somewhere on this level. Walk onto it, then press E to drop it: five seconds later it calls every monster nearby and traps them there.',
+    10: 'The stalker ignores ripples and decoys. It only listens: your footsteps, and even you standing close. Hold SHIFT to crouch - you make no sound, but you cannot send a ripple.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -62,6 +64,7 @@
     'A monster that has locked onto you loses you the moment you get far enough away. Run.',
     'Smell only wears off while you WALK. Standing still keeps you smelly, so keep moving away.',
     'A scent monster ignores ripples and footsteps. Only smell - and its trails - lead it to you.',
+    'Hold SHIFT to crouch: no footsteps, no ripples - and crouching wipes whatever your ripples had shown you.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -131,6 +134,7 @@
   let marks = [];
   let decoys = []; // sonar decoys the player has dropped this level (level 8+)
   let decoyBlipTimer = 0;
+  let glimmerOff = false; // crouching wiped the exit's glimmer; it stays gone until your next ripple (see startCrouch)
   let cooldown = 0;
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -436,10 +440,15 @@
    *                    and its chime. It sits still and silent until the wave of a ripple touches it, and
    *                    then it becomes an ordinary 'echo' monster (see revealMimic). A sonar decoy can still
    *                    drag it around while it is disguised.
+   *   'stalker' (orange) ignores ripples, echoes and the sonar decoy entirely (a ripple can SHOW it, it learns nothing).
+   *                    It hears you two ways, both only while you are NOT crouching, both at all times: your footsteps
+   *                    (while you move, within footstepRadius) and your presence (standing, even still, within the
+   *                    smaller presenceRadius). See stalkersListen / updateStalker.
    * `state` is idle | hunt (walking to a spot) | search (listening) | track (following you)
-   * for an echo monster, and patrol | follow (along a smell trail) | track (smelling you) for a scent monster.
+   * for an echo monster, patrol | follow (along a smell trail) | track (smelling you) for a scent monster, and
+   * patrol | hunt (walking to the exact spot it last heard you) for a stalker.
    * Any monster a sonar decoy has called is `lured` (walking to it) and then `trapped` (held there for
-   * DECOY_TRAP_SECONDS) before it goes back to normal (see lureEnemy / updateLured).
+   * DECOY_TRAP_SECONDS) before it goes back to normal (see lureEnemy / updateLured). A stalker is never called.
    */
   function makeEnemy(spec) {
     const kind = spec.kind || 'echo';
@@ -450,14 +459,19 @@
       r: kind === 'mimic' ? EXIT_R : ENEMY_R, // a disguised mimic is exactly as big as the exit it copies
       pitch: spec.pitch, // kept so a mimic can get its echo-monster voice when it turns
       sleeper: spec.sleeper,
-      state: kind === 'scent' ? 'patrol' : 'idle',
+      state: kind === 'scent' || kind === 'stalker' ? 'patrol' : 'idle',
       path: null,
       pi: 0,
       timer: 0,
       repath: 0,
-      pause: kind === 'scent' ? 0.3 + Math.random() : 1 + Math.random() * 2,
+      pause: kind === 'scent' ? 0.3 + Math.random() : kind === 'stalker' ? 0 : 1 + Math.random() * 2,
       stepDist: 0,
       alertCd: 0,
+      heardX: 0, // stalker: the exact spot it last heard you
+      heardY: 0,
+      deaf: 0, // stalker: seconds since it last heard you
+      spotNew: false, // stalker: the spot has changed since it last planned a route
+      clickCd: 1 + Math.random() * 2, // stalker: seconds to its next soft click
       followTrail: null, // scent monster: the trail it is following
       ignoreTrail: null, // scent monster: a trail it just finished; ignored until it walks away from it
       voice: audio.ready && kind !== 'mimic' ? audio.createEnemyVoice(spec.pitch, kind) : null, // a disguised mimic makes no sound of its own
@@ -532,12 +546,93 @@
     e.alertCd = Math.max(0, e.alertCd - dt);
     if (e.state === 'lured' || e.state === 'trapped') {
       // a sonar decoy has called it: it ignores everything else (ripples, footsteps, smell) until it is released
-      enemyAudio(e, updateLured(e, dt));
+      enemyAudio(e, updateLured(e, dt), dt);
       return;
     }
     // a disguised mimic just sits there, silent, being an exit
-    const moved = e.kind === 'scent' ? updateScent(e, dt) : e.kind === 'mimic' ? 0 : updateEcho(e, dt);
-    enemyAudio(e, moved);
+    const moved = e.kind === 'stalker' ? updateStalker(e, dt) : e.kind === 'scent' ? updateScent(e, dt) : e.kind === 'mimic' ? 0 : updateEcho(e, dt);
+    enemyAudio(e, moved, dt);
+  }
+
+  // ---------------------------------------------------------------- stalker
+  /**
+   * Every stalker that can hear you does, this frame. It hears you in exactly two ways, and only while you are
+   * NOT crouching (crouching silences both): your footsteps - while you actually move - from anywhere within
+   * footstepRadius, and your presence - while you stand, even completely still - from within the smaller
+   * presenceRadius. There is no listening window: it works at all times. Distance is straight-line (sound goes
+   * through walls, as it does for every monster). A ripple, an echo or a sonar decoy tells it nothing.
+   */
+  function stalkersListen(walked) {
+    if (player.crouching) return;
+    for (const e of enemies) {
+      if (e.kind !== 'stalker') continue;
+      const d = Math.hypot(e.x - player.x, e.y - player.y);
+      if (d <= cfg.presenceRadius || (walked && d <= cfg.footstepRadius)) stalkerHeard(e);
+    }
+  }
+
+  /** It heard you: it goes to the exact spot you are at right now, and keeps updating it while it keeps hearing you. */
+  function stalkerHeard(e) {
+    if (e.state !== 'hunt') {
+      e.state = 'hunt';
+      e.repath = 0; // plan the route at once
+      stalkerAlert(e);
+    }
+    e.deaf = 0;
+    e.heardX = player.x;
+    e.heardY = player.y;
+    e.spotNew = true;
+  }
+
+  function stalkerAlert(e) {
+    if (e.alertCd > 0) return;
+    const sp = spatial(e.x, e.y, 950);
+    audio.stalkerAlert(sp.pan, sp.g);
+    e.alertCd = 2;
+  }
+
+  /** Stalker AI. Returns the distance it moved this frame. It never has a listening window and never stands about. */
+  function updateStalker(e, dt) {
+    const speed = cfg.stalkerSpeed; // one steady pace, patrolling or hunting
+    let moved = 0;
+    if (e.state === 'hunt') {
+      e.deaf += dt;
+      if (e.deaf >= STALKER_LOSE_SECONDS) {
+        // nothing heard for 3 seconds: it has lost you and goes back to patrolling from wherever it is
+        e.state = 'patrol';
+        e.path = null;
+        e.pause = 0;
+      } else {
+        e.repath -= dt;
+        if (e.spotNew && e.repath <= 0) {
+          e.repath = 0.15;
+          e.spotNew = false;
+          setPathTo(e, e.heardX, e.heardY);
+        }
+        moved = followPath(e, speed, dt); // at the spot it just waits there (until the 3 seconds are up)
+      }
+    }
+    if (e.state === 'patrol') {
+      if (e.path) moved = followPath(e, speed, dt);
+      else {
+        e.pause -= dt;
+        if (e.pause <= 0) stalkerPatrol(e);
+      }
+    }
+    return moved;
+  }
+
+  /** Walk to a random tile a good way off, and on to the next one when it gets there: waiting in a corner does not work. */
+  function stalkerPatrol(e) {
+    for (let i = 0; i < 8; i++) {
+      const t = randomNearbyTile(e, 12);
+      if (t && setPathTo(e, (t[0] + 0.5) * TILE, (t[1] + 0.5) * TILE)) {
+        e.pause = 0;
+        return;
+      }
+    }
+    e.path = null;
+    e.pause = 0.25; // nowhere to go from here this frame: try again very shortly
   }
 
   // ------------------------------------------------------------ sonar decoy
@@ -828,23 +923,35 @@
   }
 
   /** Footstep clicks / squelches and the continuous voice of one monster. */
-  function enemyAudio(e, moved) {
+  function enemyAudio(e, moved, dt = 0) {
     if (e.kind === 'mimic') return; // disguised: no footsteps, no voice - the only sound it makes is the exit's chime
     const scent = e.kind === 'scent';
+    const stalker = e.kind === 'stalker';
     const chasing = isChasing(e);
     e.stepDist += moved;
-    const stride = scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
+    const stride = stalker ? (chasing ? 22 : 19) : scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
     if (e.stepDist >= stride) {
       e.stepDist = 0;
       const sp = spatial(e.x, e.y, 540);
-      if (scent) audio.scentStep(sp.pan, sp.g);
+      if (stalker) audio.stalkerStep(sp.pan, sp.g);
+      else if (scent) audio.scentStep(sp.pan, sp.g);
       else audio.enemyStep(sp.pan, sp.g);
+    }
+
+    if (stalker) {
+      // its own voice: breathing (below) and soft clicks - quicker while it is on your trail - and never a growl
+      e.clickCd -= dt;
+      if (e.clickCd <= 0) {
+        e.clickCd = (chasing ? 0.5 : 1.3) + Math.random() * (chasing ? 0.7 : 1.7);
+        const sc = spatial(e.x, e.y, 600);
+        audio.stalkerClick(sc.pan, sc.g);
+      }
     }
 
     if (e.voice) {
       const sp = spatial(e.x, e.y, 720);
       const occluded = !hasLOS(e.x, e.y, player.x, player.y);
-      const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent ? 0.5 : 0.35;
+      const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker ? 0.5 : 0.35;
       const gain = sp.g * (0.16 + 0.3 * mood) * (occluded ? 0.6 : 1);
       audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: occluded });
     }
@@ -862,10 +969,39 @@
 
   function emitRipple() {
     if (state !== 'play' || cooldown > 0) return;
+    if (crouchHeld()) return; // you cannot send a ripple while crouching
     cooldown = cfg.cooldown;
     ripplesUsed++;
+    glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
     audio.ping();
+  }
+
+  // ---------------------------------------------------------------- crouching
+  /** Is a crouch key (Shift) held? Same speed as walking; no footsteps, no ripples, and a stalker cannot hear you. */
+  const crouchHeld = () => down('ShiftLeft', 'ShiftRight');
+
+  /**
+   * The instant you start crouching, everything your ripples showed you is wiped from the screen and from the
+   * air: waves still travelling (and the echoes they have not returned yet, so their sounds never play), every
+   * timed mark (walls, obstacles, monsters, puddles, the decoy) and the exit's glimmer. Standing up does not
+   * bring any of it back; only a NEW ripple shows anything again. (The glimmer is a proximity effect drawn
+   * every frame, so wiping it is a flag - `glimmerOff` - that the next ripple clears.)
+   */
+  function startCrouch() {
+    ripples = [];
+    marks = [];
+    glimmerOff = true;
+  }
+
+  /** Bring `player.crouching` in line with the key. Called every frame, and straight from the key press so the wipe is instant. */
+  function syncCrouch() {
+    if (state !== 'play' || !player) return;
+    const now = crouchHeld();
+    if (now === !!player.crouching) return;
+    player.crouching = now;
+    if (now) startCrouch();
+    updateHud();
   }
 
   /** Fire a ripple of reach R (px) from (ox,oy) into the current level (also used by the cutscenes). */
@@ -877,10 +1013,11 @@
       if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE });
     });
     enemies.forEach((e) => {
-      // a ripple SEES a scent monster (violet) but only an echo monster (red) learns of you from it;
-      // a disguised mimic is seen as an EXIT (green, with the exit's bell) until the wave touches it
+      // a ripple SEES a scent monster (violet) and a stalker (orange) but only an echo monster (red) learns of you
+      // from it; a disguised mimic is seen as an EXIT (green, with the exit's bell) until the wave touches it
       if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) {
-        circles.push({ x: e.x, y: e.y, r: e.r, type: e.kind === 'scent' ? T_SCENT : e.kind === 'mimic' ? T_EXIT : T_ENEMY, enemy: e });
+        const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'mimic' ? T_EXIT : T_ENEMY;
+        circles.push({ x: e.x, y: e.y, r: e.r, type, enemy: e });
       }
     });
     const ex = level.exit;
@@ -1066,6 +1203,7 @@
       case T_SCENT: audio.echoScent(ev.pan, vol, ev.d); break;
       case T_PUDDLE: audio.echoPuddle(ev.pan, vol, ev.d); break;
       case T_DECOY: audio.echoDecoy(ev.pan, vol, ev.d); break;
+      case T_STALKER: audio.echoStalker(ev.pan, vol, ev.d); break;
     }
   }
 
@@ -1110,6 +1248,7 @@
     d.ring = 0;
     d.hum = 1.2;
     for (const e of enemies) {
+      if (e.kind === 'stalker') continue; // a stalker ignores the decoy: it only listens for you
       if (e.state === 'lured' || e.state === 'trapped') continue;
       if (Math.hypot(e.x - d.x, e.y - d.y) > DECOY_RADIUS) continue;
       if (lureEnemy(e, d.x, d.y)) d.lured.push(e);
@@ -1174,7 +1313,8 @@
     shake = Math.max(0, shake - dt * 30);
     beat = Math.max(0, beat - dt * 3.2);
 
-    // --- player movement
+    // --- player movement (crouching is the same speed as walking; it just makes no sound - see syncCrouch)
+    syncCrouch();
     const ix = (down('KeyD', 'ArrowRight') ? 1 : 0) - (down('KeyA', 'ArrowLeft') ? 1 : 0);
     const iy = (down('KeyS', 'ArrowDown') ? 1 : 0) - (down('KeyW', 'ArrowUp') ? 1 : 0);
     let contact = null;
@@ -1189,8 +1329,11 @@
       player.stepDist += step;
       if (player.stepDist >= 30) {
         player.stepDist = 0;
-        audio.footstep(1);
-        hearFootstep(player.x, player.y);
+        if (!player.crouching) {
+          // a crouching player makes no footstep sound, so nothing can hear one
+          audio.footstep(1);
+          hearFootstep(player.x, player.y);
+        }
       }
     }
     if (contact && !player.blocked && player.bumpCd <= 0) {
@@ -1199,6 +1342,7 @@
       marks.push({ x: contact.x, y: contact.y, t: 0, life: 0.9, c: COLORS[T_WALL] });
     }
     player.blocked = !!contact;
+    stalkersListen(walked); // a stalker hears your footsteps and your presence - unless you are crouching
     updateSmell(dt, walked);
     // a finished smell trail lasts about a minute, then it is gone
     for (let i = level.trails.length - 1; i >= 0; i--) {
@@ -1398,8 +1542,10 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically
+    // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically.
+    // (Crouching wipes it - for the mimic too, or the difference would give it away - until your next ripple.)
     const glimmerExit = (x, y) => {
+      if (glimmerOff) return;
       const de = Math.hypot(x - player.x, y - player.y);
       if (de >= 130) return;
       const a = (1 - de / 130) * 0.45;
@@ -1457,17 +1603,18 @@
     drawRippleLayer();
     ctx.globalCompositeOperation = 'lighter';
 
-    // the player: a small pale dot with a faint halo
+    // the player: a small pale dot with a faint halo (smaller and dimmer while crouching)
+    const low = !!player.crouching;
     const g = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 30);
-    g.addColorStop(0, 'rgba(200,235,255,0.16)');
+    g.addColorStop(0, `rgba(200,235,255,${low ? 0.07 : 0.16})`);
     g.addColorStop(1, 'rgba(200,235,255,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(player.x, player.y, 30, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = 'rgba(235,248,255,0.95)';
+    ctx.fillStyle = low ? 'rgba(200,225,240,0.6)' : 'rgba(235,248,255,0.95)';
     ctx.beginPath();
-    ctx.arc(player.x, player.y, 4.5, 0, TAU);
+    ctx.arc(player.x, player.y, low ? 3.2 : 4.5, 0, TAU);
     ctx.fill();
     if (cooldown > 0) {
       const p = 1 - cooldown / cfg.cooldown;
@@ -1556,6 +1703,7 @@
     $('hud-level').textContent = `Level ${levelNum} · ${MODES[mode].label}`;
     $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
     $('hud-item').textContent = player && player.hasDecoy ? 'Sonar decoy · E' : '';
+    $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
     $('hud-audio').textContent = [calm ? 'Calm' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
   }
 
@@ -1590,11 +1738,13 @@
       justLeft: null, // the trail you finished laying most recently, until you step off it
       trailCd: 0, // seconds until a trail can make you smelly again (TRAIL_RESMELL_COOLDOWN)
       inPuddle: false,
-      hasDecoy: false, // carrying a sonar decoy (level 8+): E drops it
+      hasDecoy: false, // carrying a sonar decoy (level 9+): E drops it
+      crouching: false, // Shift held (see syncCrouch): silent, and cannot send a ripple
     };
     enemies = level.enemies.map(makeEnemy);
     decoys = [];
     decoyBlipTimer = 1.5;
+    glimmerOff = false;
     ripples = [];
     marks = [];
     cooldown = 0;
@@ -1670,7 +1820,7 @@
     },
   });
 
-  /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8) or 'decoy' (8 -> 9). */
+  /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8), 'decoy' (8 -> 9) or 'stalker' (9 -> 10). */
   function startCutscene(kind = 'intro') {
     // remember that it has played, so it can be rewatched from the replay screen
     if (!seen[kind]) {
@@ -1686,7 +1836,7 @@
     cutscene.start(kind);
   }
 
-  /** On from a cleared level. Going into level 6, 8 or 9 plays that level's story cutscene first (SCENE_BEFORE_LEVEL). */
+  /** On from a cleared level. Going into level 6, 8, 9 or 10 plays that level's story cutscene first (SCENE_BEFORE_LEVEL). */
   function advanceLevel() {
     audio.uiClick();
     const scene = SCENE_BEFORE_LEVEL[levelNum + 1];
@@ -1729,7 +1879,7 @@
     const s = Math.floor(levelTime % 60);
     const stats = `Time ${m}:${String(s).padStart(2, '0')}  ·  Ripples ${ripplesUsed}`;
     if (levelNum >= CAMPAIGN_LEVELS) {
-      // The end of the game so far. There is no level 8 yet.
+      // The end of the game so far: there is no level after CAMPAIGN_LEVELS yet.
       $('victory-text').textContent = MODES[mode].oneLife
         ? 'You cleared every level on a single life. The echoes fade behind you… More levels are coming.'
         : `You cleared every level on ${MODES[mode].label}. The echoes fade behind you… More levels are coming.`;
@@ -1818,6 +1968,7 @@
     { kind: 'scent', name: 'Not Every Monster Listens', blurb: 'What follows the scent.', locked: 'You will see it when you clear level 5.' },
     { kind: 'mimic', name: 'Not Everything That Glows', blurb: 'What waits at the end of the corridor.', locked: 'You will see it when you clear level 7.' },
     { kind: 'decoy', name: 'Somewhere Else To Go', blurb: 'How to buy five seconds.', locked: 'You will see it when you clear level 8.' },
+    { kind: 'stalker', name: 'Nothing To Hear', blurb: 'What to do when something listens.', locked: 'You will see it when you clear level 9.' },
   ];
 
   /** The furthest level unlocked in any mode (the cutscenes are the same in every mode). */
@@ -1975,6 +2126,7 @@
     switch (state) {
       case 'play':
         if (e.code === 'Space') emitRipple();
+        else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') syncCrouch(); // wipe the ripple information this instant
         else if (e.code === 'KeyE') dropDecoy();
         else if (e.code === 'Escape' || e.code === 'KeyP') pause();
         break;
@@ -2154,6 +2306,8 @@
       },
       advance: () => advanceLevel(),
       ripples: () => ripples,
+      marks: () => marks,
+      crouch: () => ({ crouching: !!(player && player.crouching), glimmerOff, held: crouchHeld() }),
       decoys: () => decoys,
       dropDecoy,
       rippleRange,

@@ -330,6 +330,27 @@ class SoundEngine {
     this._track(n);
   }
 
+  /** Echo off a stalker: two dry, hollow clicks, like something tapping on bone. Nothing like the others' moans. */
+  echoStalker(pan, vol, dist) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const near = 1 - Math.min(dist / 650, 1);
+    [0, 0.13].forEach((dt, i) => {
+      const n = this._noise(t + dt, 0.1);
+      const bp = this._filter('bandpass', 2300 + near * 900 - i * 500, 9);
+      const g = this._env(t + dt, 0.002, 0.55 * vol, 0.045);
+      n.connect(bp);
+      bp.connect(g);
+      this._route(g, pan, 0.4);
+      const o = this._osc('triangle', 520 - i * 90, t + dt, 0.1);
+      o.frequency.exponentialRampToValueAtTime(300 - i * 40, t + dt + 0.06);
+      const og = this._env(t + dt, 0.002, 0.2 * vol, 0.07);
+      o.connect(og);
+      this._route(og, pan, 0.35);
+      if (i === 0) this._track(n);
+    });
+  }
+
   /** Echo off a puddle: a bubbly "blorp". */
   echoPuddle(pan, vol, dist) {
     if (this._busy(90)) return;
@@ -536,6 +557,7 @@ class SoundEngine {
    */
   createEnemyVoice(pitch = 55, kind = 'echo') {
     if (!this.ctx) return null;
+    if (kind === 'stalker') return this._stalkerVoice(pitch);
     const c = this.ctx;
     const t = c.currentTime;
     const scent = kind === 'scent';
@@ -614,9 +636,82 @@ class SoundEngine {
     return { out, pan, lp, o1, o2, o3, lfo, pitch, kind, oscs };
   }
 
+  /**
+   * The stalker's voice: slow, soft breathing (filtered air that swells in and out) with a faint dry rattle in
+   * the throat. No growl and no tone - it is not something that wants to be heard. Its soft clicks are separate
+   * one-shots (stalkerClick), placed by the game.
+   */
+  _stalkerVoice(pitch) {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0;
+    const breath = c.createGain();
+    breath.gain.value = 0.5;
+    const bp = this._filter('bandpass', 900 + (pitch - 60) * 8, 0.9);
+    const trim = c.createGain();
+    trim.gain.value = 0.4;
+    const src = c.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    src.connect(bp);
+    bp.connect(trim);
+    trim.connect(breath);
+    breath.connect(out);
+    // the in-and-out of each breath (this also swells the rattle, which feeds the same gain)
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.36 + Math.random() * 0.08;
+    const lfoDepth = c.createGain();
+    lfoDepth.gain.value = 0.45;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(breath.gain);
+    // a dry rattle high in the throat, only just there, trembling
+    const rat = c.createBufferSource();
+    rat.buffer = this.noiseBuf;
+    rat.loop = true;
+    const hp = this._filter('highpass', 3600, 1);
+    const rg = c.createGain();
+    rg.gain.value = 0.05;
+    const lfo2 = c.createOscillator();
+    lfo2.frequency.value = 5.5 + Math.random();
+    const lfo2Depth = c.createGain();
+    lfo2Depth.gain.value = 0.045;
+    lfo2.connect(lfo2Depth);
+    lfo2Depth.connect(rg.gain);
+    rat.connect(hp);
+    hp.connect(rg);
+    rg.connect(breath);
+
+    let pan = null;
+    if (c.createStereoPanner) {
+      pan = c.createStereoPanner();
+      out.connect(pan);
+      pan.connect(this.master);
+    } else {
+      out.connect(this.master);
+    }
+    const send = c.createGain();
+    send.gain.value = 0.25;
+    (pan || out).connect(send);
+    send.connect(this.reverbIn);
+
+    src.start(t, Math.random() * 1.5);
+    rat.start(t, Math.random() * 1.5);
+    lfo.start(t);
+    lfo2.start(t);
+    return { out, pan, lp: bp, lfo, pitch, kind: 'stalker', oscs: [src, rat, lfo, lfo2] };
+  }
+
   updateEnemyVoice(v, { gain, pan, mood, muffle }) {
     if (!v || !this.ctx) return;
     const t = this.ctx.currentTime;
+    if (v.kind === 'stalker') {
+      v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.08);
+      if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
+      v.lp.frequency.setTargetAtTime((800 + mood * 600) * (muffle ? 0.55 : 1), t, 0.12); // brighter, sharper breath when it is on your trail
+      v.lfo.frequency.setTargetAtTime(0.36 + mood * 0.7, t, 0.4); // and quicker
+      return;
+    }
     const scent = v.kind === 'scent';
     v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.06);
     if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
@@ -720,6 +815,64 @@ class SoundEngine {
     low.connect(lg);
     this._route(lg, pan, 0.3);
     this._track(o);
+  }
+
+  /** A stalker's footstep: a soft, light pit-pat - not a clack (echo monster) and not a wet slap (scent monster). */
+  stalkerStep(pan, gain) {
+    if (this.calm) gain *= 0.7;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    [0, 0.055].forEach((dt, i) => {
+      const n = this._noise(t + dt, 0.08);
+      const bp = this._filter('bandpass', (i ? 1150 : 1750) + Math.random() * 250, 5);
+      const g = this._env(t + dt, 0.002, (i ? 0.16 : 0.24) * gain, 0.03);
+      n.connect(bp);
+      bp.connect(g);
+      this._route(g, pan, 0.2);
+      if (i === 0) this._track(n);
+    });
+  }
+
+  /** One soft click from the back of a stalker's throat, now and then, while it walks. */
+  stalkerClick(pan, gain) {
+    if (this.calm) gain *= 0.7;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 1400 + Math.random() * 300, t, 0.07);
+    o.frequency.exponentialRampToValueAtTime(700, t + 0.035);
+    const g = this._env(t, 0.001, 0.2 * gain, 0.03);
+    o.connect(g);
+    this._route(g, pan, 0.4);
+    this._track(o);
+    const n = this._noise(t, 0.05);
+    const bp = this._filter('bandpass', 3200, 3);
+    const ng = this._env(t, 0.001, 0.07 * gain, 0.02);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, pan, 0.3);
+  }
+
+  /** A stalker has heard you: a sharp breath in, then two quick clicks as it turns. Quiet - and not a screech. */
+  stalkerAlert(pan, gain) {
+    if (this.calm) gain *= 0.35;
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.4);
+    const bp = this._filter('bandpass', 1400, 1.2);
+    bp.frequency.setValueAtTime(1400, t);
+    bp.frequency.exponentialRampToValueAtTime(3400, t + 0.26);
+    const g = this._env(t, 0.07, 0.4 * gain, 0.24);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, pan, 0.5);
+    this._track(n);
+    [0.32, 0.44].forEach((dt) => {
+      const o = this._osc('sine', 1500, t + dt, 0.07);
+      o.frequency.exponentialRampToValueAtTime(700, t + dt + 0.035);
+      const og = this._env(t + dt, 0.001, 0.3 * gain, 0.03);
+      o.connect(og);
+      this._route(og, pan, 0.4);
+    });
   }
 
   // ------------------------------------------------------------- game events
