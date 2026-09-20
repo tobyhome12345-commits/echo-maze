@@ -10,7 +10,10 @@
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
   const CAMPAIGN_LEVELS = 10;
-  const SAVE_KEY = 'echomaze.best';
+  const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
+  const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
+  const MODE_KEY = 'echomaze.mode';
+  const CALM_KEY = 'echomaze.calm';
 
   const T_WALL = 1;
   const T_OBSTACLE = 2;
@@ -32,7 +35,7 @@
     2: 'You are not alone. Red means something alive. Its growl is your only warning.',
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
     4: 'Move after every ripple - a monster you hit will hunt the spot you rippled from.',
-    5: 'A monster listens for 5 seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
+    5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -52,7 +55,43 @@
 
   const audio = new SoundEngine();
 
+  // ---------------------------------------------------------------- storage
+  // Everything is wrapped in try/catch: storage can be blocked or unavailable.
+  const store = {
+    get(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch (e) {
+        return null;
+      }
+    },
+    set(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch (e) {
+        /* storage unavailable */
+      }
+    },
+  };
+
+  function loadProgress() {
+    let p = {};
+    try {
+      p = JSON.parse(store.get(PROGRESS_KEY)) || {};
+    } catch (e) {
+      p = {};
+    }
+    // Progress saved before difficulty modes existed belongs to what is now Normal.
+    const legacy = parseInt(store.get(SAVE_KEY), 10);
+    if (legacy > 1 && !(p.normal > 1)) p.normal = legacy;
+    return p;
+  }
+
   // ----------------------------------------------------------------- state
+  let mode = MODES[store.get(MODE_KEY)] ? store.get(MODE_KEY) : 'normal'; // easy | normal | hard | hardcore
+  let calm = store.get(CALM_KEY) === '1'; // softer visuals + sound, independent of the mode
+  let progress = loadProgress();
+  audio.calm = calm;
   let state = 'title';
   let runSeed = 1;
   let endless = false;
@@ -97,20 +136,15 @@
     viewScale = Math.max(0.55, Math.min(W / 1000, H / 620));
   }
 
-  function getBest() {
-    try {
-      return parseInt(localStorage.getItem(SAVE_KEY), 10) || 1;
-    } catch (e) {
-      return 1;
-    }
+  /** Highest level unlocked in a mode (1 = nothing cleared yet). Each mode keeps its own. */
+  function getBest(m = mode) {
+    return Math.max(1, parseInt(progress[m], 10) || 1);
   }
 
   function saveBest(n) {
-    try {
-      if (n > getBest()) localStorage.setItem(SAVE_KEY, String(n));
-    } catch (e) {
-      /* storage unavailable */
-    }
+    if (n <= getBest()) return;
+    progress[mode] = n;
+    store.set(PROGRESS_KEY, JSON.stringify(progress));
   }
 
   // ------------------------------------------------------------- geometry
@@ -682,7 +716,7 @@
       if (d < dmin) dmin = d;
     }
     danger = clamp(1 - dmin / 300, 0, 1);
-    if (danger > 0) {
+    if (danger > 0 && !calm) {
       heartTimer -= dt;
       if (heartTimer <= 0) {
         heartTimer = 0.95 - danger * 0.6;
@@ -894,7 +928,7 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     // red creep at the edges when a monster is near, and a flash when caught
-    const dv = danger * (0.55 + 0.45 * beat);
+    const dv = calm ? 0 : danger * (0.55 + 0.45 * beat); // calm mode: no red creep
     if (dv > 0.01 || flash > 0.01) {
       const cw = canvas.width;
       const ch = canvas.height;
@@ -913,9 +947,9 @@
   }
 
   function updateHud() {
-    $('hud-level').textContent = `Level ${levelNum}`;
+    $('hud-level').textContent = `Level ${levelNum} · ${MODES[mode].label}`;
     $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
-    $('hud-audio').textContent = audio.muted ? 'Sound off' : '';
+    $('hud-audio').textContent = [calm ? 'Calm' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
   }
 
   function showBanner(n) {
@@ -930,7 +964,7 @@
   function startLevel(n) {
     destroyVoices();
     levelNum = n;
-    level = generateLevel(n, runSeed);
+    level = generateLevel(n, runSeed, mode);
     cfg = level.cfg;
     player = { x: level.start.x, y: level.start.y, r: PLAYER_R, stepDist: 0, bumpCd: 0, blocked: false };
     enemies = level.enemies.map(makeEnemy);
@@ -987,6 +1021,7 @@
     castRipple,
     updateRipples,
     drawRippleLayer,
+    calm: () => calm,
     finish: () => startLevel(1),
   });
 
@@ -1006,11 +1041,24 @@
     audio.caught();
     audio.stopAmbient();
     destroyVoices();
-    flash = 1;
-    shake = 14;
+    flash = calm ? 0 : 1; // calm mode: no red flash or screen shake
+    shake = calm ? 0 : 14;
     setTimeout(() => {
-      if (state === 'caught') showOverlay('caught');
+      if (state !== 'caught') return;
+      prepareCaughtOverlay();
+      showOverlay('caught');
     }, 900);
+  }
+
+  /** Hardcore has one life: being caught ends the run instead of offering a retry. */
+  function prepareCaughtOverlay() {
+    const oneLife = !!MODES[mode].oneLife;
+    $('caught-title').textContent = oneLife ? 'You died' : 'Caught';
+    $('caught-text').textContent = oneLife
+      ? `Hardcore gives you one life. Your run ended on level ${levelNum}.`
+      : 'The echo found you.';
+    $('retry-label').textContent = oneLife ? 'New run' : 'Try again';
+    $('caught').classList.toggle('danger', !calm); // calm mode: no red glow
   }
 
   function onLevelComplete() {
@@ -1023,6 +1071,9 @@
     const s = Math.floor(levelTime % 60);
     const stats = `Time ${m}:${String(s).padStart(2, '0')}  ·  Ripples ${ripplesUsed}`;
     if (levelNum === CAMPAIGN_LEVELS && !endless) {
+      $('victory-text').textContent = MODES[mode].oneLife
+        ? 'All ten levels cleared on a single life. The echoes fade behind you…'
+        : `All ten levels cleared on ${MODES[mode].label}. The echoes fade behind you…`;
       audio.victory();
       setTimeout(() => state === 'complete' && showOverlay('victory'), 700);
     } else {
@@ -1036,6 +1087,7 @@
   function pause() {
     if (state !== 'play') return;
     state = 'paused';
+    $('pause-mode').textContent = `${MODES[mode].label} · Level ${levelNum}`;
     showOverlay('pause');
     audio.suspend();
   }
@@ -1059,11 +1111,50 @@
     showOverlay('title');
   }
 
+  const MODE_INFO = {
+    easy: 'Slower monsters, fewer of them, longer ripples, and they lose you sooner. Unlimited retries.',
+    normal: 'The intended game, a touch gentler than it used to be. Unlimited retries.',
+    hard: 'Faster and more monsters, sharper ears, shorter ripples. Unlimited retries.',
+    hardcore: 'A little harder than Hard — and you only get one life. Get caught and the run is over.',
+  };
+
+  /** Bring the title screen's mode picker, best-level tags and Continue button up to date. */
   function refreshTitle() {
+    document.querySelectorAll('.mode').forEach((b) => {
+      const m = b.dataset.mode;
+      b.classList.toggle('active', m === mode);
+      b.setAttribute('aria-checked', m === mode ? 'true' : 'false');
+      const best = getBest(m);
+      b.querySelector('small').textContent = best > 1 ? `Best: Lv ${best}` : '';
+    });
+    $('mode-desc').textContent = MODE_INFO[mode];
+    // Hardcore has no Continue: dying ends the run, so there is nothing to resume.
     const best = getBest();
     const btn = $('btn-continue');
-    btn.classList.toggle('hidden', best <= 1);
+    btn.classList.toggle('hidden', best <= 1 || !!MODES[mode].oneLife);
     btn.textContent = `Continue (Level ${best})`;
+    document.querySelectorAll('.calm-toggle').forEach((c) => {
+      c.checked = calm;
+    });
+  }
+
+  function setMode(m) {
+    if (!MODES[m]) return;
+    mode = m;
+    store.set(MODE_KEY, m);
+    refreshTitle();
+  }
+
+  /** Calm mode is purely visual + audio, so it can be flipped anywhere, any time, on any mode. */
+  function setCalm(on) {
+    calm = !!on;
+    audio.calm = calm;
+    store.set(CALM_KEY, calm ? '1' : '0');
+    document.querySelectorAll('.calm-toggle').forEach((c) => {
+      c.checked = calm;
+    });
+    if (state === 'caught' || !$('caught').classList.contains('hidden')) $('caught').classList.toggle('danger', !calm);
+    if (level && state !== 'title' && state !== 'cutscene') updateHud();
   }
 
   function toggleMute() {
@@ -1080,6 +1171,7 @@
     if (e.repeat) return;
 
     if (e.code === 'KeyM') return toggleMute();
+    if (e.code === 'KeyC') return setCalm(!calm); // works on every screen, in every mode
     switch (state) {
       case 'play':
         if (e.code === 'Space') emitRipple();
@@ -1141,10 +1233,30 @@
   window.addEventListener('resize', resize);
 
   function retry() {
-    audio.uiClick();
-    startLevel(levelNum);
+    if (MODES[mode].oneLife) {
+      newRun(1, false); // one life: the run is over, start again from level 1 on a fresh maze
+    } else {
+      audio.uiClick();
+      startLevel(levelNum);
+    }
   }
 
+  document.querySelectorAll('.mode').forEach((b) => {
+    b.addEventListener('click', () => {
+      setMode(b.dataset.mode);
+      b.blur();
+    });
+  });
+  document.querySelectorAll('.calm-toggle').forEach((c) => {
+    c.addEventListener('change', () => {
+      setCalm(c.checked);
+      c.blur(); // so SPACE / ENTER never re-toggle it while playing
+    });
+  });
+  $('btn-caught-title').addEventListener('click', () => {
+    audio.uiClick();
+    toTitle();
+  });
   $('btn-start').addEventListener('click', () => newRun(1, true));
   $('btn-continue').addEventListener('click', () => newRun(getBest()));
   $('btn-resume').addEventListener('click', () => {
@@ -1252,6 +1364,10 @@
         return cutscene.time;
       },
       cutscene,
+      setMode,
+      setCalm,
+      settings: () => ({ mode, calm, progress: { ...progress } }),
+      draw: () => draw(),
       audio,
     };
   }

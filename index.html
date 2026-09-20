@@ -40,7 +40,7 @@
       <div class="controls">
         <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>move</span></div>
         <div><kbd class="wide">SPACE</kbd><span>send a ripple</span></div>
-        <div><kbd>M</kbd><span>mute</span><kbd>P</kbd><span>pause</span></div>
+        <div><kbd>M</kbd><span>mute</span><kbd>P</kbd><span>pause</span><kbd>C</kbd><span>calm</span></div>
       </div>
 
       <ul class="legend">
@@ -50,7 +50,19 @@
         <li><i style="--c:#5dffa0"></i>The way out</li>
       </ul>
 
-      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. For 5 seconds after it arrives it can hear your footsteps if you're too close &mdash; and if it does, it keeps following you for as long as you stay close. Get away and it loses you. Touch one and you're dead. Find the green resonance and get out.</p>
+      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. Find the green resonance and get out.</p>
+
+      <div class="modes" role="radiogroup" aria-label="Difficulty">
+        <button type="button" class="mode" role="radio" data-mode="easy"><b>Easy</b><small data-best="easy"></small></button>
+        <button type="button" class="mode" role="radio" data-mode="normal"><b>Normal</b><small data-best="normal"></small></button>
+        <button type="button" class="mode" role="radio" data-mode="hard"><b>Hard</b><small data-best="hard"></small></button>
+        <button type="button" class="mode" role="radio" data-mode="hardcore"><b>Hardcore</b><small data-best="hardcore"></small></button>
+      </div>
+      <p id="mode-desc" class="mode-desc"></p>
+      <label class="calm">
+        <input type="checkbox" class="calm-toggle">
+        <span><b>Calm mode</b> &mdash; softer visuals and sound, on any difficulty <kbd>C</kbd></span>
+      </label>
 
       <div class="buttons">
         <button id="btn-start" class="primary">Begin</button>
@@ -64,6 +76,11 @@
   <section id="pause" class="overlay hidden">
     <div class="panel small">
       <h2>Paused</h2>
+      <p id="pause-mode" class="mode-desc"></p>
+      <label class="calm">
+        <input type="checkbox" class="calm-toggle">
+        <span><b>Calm mode</b> &mdash; softer visuals and sound <kbd>C</kbd></span>
+      </label>
       <label class="vol">Volume <input type="range" class="vol-slider" min="0" max="100" value="80"></label>
       <div class="buttons">
         <button id="btn-resume" class="primary">Resume</button>
@@ -74,10 +91,11 @@
 
   <section id="caught" class="overlay hidden danger">
     <div class="panel small">
-      <h2>Caught</h2>
-      <p>The echo found you.</p>
+      <h2 id="caught-title">Caught</h2>
+      <p id="caught-text">The echo found you.</p>
       <div class="buttons">
-        <button id="btn-retry" class="primary">Try again <span class="key">Enter</span></button>
+        <button id="btn-retry" class="primary"><span id="retry-label">Try again</span> <span class="key">Enter</span></button>
+        <button id="btn-caught-title">Title</button>
       </div>
     </div>
   </section>
@@ -95,7 +113,7 @@
   <section id="victory" class="overlay hidden">
     <div class="panel small">
       <h2>You escaped the dark</h2>
-      <p>All ten levels cleared. The echoes fade behind you&hellip;</p>
+      <p id="victory-text">All ten levels cleared. The echoes fade behind you&hellip;</p>
       <div class="buttons">
         <button id="btn-endless" class="primary">Keep going (endless)</button>
         <button id="btn-victory-title">Back to title</button>

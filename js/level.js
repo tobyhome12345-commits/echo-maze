@@ -14,21 +14,45 @@ function mulberry32(seed) {
   };
 }
 
-/** Difficulty curve. Everything scales with the level number n (1-based). */
-function levelConfig(n) {
+/**
+ * Difficulty modes. The level curve below is the baseline (it used to be the
+ * only difficulty); each mode scales it:
+ *   speed / speedCap  monster hunting speed multiplier, and its ceiling (the
+ *                     player walks at 170px/s, so every ceiling stays below that)
+ *   count             multiplier on how many monsters a level has
+ *   listen            seconds a monster listens after reaching a ripple spot
+ *   hear              px: "too close" - a listening monster hears your steps
+ *                     inside this, and a monster that has locked on keeps
+ *                     tracking you only while you stay inside it
+ *   ripple / cooldown multipliers on your ripple's range / recharge time
+ *   oneLife           being caught ends the whole run
+ */
+const MODES = {
+  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, ripple: 1.2, cooldown: 0.8 },
+  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, ripple: 1.03, cooldown: 0.97 },
+  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, ripple: 0.88, cooldown: 1.15 },
+  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, ripple: 0.85, cooldown: 1.2, oneLife: true },
+};
+const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
+
+/** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
+function levelConfig(n, modeId = 'normal') {
+  const m = MODES[modeId] || MODES.normal;
+  const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   return {
     n,
+    mode: modeId,
     cw: Math.min(6 + n, 19), // maze width in cells
     ch: Math.min(5 + Math.floor(n * 0.8), 14), // maze height in cells
     loopFrac: Math.min(0.08 + n * 0.015, 0.22), // extra openings -> loops
     rooms: Math.min(1 + Math.floor(n / 2), 8),
     obstacles: Math.min(2 + n, 22),
-    enemies: n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8),
-    enemySpeed: Math.min(70 + n * 8, 145), // px/s while hunting
-    searchTime: 5, // seconds a monster listens after reaching the spot it was sent to
-    footstepRadius: 130, // px: "too close" - a listening monster hears your steps inside this, and a monster that has locked on keeps tracking you only while you stay inside it
-    rippleRadius: Math.max(640 - n * 24, 360),
-    cooldown: Math.min(0.7 + n * 0.07, 1.5),
+    enemies: baseEnemies === 0 ? 0 : Math.min(Math.max(1, Math.round(baseEnemies * m.count)), 10),
+    enemySpeed: Math.min((70 + n * 8) * m.speed, m.speedCap), // px/s while hunting
+    searchTime: m.listen, // seconds a monster listens after reaching the spot it was sent to
+    footstepRadius: m.hear, // px, see MODES
+    rippleRadius: Math.max(640 - n * 24, 360) * m.ripple,
+    cooldown: Math.min(0.7 + n * 0.07, 1.5) * m.cooldown,
   };
 }
 
@@ -67,8 +91,8 @@ function shuffle(arr, rand) {
  * Build a level. Same (n, runSeed) always produces the same layout so that
  * retrying a level after being caught gives you the same maze.
  */
-function generateLevel(n, runSeed) {
-  const cfg = levelConfig(n);
+function generateLevel(n, runSeed, modeId = 'normal') {
+  const cfg = levelConfig(n, modeId);
   const rand = mulberry32((runSeed ^ Math.imul(n, 0x9e3779b1)) >>> 0);
   const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
 

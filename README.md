@@ -14,6 +14,7 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | `SPACE` | Send a ripple |
 | `P` / `Esc` | Pause |
 | `M` | Mute |
+| `C` | Toggle calm mode (any screen, any difficulty) |
 | `Enter` | Confirm on the Try again / Next level screens |
 | `Enter` / `Space` / `Esc` | Skip the intro cutscene (or click **Skip**) |
 
@@ -42,7 +43,7 @@ The explorer's voice is synthesised too: formant-shaped buzzing under typewriter
 
 - **Ripples are ray-cast.** Each ripple fires 640 rays through the tile grid (plus circle tests for obstacles, monsters and the exit). The wavefront expands at a fixed speed, lights up what it hits, and a reflected wave travels back along each ray.
 - **Echoes arrive on time.** An object at distance `d` returns its echo `2d / speed` seconds after the ripple, so nearer things answer first. Walls tick, obstacles go *tonk*, monsters moan, the exit rings like a bell.
-- **Monsters are blind.** Walking, bumping into walls and standing near a monster tell it nothing. A monster only starts hunting when a ray of your ripple actually reaches it (line of sight, within ripple range); it reacts when the wave arrives, and goes to the exact spot you were standing when you sent the ripple. It is not told where you are *now*, so if you have moved on it has no idea where you went. On arrival it stands there and **listens for 5 seconds**: if you walk within ~130px of it during that window it hears your footsteps (standing still makes no sound) and **locks on**. A monster that has locked on knows exactly where you are and keeps following you — even after the 5 seconds are up — for as long as you stay within ~130px. The moment you get farther away than that it loses you, goes back to wandering (or sleeping) and is deaf again: it can't track you until another ripple hits it. A monster that hears nothing in its 5 seconds gives up and is deaf too, and it is also deaf while it is still walking to a ripple spot. Touching a monster kills you.
+- **Monsters are blind.** Walking, bumping into walls and standing near a monster tell it nothing. A monster only starts hunting when a ray of your ripple actually reaches it (line of sight, within ripple range); it reacts when the wave arrives, and goes to the exact spot you were standing when you sent the ripple. It is not told where you are *now*, so if you have moved on it has no idea where you went. On arrival it stands there and **listens for a few seconds** (see the modes below): if you walk "too close" to it during that window it hears your footsteps (standing still makes no sound) and **locks on**. A monster that has locked on knows exactly where you are and keeps following you — even after the listening time is up — for as long as you stay that close. The moment you get farther away than that it loses you, goes back to wandering (or sleeping) and is deaf again: it can't track you until another ripple hits it. A monster that hears nothing in its listening time gives up and is deaf too, and it is also deaf while it is still walking to a ripple spot. Touching a monster kills you.
 - **You can hear them too.** Each monster has a continuous spatial voice (pitch and brightness change with mood), clicking footsteps, and a screech when it starts hunting. A heartbeat kicks in when one is close.
 - **Procedural audio.** All sound is synthesised at runtime with the Web Audio API (`AudioContext`) in [`js/audio.js`](js/audio.js) — oscillators, filtered noise and a generated reverb impulse response. The `AudioContext` is only created when you click **Begin**, to satisfy browser autoplay rules.
 
@@ -50,7 +51,33 @@ The explorer's voice is synthesised too: formant-shaped buzzing under typewriter
 
 Ten levels, then an optional endless mode. Each level is a bigger, more loop-filled maze with more obstacles and more monsters that are faster and track more accurately — while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
 
-Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes.
+Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change.
+
+## Difficulty modes
+
+Pick one on the title screen. Each mode scales the level curve above (the table shows level 6 as an example):
+
+| | Easy | Normal | Hard | Hardcore |
+| --- | --- | --- | --- | --- |
+| Monster speed | 85 px/s | 113 | 130 | 135 |
+| Monsters | 2 | 3 | 4 | 4 |
+| Listens after arriving | 3.5 s | 4.8 s | 6 s | 6.5 s |
+| "Too close" (hears footsteps / keeps tracking) | 100 px | 124 px | 148 px | 158 px |
+| Ripple range | 595 px | 511 px | 436 px | 422 px |
+| Ripple recharge | 0.90 s | 1.09 s | 1.29 s | 1.34 s |
+| Lives | unlimited retries | unlimited retries | unlimited retries | **one life** |
+
+Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Hardcore**, being caught ends the run: you see *You died* and can only start a new run from level 1 on a fresh maze (there is no Continue). Every monster is always slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode.
+
+Progress (best level unlocked) is saved separately for each mode, and your choice of mode is remembered.
+
+## Calm mode
+
+For anyone who finds the game a bit much. It is **purely visual and audio**, so it never changes the difficulty and can be switched on or off at any time — on the title screen, in the pause menu, or with **`C`** — in any mode. When on:
+
+- no red creep around the screen edges when a monster is close, and no red flash or screen shake when you are caught (the *caught* screen has no red glow)
+- no heartbeat
+- the monster screech, growl, footsteps, the *caught* crash and the intro's lunge are much quieter, and the intro's jump scare has no flash or shake and a dimmer, smaller monster
 
 ## Project layout
 
@@ -63,7 +90,7 @@ js/cutscene.js  the opening cutscene: lore cards + scripted scene (timeline at t
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
 ```
 
-Difficulty is tuned in one place: `levelConfig()` in [`js/level.js`](js/level.js).
+Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/level.js`](js/level.js).
 
 ## Debugging
 

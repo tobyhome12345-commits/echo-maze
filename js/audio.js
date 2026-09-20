@@ -19,6 +19,9 @@ class SoundEngine {
     this.volume = 0.8;
     this.muted = false;
     this.active = 0; // live one-shot voices, used to cap polyphony
+    // Calm mode: no heartbeat, and the startling sounds (screeches, growls,
+    // the "caught" crash, the intro's lunge) are much quieter.
+    this.calm = false;
   }
 
   get ready() {
@@ -406,7 +409,7 @@ class SoundEngine {
   updateEnemyVoice(v, { gain, pan, mood, muffle }) {
     if (!v || !this.ctx) return;
     const t = this.ctx.currentTime;
-    v.out.gain.setTargetAtTime(gain, t, 0.06);
+    v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.06);
     if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
     v.lp.frequency.setTargetAtTime((190 + mood * 460) * (muffle ? 0.55 : 1), t, 0.1);
     const pf = v.pitch * (1 + mood * 0.28);
@@ -431,6 +434,7 @@ class SoundEngine {
 
   /** Chitinous clack of a monster's footstep. */
   enemyStep(pan, gain) {
+    if (this.calm) gain *= 0.7;
     if (this._busy(90) || gain < 0.01) return;
     const t = this.ctx.currentTime;
     const n = this._noise(t, 0.1);
@@ -449,6 +453,7 @@ class SoundEngine {
 
   /** Screech when a monster hears you and starts hunting. */
   enemyAlert(pan, gain) {
+    if (this.calm) gain *= 0.35;
     if (this._busy(100) || gain < 0.01) return;
     const t = this.ctx.currentTime;
     const o = this._osc('sawtooth', 760, t, 0.7);
@@ -469,7 +474,7 @@ class SoundEngine {
   // ------------------------------------------------------------- game events
 
   heartbeat(gain) {
-    if (this._busy(100)) return;
+    if (this.calm || this._busy(100)) return;
     const t = this.ctx.currentTime;
     [0, 0.17].forEach((dt, i) => {
       const o = this._osc('sine', 72, t + dt, 0.3);
@@ -483,12 +488,13 @@ class SoundEngine {
 
   caught() {
     if (!this.ctx) return;
+    const k = this.calm ? 0.35 : 1;
     const t = this.ctx.currentTime;
     const o = this._osc('sawtooth', 240, t, 1.3);
     o.frequency.exponentialRampToValueAtTime(34, t + 1.1);
     const lp = this._filter('lowpass', 1400, 2);
     lp.frequency.exponentialRampToValueAtTime(120, t + 1.1);
-    const g = this._env(t, 0.01, 0.6, 1.1);
+    const g = this._env(t, 0.01, 0.6 * k, 1.1);
     o.connect(lp);
     lp.connect(g);
     this._route(g, 0, 0.5);
@@ -497,7 +503,7 @@ class SoundEngine {
     o2.connect(lp);
     const n = this._noise(t, 0.5);
     const nlp = this._filter('lowpass', 900, 1);
-    const ng = this._env(t, 0.005, 0.5, 0.4);
+    const ng = this._env(t, 0.005, 0.5 * k, 0.4);
     n.connect(nlp);
     nlp.connect(ng);
     this._route(ng, 0, 0.4);
@@ -581,26 +587,27 @@ class SoundEngine {
   /** The jump scare: something huge leaps out of the dark. */
   lunge() {
     if (!this.ctx) return;
+    const k = this.calm ? 0.3 : 1;
     const t = this.ctx.currentTime;
     [760, 803].forEach((f, i) => {
       const o = this._osc('sawtooth', f, t, 0.8);
       o.frequency.exponentialRampToValueAtTime(f * 0.16, t + 0.55);
       const bp = this._filter('bandpass', 1300, 1.6);
       bp.frequency.exponentialRampToValueAtTime(380, t + 0.5);
-      const g = this._env(t, 0.008, 0.62, 0.55);
+      const g = this._env(t, this.calm ? 0.12 : 0.008, 0.62 * k, 0.55);
       o.connect(bp);
       bp.connect(g);
       this._route(g, i ? 0.3 : -0.3, 0.45);
     });
     const n = this._noise(t, 0.6);
     const nlp = this._filter('lowpass', 2600, 0.8);
-    const ng = this._env(t, 0.004, 0.75, 0.35);
+    const ng = this._env(t, this.calm ? 0.1 : 0.004, 0.75 * k, 0.35);
     n.connect(nlp);
     nlp.connect(ng);
     this._route(ng, 0, 0.5);
     const sub = this._osc('sine', 70, t, 0.8);
     sub.frequency.exponentialRampToValueAtTime(28, t + 0.5);
-    const sg = this._env(t, 0.005, 0.95, 0.55);
+    const sg = this._env(t, 0.005, 0.95 * k, 0.55);
     sub.connect(sg);
     this._route(sg, 0, 0.1);
   }
@@ -629,6 +636,7 @@ class SoundEngine {
   /** Cut everything dead for `seconds` - the "everything just stopped" beat. */
   silence(seconds) {
     if (!this.ctx) return;
+    if (this.calm) seconds = Math.min(seconds, 0.4); // no long, jarring dead air
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(0, t, 0.012);

@@ -151,6 +151,8 @@ const EchoCutscene = (() => {
 
     // -------------------------------------------------------------- helpers
     const sceneT = () => time - S;
+    /** Calm mode softens the scare: no flash or shake, a dimmer monster, quieter sound. */
+    const isCalm = () => !!(env.calm && env.calm());
 
     function personX(st) {
       if (st <= WALK[0][0]) return WALK[0][1];
@@ -264,8 +266,8 @@ const EchoCutscene = (() => {
         audio.lunge();
       });
       at(S + HIT_AT, () => {
-        flash = 1;
-        shake = 16;
+        flash = isCalm() ? 0 : 1;
+        shake = isCalm() ? 0 : 16;
         personVisible = false;
         lampOn = false;
         stopMonsterVoice();
@@ -503,8 +505,9 @@ const EchoCutscene = (() => {
       const hx = (1 - ahead) * (1 - ahead) * p0.x + 2 * (1 - ahead) * ahead * p1.x + ahead * ahead * p2.x;
       const hy = (1 - ahead) * (1 - ahead) * p0.y + 2 * (1 - ahead) * ahead * p1.y + ahead * ahead * p2.y;
       const heading = Math.atan2(hy - my, hx - mx);
-      const scale = lerp(0.9, 1.7, smooth(u));
-      const alpha = t > 1 ? Math.max(0, 1 - (t - 1) * 2.5) : 1;
+      const soft = isCalm();
+      const scale = lerp(0.9, soft ? 1.15 : 1.7, smooth(u));
+      const alpha = (t > 1 ? Math.max(0, 1 - (t - 1) * 2.5) : 1) * (soft ? 0.45 : 1);
       if (alpha <= 0) return;
 
       ctx.save();
@@ -621,6 +624,10 @@ const EchoCutscene = (() => {
       },
       get active() {
         return active;
+      },
+      // for tests: the current screen flash / shake amounts
+      get fx() {
+        return { flash, shake };
       },
     };
   }
