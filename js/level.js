@@ -48,12 +48,13 @@ const TRAIL_LIFETIME = 60; // seconds a finished smell trail lasts before it fad
  * mode (the modes differ in speed, hearing, ripples and so on, not in how many
  * monsters there are). The game currently ends after level 7.
  *   level:  1  2  3  4  5  6  7
- *   echo:   0  1  1  2  2  1  1
+ *   echo:   0  1  1  2  2  0  1
  *   scent:  0  0  0  0  0  1  1
+ * Level 6 is scent-only (no echo monsters); level 7 brings one echo back.
  * Levels past 7 do not exist yet; the fallback formula below only keeps them
  * generating sensibly (debug/testing) until they are designed.
  */
-const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 1, 7: 1 };
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1 };
 const SCENT_MONSTERS = { 6: 1, 7: 1 };
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */

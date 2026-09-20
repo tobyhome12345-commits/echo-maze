@@ -69,10 +69,10 @@ The monsters on each level are **exact, and the same in every mode** (the modes 
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 1 | 1 |
+| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 |
 | Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
 
-Smell puddles arrive with the scent monster on level 6.
+Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it.
 
 Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change.
 

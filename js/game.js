@@ -42,7 +42,7 @@
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
     4: 'Two echo monsters now. Move after every ripple - a monster you hit will hunt the spot you rippled from.',
     5: 'A monster listens for a few seconds after it arrives. If it hears you it follows while you stay close - get away to lose it.',
-    6: 'A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
+    6: 'No echo monsters here. A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
