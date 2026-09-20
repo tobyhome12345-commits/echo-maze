@@ -8,7 +8,17 @@ This repo is the home of the game. **Every time the game is changed, commit and 
 
 Everything for this game lives in `C:\Claude\echo game` on the owner's PC: the version folders (`Echo Maze\`), the shortcut `Play Echo Maze.lnk` and the link `Echo Maze on GitHub.url` (which points at the repo).
 
-Also there: `Test - everything finished\` and its shortcut `Play Echo Maze (test - finished).lnk` - a **one-off test snapshot of v7.1** (not a version, not in the repo, not updated by later versions unless the owner asks) that starts as a completely finished save: every level cleared in every mode and all cutscenes seen. It differs from v7.1 only by the save-key prefix (`echomaze.test.*`, so it never touches the real game's save, which a browser shares between all local copies), a small "TEST COPY" notice, and `test-save.js`. Don't put version numbers in it and don't count it in the version table.
+### The test copy (owner wants it kept in step with every new version)
+
+Also there: `Test - everything finished\` and its shortcut `Play Echo Maze (test - finished).lnk` - a copy of the **newest version** that starts as a completely finished save: every level cleared in every mode and every cutscene seen. It is not a version and not in the repo, and it is not counted in the version table. It differs from the newest version folder only by the save-key prefix (`echomaze.test.*`, so it never touches the real game's save, which a browser shares between all local copies), a small "TEST COPY" notice, and `test-save.js`.
+
+**Owner's instruction (2026-09-20): update the test copy with every new version.** So the last step after exporting each new `vX.Y` folder (and re-pointing the main shortcut) is:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\update-test-copy.ps1
+```
+
+It rebuilds the test copy from the newest version folder (nothing is deleted, the version folders are only read). It reads `CAMPAIGN_LEVELS` and the cutscene lists (`SCENE_LEADS_TO`, `SCENES`) from `js/game.js`, so new levels and new cutscenes are marked finished/seen automatically, and it stops with an error if the version folder holds a file it does not know or `index.html`/`game.js` changed shape - then fix the script rather than the copy by hand. After it runs, open the copy once (preview config on the test folder, audio muted, do not click Begin), check the title says "Finished" in all four modes and that the replay screen lists every level and cutscene, then clear its `echomaze.test.*` storage, close the tab and stop the server. Never put a version number in the game files; the READ ME the script writes may say which version the copy was built from.
 
 The owner wants old versions preserved, **never overwritten**. Whenever the game itself changes (doc-only edits don't count), after committing and pushing:
 
