@@ -30,7 +30,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v5.1 | af2dcf9 | level select and cutscene replay |
 | v5.2 | 7411670 | level 6 scent only |
 | v5.3 | 76f1d29 | stepping on your own trail smells you again |
-| v5.4 | (this commit) | ripples have a limited range (about half of what it was) - see "Ripple range" (latest) |
+| v5.4 | 0d27706 | ripples have a limited range (about half of what it was) - see "Ripple range" (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
