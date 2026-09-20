@@ -60,24 +60,25 @@
         <div><kbd class="wide">ITEM</kbd><span>use an item you have found</span><kbd>II</kbd><span>pause</span></div>
       </div>
 
-      <ul class="legend">
-        <li><i style="--c:#5fd4ff"></i>Walls</li>
-        <li><i style="--c:#ffb347"></i>Obstacles</li>
-        <li><i style="--c:#ff3b5c"></i>Echo monsters</li>
-        <li><i style="--c:#b07cff"></i>Scent monsters</li>
-        <li><i style="--c:#ff7410"></i>Stalkers</li>
-        <li><i style="--c:#bef046"></i>Smell puddles</li>
-        <li><i style="--c:#ff7ad9"></i>Sonar decoy</li>
-        <li><i style="--c:#5dffa0"></i>The way out</li>
+      <!-- each swatch is a little canvas the game fills with the very art a ripple lights things up with (js/art.js) -->
+      <ul class="legend" id="legend">
+        <li><canvas class="swatch" data-art="wall" width="40" height="32"></canvas>Walls</li>
+        <li><canvas class="swatch" data-art="boulder" width="32" height="32"></canvas><canvas class="swatch" data-art="pillar" width="32" height="32"></canvas>Obstacles</li>
+        <li><canvas class="swatch" data-art="echo" width="32" height="32"></canvas>Echo monsters</li>
+        <li><canvas class="swatch" data-art="scent" width="32" height="32"></canvas>Scent monsters</li>
+        <li><canvas class="swatch" data-art="stalker" width="32" height="32"></canvas>Stalkers</li>
+        <li><canvas class="swatch" data-art="puddle" width="32" height="32"></canvas>Smell puddles</li>
+        <li><canvas class="swatch" data-art="decoy" width="32" height="32"></canvas>Sonar decoy</li>
+        <li><canvas class="swatch" data-art="exit" width="32" height="32"></canvas>The way out</li>
       </ul>
 
       <!-- shown only while Visual cues is on: the shapes that mark each kind of sound around you -->
       <ul class="legend cue-legend" aria-label="Visual cue shapes">
-        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff3b5c"><path d="M0,-9 L7,0 L0,9 L-7,0 Z"/></svg>Echo monster: diamond</li>
-        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#b07cff"><path d="M7.2,0.0 L8.3,1.5 L7.9,2.9 L6.2,3.6 L4.6,3.8 L3.8,4.6 L3.6,6.2 L2.9,7.9 L1.5,8.3 L0.0,7.2 L-1.0,5.9 L-2.0,5.6 L-3.6,6.2 L-5.4,6.5 L-6.5,5.4 L-6.2,3.6 L-5.6,2.0 L-5.9,1.0 L-7.2,0.0 L-8.3,-1.5 L-7.9,-2.9 L-6.2,-3.6 L-4.6,-3.8 L-3.8,-4.6 L-3.6,-6.2 L-2.9,-7.9 L-1.5,-8.3 L0.0,-7.2 L1.0,-5.9 L2.0,-5.6 L3.6,-6.2 L5.4,-6.5 L6.5,-5.4 L6.2,-3.6 L5.6,-2.0 L5.9,-1.0 Z"/></svg>Scent monster: wavy circle</li>
-        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7410"><circle cx="-6" cy="0" r="2.4"/><circle cx="0" cy="0" r="2.4"/><circle cx="6" cy="0" r="2.4"/></svg>Stalker: small dots</li>
-        <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#5dffa0"><path d="M-4,-8 L5,0 L-4,8"/></svg>Exit chime: chevron</li>
-        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7ad9"><path d="M0.0,-9.0 L2.4,-2.4 L9.0,0.0 L2.4,2.4 L0.0,9.0 L-2.4,2.4 L-9.0,0.0 L-2.4,-2.4 Z"/></svg>Sonar decoy: star</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff3b5c"><path d="M0.0,-8.5 L2.3,-5.6 L5.4,-5.9 L4.4,-2.9 L6.7,0.0 L4.4,2.9 L5.4,5.9 L2.3,5.6 L0.0,8.5 L-2.3,5.6 L-5.4,5.9 L-4.4,2.9 L-6.7,0.0 L-4.4,-2.9 L-5.4,-5.9 L-2.3,-5.6 Z"/></svg>Echo monster: spiky diamond</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#b07cff"><path d="M7.2,0.0 L8.3,1.5 L7.9,2.9 L6.2,3.6 L4.6,3.8 L3.8,4.6 L3.6,6.2 L2.9,7.9 L1.5,8.3 L0.0,7.2 L-1.0,5.9 L-2.0,5.6 L-3.6,6.2 L-5.4,6.5 L-6.5,5.4 L-6.2,3.6 L-5.6,2.0 L-5.9,1.0 L-7.2,0.0 L-8.3,-1.5 L-7.9,-2.9 L-6.2,-3.6 L-4.6,-3.8 L-3.8,-4.6 L-3.6,-6.2 L-2.9,-7.9 L-1.5,-8.3 L0.0,-7.2 L1.0,-5.9 L2.0,-5.6 L3.6,-6.2 L5.4,-6.5 L6.5,-5.4 L6.2,-3.6 L5.6,-2.0 L5.9,-1.0 Z"/><circle class="hole" cx="2.2" cy="-1.6" r="1.5"/></svg>Scent monster: wavy circle</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7410"><ellipse cx="-6" cy="0" rx="1.9" ry="4.6"/><ellipse cx="0" cy="0" rx="1.9" ry="4.6"/><ellipse cx="6" cy="0" rx="1.9" ry="4.6"/></svg>Stalker: tall thin capsules</li>
+        <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#5dffa0"><path d="M-4,-8 L5,0 L-4,8"/><path class="arc" d="M-1.5,-9.4 A10.2,10.2 0 0 1 -1.5,9.4"/></svg>Exit chime: chevron</li>
+        <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7ad9"><path d="M0.0,-9.0 L2.4,-2.4 L9.0,0.0 L2.4,2.4 L0.0,9.0 L-2.4,2.4 L-9.0,0.0 L-2.4,-2.4 Z" transform="scale(0.72)"/><circle class="ring" cx="0" cy="0" r="9"/></svg>Sonar decoy: star in a ring</li>
         <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#ff8496"><circle cx="0" cy="0" r="7" fill="none"/></svg>Heartbeat: ring</li>
       </ul>
 
@@ -222,6 +223,7 @@
 
   <script src="js/audio.js"></script>
   <script src="js/level.js"></script>
+  <script src="js/art.js"></script>
   <script src="js/cutscene.js"></script>
   <script src="js/cues.js"></script>
   <script src="js/touch.js"></script>

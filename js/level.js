@@ -32,17 +32,25 @@ function mulberry32(seed) {
  *                     STANDING there (a footstep is heard from `hear`). Always
  *                     smaller than `hear`: levelConfig() clamps it and the check
  *                     below warns if a mode breaks that.
+ *   mimicTell         how well a disguised mimic (level 8-9) copies the exit's LOOK (js/art.js, EchoArt 'exit'):
+ *                     'clear'  (Easy)   a visible slow flicker and an uneven, slightly off-colour outer ring
+ *                     'subtle' (Normal) a faint wobble in the outer ring and a slightly different turning speed
+ *                     'none'   (Hard, Hardcore) visually IDENTICAL to the exit - only a ripple tells them apart
+ *                     This is a deliberate exception to "visuals never change the game": it is the one visual
+ *                     that differs by mode, on purpose. It changes nothing but how the disguised mimic is DRAWN
+ *                     (never its sound, size, speed or behaviour, and never the visual sound cue).
  *   oneLife           being caught ends the whole run
  */
 const MODES = {
-  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240 },
-  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300 },
-  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360 },
-  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, oneLife: true },
+  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240, mimicTell: 'clear' },
+  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300, mimicTell: 'subtle' },
+  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360, mimicTell: 'none' },
+  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, mimicTell: 'none', oneLife: true },
 };
 const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
 for (const id of MODE_ORDER) {
   if (!(MODES[id].presenceRadius < MODES[id].hear)) console.warn(`MODES.${id}: presenceRadius must be smaller than hear (its footstep radius)`);
+  if (!['none', 'subtle', 'clear'].includes(MODES[id].mimicTell)) console.warn(`MODES.${id}: mimicTell must be 'none', 'subtle' or 'clear'`);
 }
 
 /**

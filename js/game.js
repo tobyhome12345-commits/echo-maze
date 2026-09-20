@@ -34,7 +34,9 @@
   const T_DECOY = 7; // sonar decoy (pink) - lies flat like a puddle, shows up in a ripple but never blocks it
   const T_STALKER = 8; // stalker (orange) - a ripple can show it, but it learns nothing from it
   const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217', '255,116,16'];
-  const LINE_W = [0, 2.4, 2.8, 3.4, 3.2, 3.4, 3, 3, 3.4]; // core stroke width per type
+  // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
+  // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
+  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5];
   const NRAYTYPES = 9; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster) and 8 (stalker); 0 = nothing. 6 and 7 are flat marks (puddle, decoy), never rays
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
@@ -149,6 +151,8 @@
   let decoyBlipTimer = 0;
   let glimmerOff = false; // crouching wiped the exit's glimmer; it stays gone until your next ripple (see startCrouch)
   let cooldown = 0;
+  let artT = 0; // seconds: the clock the art (js/art.js) animates by. Drawing only - it never touches the simulation
+  let artHold = null; // ?debug only: hold the art's clock still, for screenshots
   let levelTime = 0;
   let ripplesUsed = 0;
   let beaconTimer = 0;
@@ -1100,7 +1104,7 @@
       // from it; a disguised mimic is seen as an EXIT (green, with the exit's bell) until the wave touches it
       if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) {
         const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'mimic' ? T_EXIT : T_ENEMY;
-        circles.push({ x: e.x, y: e.y, r: e.r, type, enemy: e });
+        circles.push({ x: e.x, y: e.y, r: e.r, type, enemy: e, mimic: e.kind === 'mimic' }); // (mimic: drawn as the exit until revealMimic sets revealAt)
       }
     });
     const ex = level.exit;
@@ -1126,6 +1130,22 @@
       dist[i] = best;
       type[i] = bt;
       hitId[i] = bid;
+    }
+
+    // What this wave lit up, one entry per round thing (boulder, monster, exit...): its nearest hit and how many rays
+    // hit it. Only the art (drawRipple) reads this; nothing in the game does.
+    const objs = [];
+    const slot = new Int16Array(circles.length).fill(-1);
+    for (let i = 0; i < RAYS; i++) {
+      const id = hitId[i];
+      if (id < 0) continue;
+      if (slot[id] < 0) {
+        slot[id] = objs.length;
+        objs.push({ c: circles[id], dmin: dist[i], n: 0 });
+      }
+      const ob = objs[slot[id]];
+      ob.n++;
+      if (dist[i] < ob.dmin) ob.dmin = dist[i];
     }
 
     // Turn hits into echo events: one per object, walls grouped by direction+range.
@@ -1169,7 +1189,7 @@
     for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
       if (d > R || !hasLOS(ox, oy, p.x, p.y)) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true });
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.type === T_DECOY ? 'decoy' : 'puddle', ar: p.r });
       echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
@@ -1180,7 +1200,7 @@
     const seen = new Set();
     for (const bin of objBins.keys()) if (circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy);
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6 });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6 });
   }
 
   /** Can the wave get from (ox,oy) to this monster? A wall, a boulder or another monster in the way stops it. */
@@ -1241,7 +1261,7 @@
       if (e.state === 'track' || e.state === 'lured' || e.state === 'trapped') continue;
       if (!rp.seen.has(e)) {
         // it walked into the wave after the ripple was sent, so no echo of it was planned: show and sound it now
-        marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_ENEMY], r: 34 });
+        marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_ENEMY], r: 34, art: 'echo', ar: e.r, h: Math.atan2(rp.y - e.y, rp.x - e.x) });
         rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_ENEMY, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
         rp.echoes.sort((a, b) => a.t - b.t);
       }
@@ -1266,6 +1286,8 @@
     cues.caption('[the exit snarls]');
     for (const rp of ripples) {
       let hit = false;
+      // the art: a ripple that bounced off it as an "exit" now melts that into the echo monster (see drawRipple)
+      for (const c of rp.circles) if (c.enemy === e && c.revealAt === undefined) c.revealAt = artT;
       for (let j = 0; j < RAYS; j++) {
         const id = rp.hitId[j];
         if (id >= 0 && rp.circles[id].enemy === e) {
@@ -1512,6 +1534,39 @@
     for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a] = [];
     retBuckets[k] = [];
   }
+  const texBuckets = []; // the stone texture on lit walls (EchoArt.wallTexture), by brightness
+  for (let a = 0; a < ALPHA_LEVELS; a++) texBuckets[a] = [];
+  const artOpts = { a: 1, t: 0, h: 0, seed: 0, tell: 'none' }; // reused for every thing the art draws (no garbage per frame)
+
+  /**
+   * The art for one round thing a ripple lit up (see EchoArt in js/art.js): drawn at the thing's TRUE collision
+   * size, facing the ripple's origin (so it never tells you which way the monster is really heading), and fading
+   * like the rays that found it. A disguised mimic is the exit (with the mode's tell), and one that has just been
+   * revealed melts from the exit into the echo monster over 0.3 s - and never shows as an exit again.
+   */
+  function drawLit(rp, ob, a) {
+    const c = ob.c;
+    const o = artOpts;
+    o.a = a;
+    o.t = artT;
+    o.h = Math.atan2(rp.y - c.y, rp.x - c.x);
+    o.seed = EchoArt.seedOf(c.x, c.y);
+    o.tell = 'none';
+    switch (c.type) {
+      case T_OBSTACLE: EchoArt.draw(ctx, EchoArt.obstacleKind(c.x, c.y), c.x, c.y, c.r, o); break;
+      case T_ENEMY: EchoArt.draw(ctx, 'echo', c.x, c.y, c.r, o); break;
+      case T_SCENT: EchoArt.draw(ctx, 'scent', c.x, c.y, c.r, o); break;
+      case T_STALKER: EchoArt.draw(ctx, 'stalker', c.x, c.y, c.r, o); break;
+      case T_EXIT:
+        if (!c.mimic) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
+        else {
+          o.tell = MODES[mode].mimicTell; // a mimic melting into the monster starts from the look it was disguised with
+          if (c.revealAt === undefined) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
+          else EchoArt.mimicMorph(ctx, c.x, c.y, c.r, (artT - c.revealAt) / EchoArt.MORPH_SECONDS, o);
+        }
+        break;
+    }
+  }
 
   function strokeBucket(b, style, width) {
     if (!b.length) return;
@@ -1532,6 +1587,7 @@
       retBuckets[k].length = 0;
       for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a].length = 0;
     }
+    for (let a = 0; a < ALPHA_LEVELS; a++) texBuckets[a].length = 0;
 
     // expanding wavefront - only where the wave has not hit anything yet
     if (r < R) {
@@ -1572,9 +1628,14 @@
       if (al > 0.03) {
         const px = x + COS[j] * d;
         const py = y + SIN[j] * d;
-        const b = segBuckets[k][Math.min(ALPHA_LEVELS - 1, Math.floor(al * ALPHA_LEVELS))];
-        if (connect) b.push(px, py, x + COS[j2] * dist[j2], y + SIN[j2] * dist[j2]);
-        else b.push(px, py, px, py);
+        const ai = Math.min(ALPHA_LEVELS - 1, Math.floor(al * ALPHA_LEVELS));
+        const b = segBuckets[k][ai];
+        if (connect) {
+          const qx = x + COS[j2] * dist[j2];
+          const qy = y + SIN[j2] * dist[j2];
+          b.push(px, py, qx, qy);
+          if (k === T_WALL) EchoArt.wallTexture(px, py, qx, qy, COS[j], SIN[j], texBuckets[ai]); // stone joints and the odd crack
+        } else b.push(px, py, px, py);
       }
       if (r < 2 * d && retAlpha > 0.02) {
         const s = 2 * d - r;
@@ -1594,6 +1655,14 @@
       }
       strokeBucket(retBuckets[k], `rgba(${COLORS[k]},${retAlpha * 0.3})`, 6);
       strokeBucket(retBuckets[k], `rgba(${COLORS[k]},${retAlpha})`, 1.6);
+    }
+    for (let a = 0; a < ALPHA_LEVELS; a++) strokeBucket(texBuckets[a], `rgba(${EchoArt.CORE.wall},${((a + 0.5) / ALPHA_LEVELS) * 0.6})`, 1.1);
+
+    // the things the wave found, drawn as themselves (the rays above are their true collision outline)
+    for (const ob of rp.objs) {
+      if (r < ob.dmin) continue;
+      const al = Math.exp(-(r - ob.dmin) / RIPPLE_SPEED / 1.3);
+      if (al > 0.04) drawLit(rp, ob, al * Math.min(1, 0.4 + ob.n / 10));
     }
   }
 
@@ -1616,7 +1685,16 @@
       ctx.beginPath();
       ctx.arc(m.x, m.y, rad, 0, TAU);
       ctx.fill();
-      if (m.puddle) {
+      if (m.art) {
+        // a puddle, a sonar decoy, or a monster that walked into the wave: drawn as itself, at its true size
+        const o = artOpts;
+        o.a = a * 0.9;
+        o.t = artT;
+        o.h = m.h || 0;
+        o.seed = EchoArt.seedOf(m.x, m.y);
+        o.tell = 'none';
+        EchoArt.draw(ctx, m.art, m.x, m.y, m.ar, o);
+      } else if (m.puddle) {
         ctx.strokeStyle = `rgba(${m.c},${a * 0.8})`;
         ctx.lineWidth = 1.6;
         ctx.beginPath();
@@ -1654,7 +1732,9 @@
 
     // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically.
     // (Crouching wipes it - for the mimic too, or the difference would give it away - until your next ripple.)
-    const glimmerExit = (x, y) => {
+    // The glow is drawn by one function for both; so is the portal art on top of it (EchoArt 'exit'). The ONLY thing
+    // that can differ is `tell` (MODES.mimicTell): 'none' on the real exit, and on a mimic in Hard / Hardcore.
+    const glimmerExit = (x, y, r, tell) => {
       if (glimmerOff) return;
       const de = Math.hypot(x - player.x, y - player.y);
       if (de >= 130) return;
@@ -1666,9 +1746,14 @@
       ctx.beginPath();
       ctx.arc(x, y, 46, 0, TAU);
       ctx.fill();
+      const o = artOpts;
+      o.a = Math.min(1, (1 - de / 130) * 0.95);
+      o.t = artT;
+      o.tell = tell;
+      EchoArt.draw(ctx, 'exit', x, y, r, o);
     };
-    glimmerExit(level.exit.x, level.exit.y);
-    for (const e of enemies) if (e.kind === 'mimic') glimmerExit(e.x, e.y);
+    glimmerExit(level.exit.x, level.exit.y, level.exit.r, 'none');
+    for (const e of enemies) if (e.kind === 'mimic') glimmerExit(e.x, e.y, e.r, MODES[mode].mimicTell);
 
     // sonar decoys glimmer pink when you are close: the one lying on the floor, and any you have dropped
     const glimmerDecoy = (x, y, pulse) => {
@@ -1681,6 +1766,11 @@
       ctx.beginPath();
       ctx.arc(x, y, 30, 0, TAU);
       ctx.fill();
+      const o = artOpts;
+      o.a = (1 - dd / 110) * 0.9 * pulse;
+      o.t = artT;
+      o.tell = 'none';
+      EchoArt.draw(ctx, 'decoy', x, y, 12, o);
     };
     if (level.decoy && !level.decoy.taken) glimmerDecoy(level.decoy.x, level.decoy.y, 0.7 + 0.3 * Math.sin(levelTime * 5));
     for (const d of decoys) {
@@ -1707,6 +1797,12 @@
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r + 12, 0, TAU);
       ctx.fill();
+      const o = artOpts;
+      o.a = (1 - dp / 70) * 0.9;
+      o.t = artT;
+      o.tell = 'none';
+      o.seed = EchoArt.seedOf(p.x, p.y);
+      EchoArt.draw(ctx, 'puddle', p.x, p.y, p.r, o);
     }
 
     drawTrails();
@@ -2499,6 +2595,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    artT = artHold === null ? now / 1000 : artHold;
 
     if (state === 'play') {
       updatePlay(dt);
@@ -2539,7 +2636,33 @@
     requestAnimationFrame(frame);
   }
 
+  /**
+   * The title screen's colour legend: each swatch is a little canvas showing the very art that lights up in a
+   * ripple (js/art.js), so what you learn on the title is what you will see. (A disguised mimic is not in it.)
+   */
+  function drawLegend() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * 2;
+    document.querySelectorAll('#legend canvas.swatch').forEach((cv) => {
+      const w = +cv.dataset.w || cv.width;
+      const h = +cv.dataset.h || cv.height;
+      cv.dataset.w = w;
+      cv.dataset.h = h;
+      cv.style.width = `${w * 0.8}px`;
+      cv.style.height = `${h * 0.8}px`;
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      const g = cv.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, cv.width, cv.height);
+      g.globalCompositeOperation = 'lighter';
+      const kind = cv.dataset.art;
+      const r = (kind === 'wall' ? 0.4 * w : 0.33 * h) * dpr;
+      EchoArt.draw(g, kind, cv.width / 2, cv.height * (kind === 'wall' ? 0.36 : 0.5), r, { t: 0.9, h: -0.6, seed: EchoArt.seedOf(kind.length * 31, 7) });
+    });
+  }
+
   resize();
+  drawLegend();
   refreshTouchMode();
   refreshTitle();
   requestAnimationFrame(frame);
@@ -2604,9 +2727,18 @@
         runSeed = n | 0; // the maze seed, so two runs can be the same
       },
       cues: () => cues.list(),
-      snapCamera: () => {
-        camX = player.x;
-        camY = player.y;
+      snapCamera: (x, y) => {
+        camX = x === undefined ? player.x : x;
+        camY = y === undefined ? player.y : y;
+      },
+      // magnify the picture (until the window is resized), so the art can be inspected on a small screen
+      zoom: (v) => {
+        viewScale = +v;
+      },
+      // hold the art's clock still (seconds), or pass null to let it run - for screenshots that must be repeatable
+      artClock: (t) => {
+        artHold = t === null || t === undefined ? null : +t;
+        if (artHold !== null) artT = artHold;
       },
       captionText: () => ($('cue-caption').classList.contains('show') ? $('cue-caption').textContent : ''),
       touch,

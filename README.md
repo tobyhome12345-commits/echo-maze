@@ -27,16 +27,18 @@ Headphones recommended: echoes and monsters are stereo-panned, muffled by walls,
 
 ## What the colours mean
 
-| Colour | Thing |
-| --- | --- |
-| Blue | Walls |
-| Amber | Obstacles (boulders and pillars) |
-| Red | Echo monsters |
-| Violet | Scent monsters (level 6+) |
-| Orange | Stalkers (level 10+) |
-| Lime | Smell puddles (level 6+) and your smell trail |
-| Pink | The sonar decoy (level 9+) |
-| Green | The way out |
+| Colour | Thing | Its shape when a ripple lights it |
+| --- | --- | --- |
+| Blue | Walls | a stone-joint texture along the lit outline: short seams into the wall and the odd crack |
+| Amber | Obstacles | **boulders**: an irregular rock with a few cracks; **pillars**: round, with a ring on top and fluting round the edge |
+| Red | Echo monsters | **spiky and eyeless**: a jagged star of a body with a gaping V mouth and ribs |
+| Violet | Scent monsters (level 6+) | a **soft blob with a wavy edge**, drips trailing behind it and small bubbles inside |
+| Orange | Stalkers (level 10+) | **tall and thin**: a narrow body, a tiny blind head, two feelers and long jointed limbs |
+| Lime | Smell puddles (level 6+) and your smell trail | a **glossy blob** with a shine, two bubbles and a ripple |
+| Pink | The sonar decoy (level 9+) | a **small device**: a box with a dial, a short antenna and a ring round it |
+| Green | The way out | a **portal**: concentric rings, a slowly rotating arc, a little doorway and a few soft sparkles |
+
+Colour is never the only clue: every thing has its own silhouette and texture (drawn by [`js/art.js`](js/art.js)), and the title screen's legend shows them. See **How things look** below.
 
 ## The intro
 
@@ -81,6 +83,17 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 - **Scent monsters and puddles (level 6+).** A second, different monster (violet) never stands still: it walks the maze. It **ignores ripples and footsteps** — a ripple lets you *see* it, but it learns nothing from it. It follows **smell** instead. Lime **puddles** lie on the floor (a ripple lights them up and gives a wet *blorp* echo; up close they glimmer). Step in one and you are **smelly for 5 seconds of walking** — the clock only runs while you actually move, so standing still (or pushing into a wall) never wears it off, and standing in the puddle keeps topping it up. While you are smelly and within its smell range, a scent monster locks onto you and follows your live position; it loses you when the smell runs out or you get out of range. You also leave a **smell trail** behind you while smelly. It **lasts about a minute** after your smell runs out (60 seconds, fading over its last 12), or for as long as you stay smelly and keep it growing. **Your own trail can smell you again:** if you step back onto a trail you left while it is still there, you become smelly exactly as if you had stepped in a puddle (5 seconds of walking; if you are already smelly it tops you back up). Any part of any finished trail counts, including walking straight back along the one you have just laid. It can only do that once every **10 seconds**. The only parts that don't count are the trail you are still laying, and the last few steps at the tip of the trail you have just finished (you are standing on it the moment your smell runs out) until you move back along it or step off it. A scent monster that **touches a trail** at all follows it to the **other end** (the end farther along the trail from where it touched it), then carries on patrolling. Touching a scent monster kills you, just like an echo monster.
 - **Procedural audio.** All sound is synthesised at runtime with the Web Audio API (`AudioContext`) in [`js/audio.js`](js/audio.js) — oscillators, filtered noise and a generated reverb impulse response. The `AudioContext` is only created when you click **Begin**, to satisfy browser autoplay rules.
 
+## How things look
+
+When a ripple's wave reaches something, it is drawn **as itself**, not just as a coloured arc: an echo monster is a spiky, ribbed star with a V-shaped mouth and no eyes; a scent monster a wobbling blob with drips; the stalker a thin body on long limbs; boulders are cracked rocks and pillars fluted columns; puddles glossy blobs; the sonar decoy a little device with an antenna and a ring; the exit a portal. Walls get a faint stone texture. (The table under **What the colours mean** has the full list; the title screen's legend shows the same art.) The rules it follows:
+
+- **True size.** Every shape fits inside the thing's real collision circle, and the coloured ray arcs that always traced that circle are still drawn under it, so what you see is what blocks or kills you. A monster is drawn facing where your ripple came from (never the way it is really heading), so the shape tells you nothing extra about what it is doing.
+- **Visual only.** [`js/art.js`](js/art.js) draws with plain Canvas 2D (no images, no dependencies, works from `file://`) and reads nothing from the game; the game never reads anything back from it. It never calls `Math.random` and never touches the level generator's random numbers (`mulberry32`); its small movements (a wobbling blob, twitching spikes, the exit's turning arc and sparkles) run off a render clock, and every shape is a fixed function of the thing's position. The one exception is the disguised mimic's per-mode tell (see **The mimic** above).
+- **Cheap.** A few dozen path segments per lit thing, no per-frame allocation beyond the paths themselves; the busiest scene tried (level 10's monsters, obstacles and puddles lit by three ripples at once) costs about a millisecond a frame more than the old arcs did.
+- **Calm mode is unchanged.**
+- The **cutscenes** use the same art for their monsters, the puddle, the decoy and the mimic's "exit", just bigger, and the mimic's disguise melts into the echo monster in the mimic scene too.
+- A **mimic that a ripple has just touched** melts from the exit portal into the echo monster over about **0.3 s** (a smooth cross-fade, never a flash) and is never drawn as an exit again; ripples sent after that see an ordinary echo monster.
+
 ## Levels
 
 There are **ten levels so far**. Clearing level 10 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
@@ -121,6 +134,16 @@ A presence hit counts exactly like a footstep: it **walks to the exact spot it h
 
 A monster that **pretends to be the exit**. It is exactly as big as the exit, sits still and silent, and looks and sounds like it: it glimmers the same green when you are close, it sends out the same chime as the real exit from where it stands (so you hear two exits), and a ripple registers it as the exit (green, with the exit's bell) right up to the moment the wave reaches it. It does not show up in the colour legend, and it gives no heartbeat or growl warning. **The second a ripple's wave touches it, it turns into an ordinary echo monster** (its green rays turn red, its exit bell becomes a moan, and it goes to the spot the ripple was sent from). Walking into it before that kills you, like any monster. It never turns back.
 
+**How well it hides depends on the difficulty mode** (`mimicTell` in the `MODES` table; see **How things look** below). Disguised, it is drawn with the exit's portal art, in the exit's green, with the exit's glimmer. The *only* thing that can differ is a small tell in that drawing:
+
+| Mode | `mimicTell` | What you can see of a disguised mimic (next to a real exit) |
+| --- | --- | --- |
+| Easy | `clear` | the portal **flickers slowly** (about twice a second, never a flash), and its outer ring is **uneven and a slightly yellower green** |
+| Normal | `subtle` | a **faint wobble** in the outer ring, and it turns a little faster |
+| Hard, Hardcore | `none` | **identical to the real exit, pixel for pixel** - only a ripple tells them apart |
+
+This is an **intentional difference between modes, and a deliberate exception to the rule that the art never affects the game**: it changes nothing but how the disguised mimic is *drawn*. Its sound (the chime), size, speed, behaviour and its Visual cue (the same green chevron as the exit's) are the same in every mode.
+
 ### The sonar decoy (level 9+)
 
 Every level from 9 has one **sonar decoy** lying somewhere (it glimmers pink when you are near, blips faintly, and shows up pink in a ripple). Walk onto it to pick it up — you can carry **only one**, shown in the top right — and press **`E`** to drop it where you stand. It beeps (faster and higher) for **5 seconds**, then **calls**: every monster within **480 px** of it — an echo monster (whatever it was doing, even asleep or tracking you), a scent monster, or a mimic **even if it hasn't turned yet** — is drawn to it. They pathfind to it and are **trapped there for 5 seconds after they arrive**, deaf to ripples, footsteps and smell, and then go back to normal (echo monsters and disguised mimics stand idle where they are; scent monsters patrol again). It is **one time use**. A trapped monster is still deadly to touch, so get past it, don't bump it. A mimic that is dragged over stays disguised and silent while it walks (only its chime moves).
@@ -142,6 +165,7 @@ Pick one on the title screen. Each mode scales the level curve (the table shows 
 | Ripple recharge | 0.90 s | 1.09 s | 1.29 s | 1.34 s |
 | Smell puddles on level 6 | 2 | 3 | 4 | 4 |
 | Scent monster smell range | 240 px | 300 px | 360 px | 380 px |
+| A disguised mimic's look (level 8-9) | clear tell | subtle tell | identical to the exit | identical to the exit |
 | Lives | unlimited retries | unlimited retries | unlimited retries | **one life** |
 
 Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Easy, Normal and Hard**, being caught shows *Try again*, which puts you back at the start of the level you were on (same maze, monsters reset). In **Hardcore**, being caught ends the run: you are sent straight back to the title screen, there is no Continue and no way to resume, and the next Begin starts over from level 1 on a fresh maze. Your Hardcore **high score** (the furthest level you reached, or "finished the game") stays on the title screen — on the Hardcore button and as its own line — and is never lowered by a worse run. Every monster is always slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode.
@@ -164,12 +188,12 @@ Each sound that has a direction is also drawn as a small glyph on a ring about *
 
 | Sound | Cue |
 | --- | --- |
-| Echo monster: voice, footsteps, screech | red **diamond**. A screech (a monster starts hunting) is a bigger, brighter one and adds a short text caption, `[monster screech]` |
-| Scent monster: voice, steps | violet **round glyph with a wavy edge** |
-| Stalker: breathing, clicks, steps | small orange **dots** (one for a click, two for a step, three for its breathing) |
-| The exit's chime | green **chevron**, on the chime's own 2.4 s rhythm, only within its range |
-| A mimic's fake chime | **exactly the same** green chevron as the exit's, with exactly the same tell the sound has — no more, no less |
-| Sonar decoy | pink **four-point star**: at its drop spot, and each time it pings (and the floor one when you are near) |
+| Echo monster: voice, footsteps, screech | red **spiky diamond** (a diamond with a sharp spike on every side, like the monster's jagged shape). A screech (a monster starts hunting) is a bigger, brighter one and adds a short text caption, `[monster screech]` |
+| Scent monster: voice, steps | violet **round glyph with a wavy edge** and a bubble in it, like the monster's blob |
+| Stalker: breathing, clicks, steps | orange **tall thin capsules**, always upright, in a row (one for a click, two for a step, three for its breathing) |
+| The exit's chime | green **chevron** with a short arc of the portal's ring behind it, on the chime's own 2.4 s rhythm, only within its range |
+| A mimic's fake chime | **exactly the same** green chevron as the exit's, with exactly the same tell the sound has — no more, no less (in every mode) |
+| Sonar decoy | pink **four-point star in a ring**: at its drop spot, and each time it pings (and the floor one when you are near) |
 | Heartbeat | a thin **ring** around you, pulsing at the heartbeat's rate |
 
 - Nothing pulses more than **3 times a second**: each source is limited to one pulse per third of a second, however fast its sound repeats (a chasing monster's footsteps are heard about six times a second but flash the cue at most three).
@@ -206,14 +230,19 @@ index.html      page + overlay screens (title, replay, pause, caught, level comp
 style.css       styling (everything for touch is under `body.touch`)
 js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling and Doppler)
 js/level.js     level generation + difficulty curve (levelConfig)
+js/art.js       EchoArt - how everything a ripple lights up is drawn (shapes, textures, the exit portal, the mimic's tell)
 js/cutscene.js  the five story cutscenes: lore cards + scripted scenes (timelines at the top)
 js/cues.js      Visual cues (accessibility): the glyphs on the ring around you
 js/touch.js     on-screen touch controls: the virtual joystick and buttons
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
+tools/          developer tools, not part of the game and not exported with a version:
+                art-sheet.html (every shape large and at true size, the exit beside a mimic in each mode, the morph),
+                stage.js (stage a scene in the ?debug hook), identity-test.js (same seed, same game, fingerprint),
+                perf-bench.js (draw cost), update-test-copy.ps1
 ```
 
 Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/level.js`](js/level.js).
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `audio`) for poking at the game from the console. `settings()` reports `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress` and `seen`. `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `audio`) for poking at the game from the console. `settings()` reports `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress` and `seen`. `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.

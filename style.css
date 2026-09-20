@@ -22,7 +22,7 @@ body {
   user-select: none;
 }
 
-canvas {
+#game {
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -322,14 +322,19 @@ kbd.wide {
   color: var(--dim);
 }
 
-.legend i {
+/* each swatch is a canvas the game draws the thing's real art on (drawLegend in game.js) */
+.legend .swatch {
   display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 7px;
-  border-radius: 50%;
-  background: var(--c);
-  box-shadow: 0 0 8px var(--c);
+  vertical-align: middle;
+  margin: -6px 3px -6px 0;
+}
+
+.legend .swatch + .swatch {
+  margin-left: -8px;
+}
+
+.legend li {
+  white-space: nowrap;
 }
 
 .buttons {
@@ -670,6 +675,15 @@ body.cues-on .cue-legend {
   stroke-linecap: round;
 }
 
+/* the finer details of a glyph: a bubble in the scent monster's, the ring round the decoy's, the arc behind the exit's chevron */
+.legend .glyph .hole,
+.legend .glyph .ring,
+.legend .glyph .arc {
+  fill: none;
+  stroke-width: 0.9;
+  opacity: 0.6;
+}
+
 /* --------------------------------------------- keyboard / touch how-to */
 
 .touch-only {
@@ -720,7 +734,7 @@ body.touch {
   -webkit-user-select: none;
 }
 
-body.touch canvas {
+body.touch #game {
   width: 100%;
   height: 100%;
   touch-action: none;

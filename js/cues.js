@@ -4,11 +4,11 @@
  * Visual sound cues - an accessibility option (the "Visual cues" switch, key V). Every sound that has a
  * direction is also drawn as a small glyph on a ring about 45 px around the player, pointing toward it.
  *
- *   echo monster (voice, footsteps, screech)   red diamond              (a screech: bigger, brighter + a caption)
- *   scent monster (voice, steps)               violet round glyph with a wavy edge
- *   stalker (breathing, clicks, steps)         small orange dots
+ *   echo monster (voice, footsteps, screech)   red spiky diamond        (a screech: bigger, brighter + a caption)
+ *   scent monster (voice, steps)               violet round glyph with a wavy edge and a bubble
+ *   stalker (breathing, clicks, steps)         orange tall thin capsules
  *   exit chime, and a mimic's fake chime       green chevron            (the very same cue for both)
- *   sonar decoy (drop spot, its pings)         pink four-point star
+ *   sonar decoy (drop spot, its pings)         pink four-point star in a ring
  *   heartbeat                                  a thin ring around the player, pulsing at the heartbeat's rate
  *
  * Every cue has its own SHAPE as well as its colour, so colour alone is never needed.
@@ -192,16 +192,27 @@ const EchoCues = (() => {
       ctx.lineCap = 'round';
       ctx.beginPath();
       if (kind === 'echo') {
-        // a diamond
-        ctx.moveTo(0, -size * 1.1);
-        ctx.lineTo(size * 0.85, 0);
-        ctx.lineTo(0, size * 1.1);
-        ctx.lineTo(-size * 0.85, 0);
+        // a diamond with a sharp spike on every side - the echo monster's jagged silhouette, boiled down
+        const C = [[0, -1.15], [0.9, 0], [0, 1.15], [-0.9, 0]];
+        ctx.moveTo(0, -size * 1.15);
+        for (let i = 0; i < 4; i++) {
+          const a = C[i];
+          const b = C[(i + 1) % 4];
+          const ex = b[0] - a[0];
+          const ey = b[1] - a[1];
+          const len = Math.hypot(ex, ey);
+          const nx = ey / len; // the way out of the diamond
+          const ny = -ex / len;
+          ctx.lineTo((a[0] + ex * 0.34) * size, (a[1] + ey * 0.34) * size);
+          ctx.lineTo((a[0] + ex * 0.5 + nx * 0.36) * size, (a[1] + ey * 0.5 + ny * 0.36) * size);
+          ctx.lineTo((a[0] + ex * 0.66) * size, (a[1] + ey * 0.66) * size);
+          ctx.lineTo(b[0] * size, b[1] * size);
+        }
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
       } else if (kind === 'scent') {
-        // a round glyph with a wavy edge
+        // a round glyph with a wavy edge (the scent monster's soft blob), with a bubble in it
         for (let i = 0; i <= 48; i++) {
           const a = (i / 48) * TAU;
           const r = size * (1 + 0.2 * Math.sin(a * 6 + phase));
@@ -211,28 +222,37 @@ const EchoCues = (() => {
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(size * 0.28, -size * 0.2, size * 0.2, 0, TAU);
+        ctx.lineWidth = Math.max(1, size * 0.11);
+        ctx.strokeStyle = `rgba(${rgb},${Math.min(1, alpha * 1.05) * 0.5})`;
+        ctx.stroke();
       } else if (kind === 'stalker') {
-        // small dots, laid out along the ring (1 = a click, 2 = a step, 3 = breathing, 5 = it heard you)
-        ctx.rotate(ang + Math.PI / 2);
+        // tall thin capsules (the stalker is tall and thin), always upright, in a row (1 = a click, 2 = a step, 3 = breathing, 5 = it heard you)
         const n = dots;
-        const r = size * 0.36;
+        const r = size * 0.3;
         for (let i = 0; i < n; i++) {
-          const dx = (i - (n - 1) / 2) * r * 2.9;
+          const dx = (i - (n - 1) / 2) * r * 3.1;
           ctx.beginPath();
-          ctx.arc(dx, 0, r, 0, TAU);
+          ctx.ellipse(dx, 0, r, r * 2.1, 0, 0, TAU);
           ctx.fill();
           ctx.stroke();
         }
       } else if (kind === 'exit') {
-        // a chevron pointing away from the player, toward the chime
+        // a chevron pointing away from the player, toward the chime, with a short arc of the portal's ring behind it
         ctx.rotate(ang);
         ctx.lineWidth = Math.max(2, size * 0.32);
         ctx.moveTo(-size * 0.55, -size * 0.95);
         ctx.lineTo(size * 0.6, 0);
         ctx.lineTo(-size * 0.55, size * 0.95);
         ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-size * 0.3, 0, size * 1.45, -0.7, 0.7);
+        ctx.lineWidth = Math.max(1.1, size * 0.13);
+        ctx.strokeStyle = `rgba(${rgb},${Math.min(1, alpha * 1.05) * 0.55})`;
+        ctx.stroke();
       } else if (kind === 'decoy') {
-        // a four-point star
+        // a four-point star inside a ring (the decoy's ring)
         for (let i = 0; i < 8; i++) {
           const a = (i / 8) * TAU - Math.PI / 2;
           const r = i % 2 ? size * 0.4 : size * 1.25;
@@ -241,6 +261,11 @@ const EchoCues = (() => {
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 1.5, 0, TAU);
+        ctx.lineWidth = Math.max(1, size * 0.11);
+        ctx.strokeStyle = `rgba(${rgb},${Math.min(1, alpha * 1.05) * 0.5})`;
         ctx.stroke();
       }
       ctx.restore();

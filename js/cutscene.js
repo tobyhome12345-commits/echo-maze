@@ -16,7 +16,9 @@
  * voice, which is just formant-shaped buzzing under the subtitles.
  *
  * The explorer's sonar is the game's real ripple system (env.castRipple), so it
- * looks and sounds exactly like yours.
+ * looks and sounds exactly like yours. So do the things it lights: the monsters, the
+ * puddle, the decoy and the mimic's "exit" are drawn with the game's own art (js/art.js,
+ * EchoArt), just bigger.
  */
 const EchoCutscene = (() => {
   const TAU = Math.PI * 2;
@@ -200,7 +202,6 @@ const EchoCutscene = (() => {
   const PAL_DECOY = { glow: '255,196,236', cone: '255,214,242', body: '255,214,240', hand: '255,224,246', head: '255,240,250', lamp: '255,248,252' }; // a pink-white lamp
   const PAL_STALKER = { glow: '170,226,240', cone: '196,238,248', body: '196,232,242', hand: '206,240,248', head: '228,248,253', lamp: '242,254,255' }; // a cold white lamp, so the orange stalker stands out
   const LIME = '190,240,70';
-  const VIOLET = '176,124,255';
   const EXITGREEN = '93,255,160'; // the exit's green, which the mimic copies
   const PINK = '255,122,217'; // the sonar decoy's pink
   const ORANGE = '255,116,16'; // the stalker's orange
@@ -1355,54 +1356,17 @@ const EchoCutscene = (() => {
       drawEchoBody(mx, my, heading, scale, alpha);
     }
 
-    /** An echo monster's body at (mx,my), facing `heading`: red glowing line-art. */
-    function drawEchoBody(mx, my, heading, scale, alpha) {
-      ctx.save();
-      ctx.translate(mx, my);
-      ctx.rotate(heading);
-      ctx.scale(scale, scale);
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+    // The monsters are drawn with the very same art as in the game (js/art.js). The game draws them at their true
+    // collision size (14 px); a cutscene shows them bigger, so these are the sizes it passes.
+    const ECHO_R = 34;
+    const SCENT_R = 30;
+    const STALKER_R = 44;
+    const MIMIC_R = ECHO_R * 0.9; // the mimic's "exit" in the scene: the size of the monster it turns into as it starts to
 
-      const path = () => {
-        ctx.beginPath();
-        // body: an outer ring and a listening "dish" inside it
-        ctx.moveTo(15, 0);
-        ctx.arc(0, 0, 15, 0, TAU);
-        ctx.moveTo(7, 0);
-        ctx.arc(0, 0, 7, 0, TAU);
-        // eyeless head: a ragged, gaping mouth at the front
-        for (let k = -3; k <= 3; k++) {
-          const a = k * 0.13;
-          ctx.moveTo(Math.cos(a) * 15, Math.sin(a) * 15);
-          ctx.lineTo(Math.cos(a + 0.05) * (26 + (k % 2 ? 6 : 0)), Math.sin(a + 0.05) * (26 + (k % 2 ? 6 : 0)));
-        }
-        // ear fins that sweep forward
-        ctx.moveTo(Math.cos(0.6) * 20, Math.sin(0.6) * 20);
-        ctx.arc(0, 0, 20, 0.6, 1.25);
-        ctx.moveTo(Math.cos(-0.6) * 20, Math.sin(-0.6) * 20);
-        ctx.arc(0, 0, 20, -0.6, -1.25, true);
-        // eight skittering legs
-        for (let i = 0; i < 8; i++) {
-          const base = (i / 8) * TAU + 0.4;
-          const sw = Math.sin(time * 26 + i * 1.9) * 0.22;
-          const kneeA = base + 0.35 + sw;
-          const footA = base - 0.12 + sw * 1.4;
-          ctx.moveTo(Math.cos(base) * 13, Math.sin(base) * 13);
-          ctx.lineTo(Math.cos(kneeA) * 30, Math.sin(kneeA) * 30);
-          ctx.lineTo(Math.cos(footA) * 46, Math.sin(footA) * 46);
-        }
-      };
-      path();
-      ctx.strokeStyle = `rgba(255,59,92,${0.24 * alpha})`;
-      ctx.lineWidth = 12;
-      ctx.stroke();
-      path();
-      ctx.strokeStyle = `rgba(255,120,140,${0.95 * alpha})`;
-      ctx.lineWidth = 2.6;
-      ctx.stroke();
-      ctx.restore();
+    /** An echo monster's body at (mx,my), facing `heading`: the spiky, eyeless, ribbed monster of the game, in red line-art. */
+    function drawEchoBody(mx, my, heading, scale, alpha) {
+      ctx.globalCompositeOperation = 'lighter';
+      EchoArt.draw(ctx, 'echo', mx, my, ECHO_R * scale, { a: alpha, t: time, h: heading });
       ctx.globalCompositeOperation = 'source-over';
     }
 
@@ -1417,48 +1381,10 @@ const EchoCutscene = (() => {
       drawScentBody(m.x + 26 * lunge, PY, scale, alpha, m.state === 'follow');
     }
 
-    /** A scent monster's body at (x,y): violet line-art with a sniffing snout. `follow` = it has a trail (faster sniffing and legs). */
+    /** A scent monster's body at (x,y): the soft violet blob of the game, wobbling, with its drips behind it (it walks right). `follow` = it has a trail (it wobbles faster). */
     function drawScentBody(x, y, scale, alpha, follow) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(scale, scale);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      const path = () => {
-        ctx.beginPath();
-        ctx.moveTo(16, 0);
-        ctx.arc(0, 0, 16, 0, TAU); // body
-        ctx.moveTo(8, 0);
-        ctx.arc(0, 0, 8, 0, TAU);
-        // the snout, sniffing up and down
-        const sn = Math.sin(time * (follow ? 14 : 7)) * 3;
-        ctx.moveTo(15, -5);
-        ctx.lineTo(36, -4 + sn);
-        ctx.moveTo(15, 5);
-        ctx.lineTo(36, 4 + sn);
-        ctx.moveTo(38 + 2, -2 + sn);
-        ctx.arc(38, -2 + sn, 2, 0, TAU);
-        ctx.moveTo(40, 3 + sn);
-        ctx.arc(38, 3 + sn, 2, 0, TAU);
-        // six legs
-        for (let i = 0; i < 6; i++) {
-          const base = (i / 6) * TAU + 0.5;
-          const sw = Math.sin(time * (follow ? 22 : 12) + i * 2.1) * 0.25;
-          ctx.moveTo(Math.cos(base) * 14, Math.sin(base) * 14);
-          ctx.lineTo(Math.cos(base + 0.3 + sw) * 28, Math.sin(base + 0.3 + sw) * 28);
-          ctx.lineTo(Math.cos(base - 0.1 + sw * 1.3) * 40, Math.sin(base - 0.1 + sw * 1.3) * 40);
-        }
-      };
-      path();
-      ctx.strokeStyle = `rgba(${VIOLET},${0.22 * alpha})`;
-      ctx.lineWidth = 11;
-      ctx.stroke();
-      path();
-      ctx.strokeStyle = `rgba(200,165,255,${0.95 * alpha})`;
-      ctx.lineWidth = 2.4;
-      ctx.stroke();
-      ctx.restore();
+      EchoArt.draw(ctx, 'scent', x, y, SCENT_R * scale, { a: alpha, t: time * (follow ? 1.7 : 1), h: 0 });
       ctx.globalCompositeOperation = 'source-over';
     }
 
@@ -1477,11 +1403,7 @@ const EchoCutscene = (() => {
       ctx.beginPath();
       ctx.arc(SC_PUDDLE_X, PY, 30, 0, TAU);
       ctx.fill();
-      ctx.strokeStyle = `rgba(${LIME},${0.3 + 0.4 * lit})`;
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.arc(SC_PUDDLE_X, PY, 15, 0, TAU);
-      ctx.stroke();
+      EchoArt.draw(ctx, 'puddle', SC_PUDDLE_X, PY, 22, { a: 0.3 + 0.6 * lit, t: time, seed: EchoArt.seedOf(SC_PUDDLE_X, PY) });
 
       // the trail they leave: brighter while it is being laid and while something is walking it
       if (trail && trail.pts.length > 1) {
@@ -1539,11 +1461,9 @@ const EchoCutscene = (() => {
         ctx.beginPath();
         ctx.arc(MM_X, PY, 70, 0, TAU);
         ctx.fill();
-        ctx.strokeStyle = `rgba(${EXITGREEN},${0.4 * appear * pulse})`;
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.arc(MM_X, PY, 16, 0, TAU);
-        ctx.stroke();
+        // the exit's portal (the game's new exit art), which brightens with each chime. It is what the explorer sees
+        // - and here the mimic may look a little different from the real exit; in the game that depends on the mode.
+        EchoArt.draw(ctx, 'exit', MM_X, PY, MIMIC_R, { a: clamp(appear * (0.5 + 0.4 * near) * pulse, 0, 1), t: time });
       } else {
         const t = st - MM_TOUCH_T;
         const soft = isCalm();
@@ -1555,7 +1475,9 @@ const EchoCutscene = (() => {
           ctx.arc(MM_X, PY, 10 + t * 420, 0, TAU);
           ctx.stroke();
         }
-        drawEchoBody(mm.x, PY, Math.PI, lerp(0.9, soft ? 1.1 : 1.45, smooth(t / 0.8)), soft ? 0.5 : 1);
+        const scale = lerp(0.9, soft ? 1.1 : 1.45, smooth(t / 0.8));
+        if (t < EchoArt.MORPH_SECONDS) EchoArt.mimicMorph(ctx, mm.x, PY, ECHO_R * scale, t / EchoArt.MORPH_SECONDS, { a: soft ? 0.5 : 1, t: time, h: Math.PI }); // the portal melts into the monster in 0.3 s
+        else drawEchoBody(mm.x, PY, Math.PI, scale, soft ? 0.5 : 1);
       }
       ctx.globalCompositeOperation = 'source-over';
     }
@@ -1615,11 +1537,7 @@ const EchoCutscene = (() => {
         ctx.beginPath();
         ctx.arc(x, y, 42, 0, TAU);
         ctx.fill();
-        ctx.strokeStyle = `rgba(${PINK},${0.7 * strength})`;
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.arc(x, y, 9, 0, TAU);
-        ctx.stroke();
+        EchoArt.draw(ctx, 'decoy', x, y, 20, { a: clamp(strength, 0, 1), t: time }); // the game's sonar decoy
       };
       // lying on the floor, glimmering, until they take it
       if (st < DC_PICK_T) pinkGlow(DC_FLOOR_X, DC_Y, clamp(1 - Math.abs(DC_FLOOR_X - person.x) / 260, 0.15, 1) * (0.7 + 0.3 * Math.sin(time * 4)));
@@ -1664,44 +1582,8 @@ const EchoCutscene = (() => {
      * the feelers sweep wide, the way it does when it stands still and strains to hear.
      */
     function drawStalkerBody(x, y, heading, alpha, walking, listening) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(heading);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      const flick = Math.sin(time * (listening ? 8 : 5)) * (listening ? 6 : 2.5);
-      const path = () => {
-        ctx.beginPath();
-        ctx.moveTo(15, 0);
-        ctx.ellipse(-2, 0, 17, 8, 0, 0, TAU); // the long body
-        ctx.moveTo(27, 0);
-        ctx.arc(22, 0, 5, 0, TAU); // the small head - no eyes, nothing to look with
-        // two long feelers that sweep about, listening
-        ctx.moveTo(26, -3);
-        ctx.quadraticCurveTo(38, -4, 50, -16 + flick);
-        ctx.moveTo(26, 3);
-        ctx.quadraticCurveTo(38, 4, 50, 16 - flick);
-        // six tall, thin legs
-        for (let i = 0; i < 3; i++) {
-          const lx = -11 + i * 9;
-          const sw = walking ? Math.sin(time * 12 + i * 2.1) * 6 : 0;
-          [-1, 1].forEach((side) => {
-            ctx.moveTo(lx, side * 7);
-            ctx.lineTo(lx + 5 + sw * side * 0.4, side * 21);
-            ctx.lineTo(lx + 2 + sw, side * 35);
-          });
-        }
-      };
-      path();
-      ctx.strokeStyle = `rgba(${ORANGE},${0.22 * alpha})`;
-      ctx.lineWidth = 11;
-      ctx.stroke();
-      path();
-      ctx.strokeStyle = `rgba(255,178,100,${0.95 * alpha})`;
-      ctx.lineWidth = 2.4;
-      ctx.stroke();
-      ctx.restore();
+      EchoArt.draw(ctx, 'stalker', x, y, STALKER_R, { a: alpha, t: time * 1.6, h: heading, walking: !!walking, listening: !!listening });
       ctx.globalCompositeOperation = 'source-over';
     }
 

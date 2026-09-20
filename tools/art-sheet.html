@@ -1,0 +1,116 @@
+<!doctype html>
+<!-- A developer's sheet of everything js/art.js can draw: each thing big, then at its true in-game size
+     (at the game's usual zoom, and zoomed out), the exit beside a disguised mimic in every mode, and the
+     mimic's 0.3 s morph. Open it over http (or file://) - it is not part of the game and is not exported.
+     ?t=SECONDS holds the animation clock still (default: live). -->
+<meta charset="utf-8">
+<title>Echo Maze art sheet</title>
+<style>
+  body { margin: 0; background: #010206; color: #9ab; font: 13px system-ui, sans-serif; }
+  h2 { font-weight: 500; font-size: 13px; margin: 14px 16px 4px; color: #6f8fa5; letter-spacing: .04em; text-transform: uppercase; }
+  canvas { display: block; }
+</style>
+<canvas id="c" width="1500" height="1240"></canvas>
+<script src="../js/art.js"></script>
+<script>
+  const c = document.getElementById('c');
+  const ctx = c.getContext('2d');
+  const fixed = /[?&]t=([\d.]+)/.exec(location.search);
+  const crop = /[?&]crop=([\d.]+),([\d.]+),([\d.]+),([\d.]+)/.exec(location.search); // ?crop=x,y,w,h: one part of the sheet, filling the window
+  const KINDS = [
+    ['wall', 'Wall'], ['boulder', 'Boulder'], ['pillar', 'Pillar'], ['echo', 'Echo monster'], ['scent', 'Scent monster'],
+    ['stalker', 'Stalker'], ['puddle', 'Puddle'], ['decoy', 'Sonar decoy'], ['exit', 'Exit'],
+  ];
+  const TRUE = { wall: 16, boulder: 13, pillar: 13, echo: 14, scent: 14, stalker: 14, puddle: 14, decoy: 12, exit: 16 };
+  function label(txt, x, y) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#6f8fa5';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y);
+  }
+  function frame(now) {
+    const t = fixed ? +fixed[1] : now / 1000;
+    let k = 1;
+    let ox = 0;
+    let oy = 0;
+    if (crop) {
+      const [sx, sy, sw, sh] = crop.slice(1).map(Number);
+      const dpr = window.devicePixelRatio || 1;
+      c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh';
+      const w = Math.round(window.innerWidth * dpr);
+      const h = Math.round(window.innerHeight * dpr);
+      if (c.width !== w || c.height !== h) {
+        c.width = w;
+        c.height = h;
+      }
+      k = Math.min(w / sw, h / sh);
+      ox = -sx * k;
+      oy = -sy * k;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#010206';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.setTransform(k, 0, 0, k, ox, oy);
+    ctx.globalCompositeOperation = 'lighter';
+    // row 1: big
+    KINDS.forEach(([k, name], i) => {
+      const x = 90 + i * 160;
+      EchoArt.draw(ctx, k, x, 120, 62, { t, seed: EchoArt.seedOf(120 + i * 40, 200), h: -0.5, walking: true, listening: i % 2 === 0 });
+      label(name, x, 220);
+    });
+    // row 2: TRUE size at the game's usual zoom (x1.5) and at x1; the circle is the real collision radius
+    KINDS.forEach(([k, name], i) => {
+      const x = 90 + i * 160;
+      for (const [zoom, dx] of [[1.6, -34], [1, 34]]) {
+        const r = TRUE[k] * zoom;
+        const sd = EchoArt.seedOf(80 + i * 40, 120);
+        EchoArt.draw(ctx, k, x + dx, 300, r, { t, seed: sd, h: -0.5 });
+        ctx.strokeStyle = 'rgba(255,255,255,.14)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x + dx, 300, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      label('true size', x, 356);
+    });
+    // row 3: several boulders / pillars / puddles (different seeds), and the echo / scent / stalker at a few headings
+    [['boulder', 0], ['pillar', 1], ['puddle', 2]].forEach(([k, row]) => {
+      for (let i = 0; i < 6; i++) EchoArt.draw(ctx, k, 60 + i * 74 + row * 470, 430, 30, { t, seed: EchoArt.seedOf(37 * i + 11 * row, 91 + row) });
+    });
+    label('boulders (6 seeds)', 250, 480);
+    label('pillars (6 seeds)', 720, 480);
+    label('puddles (6 seeds)', 1190, 480);
+    // row 4: the exit and a disguised mimic, side by side, in each of the four modes
+    const modes = [['Easy: clear', 'clear'], ['Normal: subtle', 'subtle'], ['Hard: none', 'none'], ['Hardcore: none', 'none']];
+    modes.forEach(([name, tell], i) => {
+      const x = 190 + i * 340;
+      EchoArt.draw(ctx, 'exit', x - 90, 610, 64, { t });
+      EchoArt.draw(ctx, 'exit', x + 90, 610, 64, { t, tell });
+      label('exit', x - 90, 700);
+      label('mimic, ' + name, x + 90, 700);
+    });
+    // row 5: the same at true size and x1.6 zoom (16 px radius)
+    modes.forEach(([name, tell], i) => {
+      const x = 190 + i * 340;
+      for (const [zoom, dx] of [[1.6, 0], [1, 70]]) {
+        EchoArt.draw(ctx, 'exit', x - 100 + dx, 770, 16 * zoom, { t });
+        EchoArt.draw(ctx, 'exit', x + 40 + dx, 770, 16 * zoom, { t, tell });
+      }
+      label('exit | mimic (true size)', x, 815);
+    });
+    // row 6: the morph, exit -> echo monster, in six steps over 0.3 s
+    for (let i = 0; i < 7; i++) {
+      const p = i / 6;
+      EchoArt.mimicMorph(ctx, 110 + i * 200, 930, 60, p, { t, h: Math.PI, tell: 'none' });
+      label((p * EchoArt.MORPH_SECONDS).toFixed(2) + ' s', 110 + i * 200, 1010);
+    }
+    // row 7: the morph at true size
+    for (let i = 0; i < 7; i++) EchoArt.mimicMorph(ctx, 110 + i * 200, 1090, 16 * 1.6, i / 6, { t, h: Math.PI });
+    label('mimic morph, true size', 750, 1140);
+    if (!fixed) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  window.addEventListener('resize', () => fixed && frame(0));
+</script>
