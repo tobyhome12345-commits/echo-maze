@@ -54,7 +54,7 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 
 ## How it works
 
-- **Ripples are ray-cast.** Each ripple fires 640 rays through the tile grid (plus circle tests for obstacles, monsters and the exit). The wavefront expands at a fixed speed, lights up what it hits, and a reflected wave travels back along each ray.
+- **Ripples are ray-cast.** Each ripple fires 640 rays through the tile grid (plus circle tests for obstacles, monsters and the exit). The wavefront expands at a fixed speed, lights up what it hits, and a reflected wave travels back along each ray. **A ripple has a limited range**: it reaches only so far from the spot you sent it (about 250-420 px depending on level and difficulty, roughly what fits on screen around you). Anything farther than that is not lit up, gives no echo, and a monster out there is not alerted.
 - **Echoes arrive on time.** An object at distance `d` returns its echo `2d / speed` seconds after the ripple, so nearer things answer first. Walls tick, obstacles go *tonk*, monsters moan, the exit rings like a bell.
 - **Monsters are blind.** Walking, bumping into walls and standing near a monster tell it nothing. A monster only starts hunting when a ray of your ripple actually reaches it (line of sight, within ripple range); it reacts when the wave arrives, and goes to the exact spot you were standing when you sent the ripple. It is not told where you are *now*, so if you have moved on it has no idea where you went. On arrival it stands there and **listens for a few seconds** (see the modes below): if you walk "too close" to it during that window it hears your footsteps (standing still makes no sound) and **locks on**. A monster that has locked on knows exactly where you are and keeps following you — even after the listening time is up — for as long as you stay that close. The moment you get farther away than that it loses you, goes back to wandering (or sleeping) and is deaf again: it can't track you until another ripple hits it. A monster that hears nothing in its listening time gives up and is deaf too, and it is also deaf while it is still walking to a ripple spot. Touching a monster kills you.
 - **You can hear them too.** Each monster has a continuous spatial voice (pitch and brightness change with mood), footsteps, and a screech when it starts hunting. A heartbeat kicks in when one is close. Echo monsters growl and click; scent monsters gurgle, sniff and squelch.
@@ -85,7 +85,7 @@ Pick one on the title screen. Each mode scales the level curve (the table shows 
 | Monster speed | 85 px/s | 113 | 130 | 135 |
 | Listens after arriving | 3.5 s | 4.8 s | 6 s | 6.5 s |
 | "Too close" (hears footsteps / keeps tracking) | 100 px | 124 px | 148 px | 158 px |
-| Ripple range | 595 px | 511 px | 436 px | 422 px |
+| Ripple range | 367 px | 315 px | 269 px | 260 px |
 | Ripple recharge | 0.90 s | 1.09 s | 1.29 s | 1.34 s |
 | Smell puddles on level 6 | 2 | 3 | 4 | 4 |
 | Scent monster smell range | 240 px | 300 px | 360 px | 380 px |
@@ -118,4 +118,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `audio`) for poking at the game from the console.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `rippleRange()`, `audio`) for poking at the game from the console.

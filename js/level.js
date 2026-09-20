@@ -38,6 +38,19 @@ const MODES = {
 };
 const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
 
+/**
+ * How far a ripple reaches from where the player was standing when they sent it. It
+ * never goes farther, whatever is beyond (walls, monsters, the exit and puddles past
+ * this distance are simply not seen and never alert anything). This is the base range
+ * at level 1; it shrinks a little each level down to a minimum, and the difficulty mode
+ * scales it (MODES.ripple). Keep it around what fits on screen around the player.
+ * The ripple a player actually sends uses rippleRange() in game.js, which is where
+ * tools / upgrades can extend it.
+ */
+const RIPPLE_RANGE_BASE = 360; // px at level 1, before the mode multiplier
+const RIPPLE_RANGE_PER_LEVEL = 9; // px lost per level
+const RIPPLE_RANGE_MIN = 240; // px floor, before the mode multiplier
+
 const PUDDLE_R = 14;
 const SCENT_FROM_LEVEL = 6; // the scent monster and the smell puddles arrive together
 const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in a puddle
@@ -79,7 +92,7 @@ function levelConfig(n, modeId = 'normal') {
     enemySpeed,
     searchTime: m.listen, // seconds a monster listens after reaching the spot it was sent to
     footstepRadius: m.hear, // px, see MODES
-    rippleRadius: Math.max(640 - n * 24, 360) * m.ripple,
+    rippleRadius: Math.max(RIPPLE_RANGE_BASE - n * RIPPLE_RANGE_PER_LEVEL, RIPPLE_RANGE_MIN) * m.ripple, // px from where it is sent
     cooldown: Math.min(0.7 + n * 0.07, 1.5) * m.cooldown,
     // scent monsters + smell puddles (level 6+)
     scentMonsters: scentCount, // see SCENT_MONSTERS

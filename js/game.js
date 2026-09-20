@@ -785,17 +785,25 @@
   }
 
   // ---------------------------------------------------------------- ripples
+  /**
+   * How far the player's next ripple reaches, in px from where it is sent. It is a hard limit:
+   * nothing beyond it is seen, echoes or alerted by that ripple. The base value comes from the
+   * level and difficulty mode (levelConfig().rippleRadius); tools / upgrades will change it here.
+   */
+  function rippleRange() {
+    return cfg.rippleRadius;
+  }
+
   function emitRipple() {
     if (state !== 'play' || cooldown > 0) return;
     cooldown = cfg.cooldown;
     ripplesUsed++;
-    castRipple(player.x, player.y);
+    castRipple(player.x, player.y, rippleRange());
     audio.ping();
   }
 
-  /** Fire a ripple from (ox,oy) into the current level (also used by the intro cutscene). */
-  function castRipple(ox, oy) {
-    const R = cfg.rippleRadius;
+  /** Fire a ripple of reach R (px) from (ox,oy) into the current level (also used by the cutscenes). */
+  function castRipple(ox, oy, R = cfg.rippleRadius) {
 
     // Round things the wave can bounce off.
     const circles = [];
@@ -1829,6 +1837,8 @@
         startCutscene(kind);
       },
       advance: () => advanceLevel(),
+      ripples: () => ripples,
+      rippleRange,
       freeze: (on) => {
         debugFrozen = !!on;
       },

@@ -29,7 +29,8 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v5.0 | a3647db | scent cutscene and ending (new lore), exact monster schedule |
 | v5.1 | af2dcf9 | level select and cutscene replay |
 | v5.2 | 7411670 | level 6 scent only |
-| v5.3 | 76f1d29 | stepping on your own trail smells you again (latest) |
+| v5.3 | 76f1d29 | stepping on your own trail smells you again |
+| v5.4 | (this commit) | ripples have a limited range (about half of what it was) - see "Ripple range" (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -46,6 +47,12 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - Plain HTML/CSS/JS, **no build step and no dependencies**. Scripts are classic `<script>` tags (not ES modules) so `index.html` also works from `file://`.
 - **No audio files.** All sound is synthesised in `js/audio.js` with the Web Audio API. The `AudioContext` must only be created from a user click (the Begin button) — keep it that way.
 - Difficulty lives in `levelConfig()` in `js/level.js`.
+
+## Ripple range (owner's request; tools will build on it later)
+
+- A ripple has a **hard, limited reach** measured from **where the player stood when they sent it** (not the player's live position afterwards). Nothing farther is lit up, echoes or is alerted; an object counts if any part of it (its radius) is inside the range. It used to be 360-770 px, which on the small early levels (level 1 is only 600x440 px) lit the whole maze and ran off screen, so it felt infinite. Now: `max(RIPPLE_RANGE_BASE 360 - RIPPLE_RANGE_PER_LEVEL 9 * level, RIPPLE_RANGE_MIN 240) * MODES[mode].ripple` (constants in `js/level.js`, result in `levelConfig().rippleRadius`), e.g. Normal 362 px on level 1 down to 306 px on level 7; Easy 421 -> 356; Hard 309 -> 261; Hardcore 298 -> 252. Keep it about what fits on screen around the player (half the screen height is ~310 px at 1000x620).
+- The player's ripple is sent with `rippleRange()` in `js/game.js` (currently just `cfg.rippleRadius`) -> `castRipple(ox, oy, R)`. **That is the one place tools/upgrades that extend or change ripple range should hook in** (the owner plans tools). `castRipple`'s third argument defaults to `cfg.rippleRadius`, which is what the cutscenes use.
+- The intro cutscene's ripples use their own scripted radii (430 and 300 px on its hand-built stage, in `js/cutscene.js`), separate from the game's range.
 
 ## Scent monster, smell puddles and trails (owner's design, level 6+)
 
@@ -79,6 +86,6 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 
 ## Testing
 
-Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `audio`). For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `__echo.advance()` does what the Next level button does. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
+Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `ripples`, `rippleRange`, `audio`). For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `__echo.advance()` does what the Next level button does. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
 
 Web Audio gotcha: a `GainNode` sits at gain 1.0 until its first scheduled event, so if an oscillator starts before its envelope does you get a full-scale click. Start the oscillator and its `_env` at the same time. `step(seconds)` runs the simulation without needing animation frames, which is handy in headless/embedded browsers. Synthetic key events need `code` set (e.g. `new KeyboardEvent('keydown', {code: 'Space'})`).
