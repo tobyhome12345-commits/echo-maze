@@ -13,6 +13,17 @@
  * footstep and the exit / mimic chime whether a wall or obstacle stands between it and the player.
  * Two levels only - clear or muffled. Muffled = a low-pass at MUFFLE_HZ and a slightly lower gain.
  * Continuous voices fade between the two with setTargetAtTime; one-shots just pick a level.
+ *
+ * Buses (Settings -> Audio). Everything runs through one of two buses under the master volume:
+ *
+ *     one-shots, voices, footsteps, the reverb return, the UI  ->  effects -> master -> compressor -> out
+ *     the cave drone and the soundtrack (js/music.js)          ->  ambience -> duck -> master
+ *
+ * so the player can turn the music down without losing the sounds that tell them where a monster is (and
+ * the other way round - the effects bus goes all the way to silence, which is why Settings warns that those
+ * sounds carry information). The `duck` node under the ambience bus dips the music for a moment whenever a
+ * loud gameplay sound plays (a screech, the Singer's sting and its countdown ticks), so nothing is masked.
+ * Mute (M) still cuts the master, so it silences everything at once.
  */
 const MUFFLE_HZ = 600; // low-pass cut-off when a wall is in the way (about 500-700 Hz)
 const MUFFLE_GAIN = 0.8; // and the gain factor
@@ -23,10 +34,15 @@ class SoundEngine {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.fx = null; // effects bus: every one-shot, voice and the reverb return
+    this.amb = null; // ambience bus: the cave drone and the soundtrack
+    this.ambDuck = null; // dips the ambience bus for a moment under a loud gameplay sound
     this.reverbIn = null;
     this.noiseBuf = null;
     this.ambient = null;
-    this.volume = 0.8;
+    this.volume = 0.8; // the master slider
+    this.fxVolume = 1; // Settings -> Audio -> Sound effects
+    this.ambVolume = 1; // Settings -> Audio -> Ambience
     this.muted = false;
     this.active = 0; // live one-shot voices, used to cap polyphony
     // Calm mode: no heartbeat, and the startling sounds (screeches, growls,
@@ -52,6 +68,17 @@ class SoundEngine {
 
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : this.volume;
+
+    // the two buses under the master (see the note at the top of this file)
+    this.fx = ctx.createGain();
+    this.fx.gain.value = this.fxVolume;
+    this.fx.connect(this.master);
+    this.ambDuck = ctx.createGain();
+    this.ambDuck.gain.value = 1;
+    this.ambDuck.connect(this.master);
+    this.amb = ctx.createGain();
+    this.amb.gain.value = this.ambVolume;
+    this.amb.connect(this.ambDuck);
 
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16;
@@ -86,6 +113,32 @@ class SoundEngine {
     this._applyMaster();
   }
 
+  /** bus: 'master' | 'effects' | 'ambience'. 0 really is silent (the effects bus is allowed to go there). */
+  setBusVolume(bus, v) {
+    v = Math.max(0, Math.min(1, +v || 0));
+    if (bus === 'master') return this.setVolume(v);
+    if (bus === 'effects') {
+      this.fxVolume = v;
+      if (this.fx) this.fx.gain.setTargetAtTime(v, this.ctx.currentTime, 0.03);
+    } else if (bus === 'ambience') {
+      this.ambVolume = v;
+      if (this.amb) this.amb.gain.setTargetAtTime(v, this.ctx.currentTime, 0.03);
+    }
+  }
+
+  /**
+   * Dip the ambience bus (drone + soundtrack) for a moment so a loud gameplay sound is never masked by the
+   * music. Called by the sounds that carry information: a screech, the Singer's sting and its ticks.
+   */
+  duck(amount = 0.5, hold = 0.35) {
+    if (!this.ctx || !this.ambDuck) return;
+    const t = this.ctx.currentTime;
+    const g = this.ambDuck.gain;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(Math.max(0, 1 - amount), t, 0.03);
+    g.setTargetAtTime(1, t + hold, 0.22);
+  }
+
   _applyMaster() {
     if (!this.ctx) return;
     this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.03);
@@ -114,7 +167,7 @@ class SoundEngine {
     out.gain.value = 0.55;
     this.reverbIn.connect(conv);
     conv.connect(out);
-    out.connect(this.master);
+    out.connect(this.fx);
   }
 
   _buildNoise() {
@@ -174,7 +227,7 @@ class SoundEngine {
       node.connect(p);
       out = p;
     }
-    out.connect(this.master);
+    out.connect(this.fx);
     if (wet > 0) {
       const send = ctx.createGain();
       send.gain.value = wet;
@@ -676,9 +729,9 @@ class SoundEngine {
     if (c.createStereoPanner) {
       pan = c.createStereoPanner();
       mfg.connect(pan);
-      pan.connect(this.master);
+      pan.connect(this.fx);
     } else {
-      mfg.connect(this.master);
+      mfg.connect(this.fx);
     }
     const send = c.createGain();
     send.gain.value = 0.25;
@@ -743,9 +796,9 @@ class SoundEngine {
     if (c.createStereoPanner) {
       pan = c.createStereoPanner();
       mfg.connect(pan);
-      pan.connect(this.master);
+      pan.connect(this.fx);
     } else {
-      mfg.connect(this.master);
+      mfg.connect(this.fx);
     }
     const send = c.createGain();
     send.gain.value = 0.25;
@@ -768,9 +821,9 @@ class SoundEngine {
     if (c.createStereoPanner) {
       pan = c.createStereoPanner();
       mfg.connect(pan);
-      pan.connect(this.master);
+      pan.connect(this.fx);
     } else {
-      mfg.connect(this.master);
+      mfg.connect(this.fx);
     }
     const send = c.createGain();
     send.gain.value = 0.25;
@@ -1021,6 +1074,7 @@ class SoundEngine {
   enemyAlert(pan, gain) {
     if (this.calm) gain *= 0.35;
     if (this._busy(100) || gain < 0.01) return;
+    this.duck(0.5 * Math.min(1, gain * 2), 0.5); // a screech pushes the music down (louder screech, deeper dip)
     const t = this.ctx.currentTime;
     const o = this._osc('sawtooth', 760, t, 0.7);
     o.frequency.exponentialRampToValueAtTime(140, t + 0.55);
@@ -1212,6 +1266,7 @@ class SoundEngine {
    */
   markSting() {
     if (!this.ctx) return;
+    this.duck(0.65, 0.8); // the music gets out of the way: this is the one sound that must not be missed
     const t = this.ctx.currentTime;
     [1046, 1109, 1568].forEach((f, i) => {
       const o = this._osc(i === 2 ? 'triangle' : 'sine', f, t, 0.9);
@@ -1231,6 +1286,7 @@ class SoundEngine {
    */
   markTick(prog) {
     if (!this.ctx) return;
+    this.duck(0.45, 0.12); // each tick holds the music down; they come faster and faster, so it stays out of the way
     const t = this.ctx.currentTime;
     const f = 1300 + 1100 * prog;
     const o = this._osc('sine', f, t, 0.08);
@@ -1456,7 +1512,7 @@ class SoundEngine {
     const out = c.createGain();
     out.gain.value = 0;
     out.gain.setTargetAtTime(1, t, 1.5);
-    out.connect(this.master);
+    out.connect(this.amb);
 
     const g1 = c.createGain();
     g1.gain.value = 0.05;

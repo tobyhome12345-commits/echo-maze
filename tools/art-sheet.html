@@ -2,7 +2,8 @@
 <!-- A developer's sheet of everything js/art.js can draw: each thing big, then at its true in-game size
      (at the game's usual zoom, and zoomed out), the exit beside a disguised mimic in every mode, and the
      mimic's 0.3 s morph. Open it over http (or file://) - it is not part of the game and is not exported.
-     ?t=SECONDS holds the animation clock still (default: live). -->
+     ?t=SECONDS holds the animation clock still (default: live); ?palette=ID draws the sheet in one of
+     the colour palettes from js/palette.js (default, protan, tritan, contrast). -->
 <meta charset="utf-8">
 <title>Echo Maze art sheet</title>
 <style>
@@ -11,11 +12,15 @@
   canvas { display: block; }
 </style>
 <canvas id="c" width="1700" height="1240"></canvas>
+<script src="../js/profile.js"></script>
+<script src="../js/palette.js"></script>
 <script src="../js/art.js"></script>
 <script>
   const c = document.getElementById('c');
   const ctx = c.getContext('2d');
   const fixed = /[?&]t=([\d.]+)/.exec(location.search);
+  const pal = /[?&]palette=(\w+)/.exec(location.search);
+  if (pal) EchoPalette.set(pal[1]);
   const crop = /[?&]crop=([\d.]+),([\d.]+),([\d.]+),([\d.]+)/.exec(location.search); // ?crop=x,y,w,h: one part of the sheet, filling the window
   const KINDS = [
     ['wall', 'Wall'], ['boulder', 'Boulder'], ['pillar', 'Pillar'], ['echo', 'Echo monster'], ['scent', 'Scent monster'],

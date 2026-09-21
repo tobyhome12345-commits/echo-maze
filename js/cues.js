@@ -40,16 +40,12 @@ const EchoCues = (() => {
   const MAX_PULSES = 28;
   const MIN_SEPARATION = 0.36; // radians: glyphs on the ring are nudged apart so they do not sit on top of each other
 
-  const RGB = {
-    echo: '255,59,92',
-    scent: '176,124,255',
-    stalker: '255,116,16',
-    exit: '93,255,160',
-    decoy: '255,122,217',
-    heart: '255,132,150',
-    muffler: '205,220,238', // pale: the thing you cannot see
-    singer: '236,64,236', // magenta, like its own ripples
-  };
+  // Filled in from js/palette.js, and refilled whenever the player picks another palette. The SHAPES never
+  // change with the palette - only these colours do - so a glyph always means the same thing.
+  const RGB = {};
+  EchoPalette.onChange((rgb) => {
+    for (const k of ['echo', 'scent', 'stalker', 'exit', 'decoy', 'heart', 'muffler', 'singer']) RGB[k] = rgb[k];
+  });
 
   const smooth = (t) => {
     t = clamp(t, 0, 1);

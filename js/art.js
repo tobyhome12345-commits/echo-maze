@@ -36,31 +36,19 @@
 const EchoArt = (() => {
   const TAU = Math.PI * 2;
 
-  // the colours (the same ones the ripples use), and a paler tint for the bright core line of each
-  const RGB = {
-    wall: '95,212,255',
-    boulder: '255,179,71',
-    pillar: '255,179,71',
-    echo: '255,59,92',
-    exit: '93,255,160',
-    scent: '176,124,255',
-    puddle: '190,240,70',
-    decoy: '255,122,217',
-    stalker: '255,116,16',
-    singer: '236,64,236',
-  };
-  const CORE = {
-    wall: '170,230,255',
-    boulder: '255,214,140',
-    pillar: '255,214,140',
-    echo: '255,130,150',
-    exit: '170,255,205',
-    scent: '208,176,255',
-    puddle: '222,255,130',
-    decoy: '255,182,236',
-    stalker: '255,186,116',
-    singer: '255,176,255',
-  };
+  // The colours (the same ones the ripples use), and a paler tint for the bright core line of each. Both are
+  // filled in from js/palette.js and refilled whenever the player picks another palette; the two objects
+  // themselves are never replaced, so every reference to them below keeps working. Boulders and pillars are
+  // both "obstacle" - a palette has one colour for the pair, exactly as the ripple does.
+  const RGB = {};
+  const CORE = {};
+  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer' };
+  EchoPalette.onChange((rgb, core) => {
+    for (const k in ART_ROLE) {
+      RGB[k] = rgb[ART_ROLE[k]];
+      CORE[k] = core[ART_ROLE[k]];
+    }
+  });
   const HEADED = { echo: 1, scent: 1, stalker: 1, singer: 1 };
 
   // ----------------------------------------------------------- tiny helpers

@@ -21,6 +21,8 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | `Enter` | Confirm on the Try again / Next level screens |
 | `Enter` / `Space` / `Esc` | Skip the intro cutscene (or click **Skip**) |
 
+**Every key in that table can be changed** in **Settings -> Controls** (two keys per action if you like). `Esc` always means back or pause and `Enter` always confirms, so those two are fixed. The title screen and the pause menu always list the keys you are actually using.
+
 On a touch device the controls are on screen instead (see **Touch controls** below).
 
 Headphones recommended: echoes and monsters are stereo-panned, muffled by walls, and shift in pitch as they come and go (see **Sound** below).
@@ -40,7 +42,7 @@ Headphones recommended: echoes and monsters are stereo-panned, muffled by walls,
 | Pink | The sonar decoy (level 9+) | a **small device**: a box with a dial, a short antenna and a ring round it |
 | Green | The way out | a **portal**: concentric rings, a slowly rotating arc, a little doorway and a few soft sparkles |
 
-Colour is never the only clue: every thing has its own silhouette and texture (drawn by [`js/art.js`](js/art.js)), and the title screen's legend shows them. See **How things look** below.
+Colour is never the only clue: every thing has its own silhouette and texture (drawn by [`js/art.js`](js/art.js)), and the title screen's legend shows them. See **How things look** below. The colours above are the Default palette - **Settings -> Display** has three others, including two for colour blindness (see **Colour palettes**), and the legend always shows the one you are using.
 
 ## The intro
 
@@ -83,6 +85,106 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 - **Levels:** every level you have already **cleared on the selected difficulty** can be picked and played again (1 up to the one before your best). Levels you haven't cleared — including the one you're currently up to, which is what **Continue** is for — are dimmed and can't be picked. Each mode has its own list, so switch mode on the title screen to see another mode's levels. Replaying never lowers your saved progress, and it starts straight in the level with no cutscene, like Continue (except that a story scene you have never seen plays first — see below). **Hardcore has no level select**: it is one life from level 1 and can't be resumed, so a level select would just be a way around that.
 - **Cutscenes:** the seven story scenes can be rewatched once they have played — or once you are past the point where they play, even if the scene was added after you got there (the ones you haven't reached yet show as locked "???"). They work in every mode, honour calm mode, can be skipped, and drop you back on this screen when they end.
 - **A scene you never saw plays first:** **Continue** (and picking a level from the list) normally skips the story scenes, but if the scene that leads into that level has never been shown — for example you cleared level 7 before the mimic scene existed — it plays once before the level, then never again on Continue.
+
+## Settings
+
+A **Settings** button sits on the title screen and in the pause menu (`Esc` or **Back** returns to whichever you came from). It has four tabs.
+
+**Controls.** Every action can be given up to **two keys**: move up / down / left / right, ripple, crouch, use item, pause, mute, calm mode, visual cues. Pick a key cap, press the new key, done. `Esc` cancels the change; `Esc` and `Enter` can never be bound to anything, because they always mean back and confirm. A key the browser owns is refused with a reason (anything held with `Ctrl`, `Alt` or `Cmd`, the function keys, `Tab`). If the key already belongs to another action the game asks whether to **swap** them rather than silently stealing it. **Reset to defaults** puts `WASD` + arrows, `SPACE`, `SHIFT`, `E`, `P`, `M`, `C`, `V` back. Your keys are saved, and the how-to on the title screen and in the pause menu is written from them, so it always matches what the game is listening for. The touch controls are not affected.
+
+**Audio.** Three sliders instead of one:
+
+| Slider | What it carries |
+| --- | --- |
+| **Master** | everything (this is the old volume slider) |
+| **Sound effects** | footsteps, echoes, monster voices, screeches, chimes, the interface |
+| **Ambience** | the cave drone and the soundtrack |
+
+Effects can be taken all the way to silence, and the tab says so plainly: *sound effects carry gameplay information — turn on Visual sound cues if you lower this*. `M` still mutes the lot. Calm mode has a checkbox here too.
+
+**Display.** The colour palette (below), **Visual cues**, and **Show timer** — the level time in the corner of the HUD, **off by default**, because medals are not meant to make you rush.
+
+**Stats & Medals.** Your medal board for the selected difficulty and your lifetime numbers (below), with a **Reset stats** button that asks once before it clears anything.
+
+## Colour palettes
+
+**Settings -> Display** offers four:
+
+| Palette | For |
+| --- | --- |
+| **Default** | the colours the game has always used |
+| **Colour-blind friendly (red-green)** | protanopia and deuteranopia |
+| **Colour-blind friendly (blue-yellow)** | tritanopia |
+| **High contrast** | the same colour language as Default, pushed brighter and further apart |
+
+A palette changes **colours only**. Every silhouette, texture and cue glyph stays exactly as it was, and nothing about the game changes — the ripples, the monsters and the mazes are identical whichever you pick. It reaches the ripple's hit colours, the art, the Visual-cue glyphs, the title legend, the menus and the HUD, and the smell-trail glow. A **disguised mimic always uses the palette's exit colour** (so on Hard and Hardcore it stays pixel-for-pixel the exit) and switches to the palette's echo-monster colour the moment a ripple turns it.
+
+Each palette was measured with `tools/palette-check.js`, which simulates all three kinds of colour blindness and compares every pair of colours with CIEDE2000. Roughly: a difference of 5 is obvious, 10 is plainly a different colour, 20 is unmistakable. The worst pair in each palette:
+
+| Palette | normal vision | protanopia | deuteranopia | tritanopia |
+| --- | --- | --- | --- | --- |
+| Default | 11.9 | 8.0 | **3.3** | **0.3** |
+| Colour-blind (red-green) | 17.3 | **17.1** | **16.9** | 1.1 |
+| Colour-blind (blue-yellow) | 13.7 | 2.3 | 4.2 | **13.6** |
+| High contrast | **17.0** | 6.2 | 5.2 | 0.4 |
+
+(The bold figures are the ones each palette is *for*; no palette tries to serve all three kinds at once, which is why there are three of them.) Every colour also stays at least 4.5:1 against the black background.
+
+Two things the numbers forced, worth knowing:
+
+- In the **red-green** palette the exit is near-white and the brightest thing in the maze, and the echo monster is a strong yellow; the maze itself stays blue.
+- In the **blue-yellow** palette the echo monster is a **muted** red and the stalker a pale gold. A vivid red and a vivid orange sit only about **5** apart for a tritanope — far too close — so those two are told apart by brightness instead. Terrain is cool and green there, monsters are warm.
+
+## Medals and stats
+
+Each level keeps **three medals per difficulty**, and they are never lowered once won:
+
+- **Time** — bronze, silver or gold.
+- **Ripples** — bronze, silver or gold (bronze just for finishing).
+- **Flawless** — cleared without being caught on that visit to the level. Being caught and pressing **Try again** costs it for that visit; coming back to the level later is a clean slate. On Hardcore it comes free with the clear, because there is no retry.
+
+Every run gets a new maze, so **par is worked out from the maze you were actually given**: the shortest way from the start to the exit (`pathTiles`), and how long that would take at walking pace with no stopping, no pinging and nothing chasing you (`optimalWalkSeconds = pathTiles x 40 px / 170 px/s`). Nobody can beat that, so every par is a generous multiple of it plus a fixed allowance for the pinging, listening and doubling back the game is actually made of:
+
+| Medal | Par |
+| --- | --- |
+| Time, gold | `optimalWalkSeconds x 2.2 + 20 s` |
+| Time, silver | `x 3.2 + 34 s` |
+| Time, bronze | `x 4.6 + 55 s` |
+| Ripples, gold | `ceil(pathTiles / 4.5) + 4` |
+| Ripples, silver | `ceil(pathTiles / 3) + 6` |
+| Ripples, bronze | any number |
+
+Which works out, on an average maze for each level, as:
+
+| Level | Path | Gold | Silver | Bronze | Gold ripples | Silver ripples |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 32 tiles | 36 s | 58 s | 89 s | 12 | 17 |
+| 2 | 34 | 37 s | 59 s | 92 s | 12 | 18 |
+| 3 | 40 | 41 s | 64 s | 99 s | 13 | 20 |
+| 4 | 43 | 42 s | 66 s | 101 s | 14 | 21 |
+| 5 | 47 | 44 s | 69 s | 106 s | 15 | 22 |
+| 6 | 48 | 45 s | 70 s | 107 s | 15 | 22 |
+| 7 | 51 | 46 s | 72 s | 110 s | 16 | 23 |
+| 8 | 54 | 48 s | 75 s | 113 s | 16 | 24 |
+| 9 | 58 | 50 s | 78 s | 118 s | 17 | 26 |
+| 10 | 62 | 52 s | 80 s | 122 s | 18 | 27 |
+| 11 | 63 | 53 s | 82 s | 124 s | 19 | 28 |
+| 12 | 69 | 56 s | 86 s | 130 s | 20 | 30 |
+
+Medals show up on the **level-cleared** screen (with what the next tier up would need, and *New best!* where you beat your old one), as three little pips beside each level in the **Levels & cutscenes** picker, as a one-line summary on the title screen, and in full on the **Stats & Medals** tab. The pips have three different **shapes** — a circle for time, a diamond for ripples, a square for flawless — so they never depend on colour.
+
+**There is no timer on screen unless you ask for one** (Settings -> Display -> Show timer). Medals are something to find later, not a clock ticking at you.
+
+The **stats** the game keeps, all-time: levels cleared, deaths (and what killed you: echo monster, scent monster, mimic, stalker, Muffler, Singer), ripples sent, times crouched, sonar decoys used, times marked by the Singer, time played, distance walked, and cleared/deaths broken down by difficulty. A mimic that a ripple has already turned still counts as *the mimic* when it kills you. Tracking is counting only — nothing the game does depends on it.
+
+## The soundtrack
+
+From v11.0 each level has a **procedural score**: a slow pad that drifts, and the odd note from that level's own scale, played by the Web Audio API like every other sound here — no files, nothing sampled. It plays *under* the cave drone rather than replacing it, and both sit on the **Ambience** bus, so Settings -> Audio -> Ambience takes the music down without touching the sounds you need.
+
+- **Moods.** The title screen has its own; levels 1-5, 6-8 and 9-10 each have one; **level 11** is muffled and almost noteless, like the thing that lives there; **level 12** is in whole tones, so it never settles.
+- **It is deliberately sparse and quiet** — a note every few seconds at most — and a screech, the Singer's sting or its countdown ticks **duck** the whole ambience bus for a moment, so the music can never mask something you need to hear.
+- **It tells you nothing new.** The only thing it reacts to is `danger`, the exact value the heartbeat and the red screen-edge already use (how close the nearest monster is). It is never told *which* monster, so there is no music cue for the mimic, the Muffler or the Singer. **In calm mode it stays flat** and never swells at all.
+- It uses a lookahead scheduler on the audio clock (so nothing clicks or drifts), has its own random numbers seeded per level (so a level always sounds like itself, and the game's own random stream is untouched), and stops cleanly for cutscenes, the end of a level and quitting.
 
 ## How it works
 
@@ -274,19 +376,24 @@ On touch devices (a coarse pointer, or the first touch) the game shows on-screen
 ## Project layout
 
 ```
-index.html      page + overlay screens (title, replay, pause, caught, level complete, victory) + the touch layer
+index.html      page + overlay screens (title, replay, settings, pause, caught, level complete, victory) + the touch layer
 style.css       styling (everything for touch is under `body.touch`)
-js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling and Doppler)
+js/profile.js   everything saved that is not progress: your keys, volumes, palette, medals and stats
+js/palette.js   the four colour palettes, and who they hand their colours to
+js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling, Doppler, the two buses)
+js/music.js     the procedural soundtrack: one mood per level, on the ambience bus
 js/level.js     level generation + difficulty curve (levelConfig)
 js/art.js       EchoArt - how everything a ripple lights up is drawn (shapes, textures, the exit portal, the mimic's tell)
 js/cutscene.js  the seven story cutscenes: lore cards + scripted scenes (timelines at the top)
 js/cues.js      Visual cues (accessibility): the glyphs on the ring around you
 js/touch.js     on-screen touch controls: the virtual joystick and buttons
+js/settings.js  the Settings screen: Controls, Audio, Display, Stats & Medals
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
 tools/          developer tools, not part of the game and not exported with a version:
                 art-sheet.html (every shape large and at true size, the exit beside a mimic in each mode, the morph),
                 stage.js (stage a scene in the ?debug hook), identity-test.js (same seed, same game, fingerprint),
                 layout-test.js (compare two builds' level generators, where the exit and the mimic stand, puddle counts),
+                palette-check.js (simulates colour blindness and measures every pair of a palette's colours),
                 perf-bench.js (draw cost), update-test-copy.ps1
 ```
 
@@ -294,4 +401,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `showMuffler(on)` (draw the Muffler, which is never drawn in normal play, as a dim ring with a dash), `newMonsters()` (the Muffler's and Singer's state), `markBy(singer)` (force a mark), `audio`) for poking at the game from the console. `settings()` reports `campaignLevels` (12), `muffler` and `singer` (this mode's numbers from the MODES table, plus the level's speeds), `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress` and `seen`. `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `showMuffler(on)` (draw the Muffler, which is never drawn in normal play, as a dim ring with a dash), `newMonsters()` (the Muffler's and Singer's state), `openSettings('title'|'pause')`, `setPalette(id)`, `palette()`, `keys()`, `bindKey(action, slot, code)`, `resetKeys()`, `medals()`, `stats()`, `pars(pathTiles)`, `musicState()`, `setShowTimer(on)`, `levelDeaths()`, `markBy(singer)` (force a mark), `audio`) for poking at the game from the console. `settings()` reports `campaignLevels` (12), `muffler` and `singer` (this mode's numbers from the MODES table, plus the level's speeds), `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress`, `seen`, and (v11.0) `palette`, `showTimer`, `volumes` (master / effects / ambience), `keyBindings`, `medalPar` (this level's medal thresholds) and `music` (the mood playing and its danger). `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.

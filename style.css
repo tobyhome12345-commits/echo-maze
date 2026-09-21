@@ -2,9 +2,19 @@
   --bg: #010206;
   --ink: #cfe9f5;
   --dim: #6f8794;
-  --accent: #5fd4ff;
-  --danger: #ff3b5c;
   --panel: rgba(4, 9, 16, 0.82);
+  /* The accents come from the colour palette (js/palette.js sets these on <html> and changes them when the
+     player picks another palette), so the menus and the HUD match the maze. --ui is the wall colour and
+     --danger the echo monster. */
+  --ui-rgb: 95, 212, 255;
+  --danger-rgb: 255, 59, 92;
+  --exit-rgb: 93, 255, 160;
+  --decoy-rgb: 255, 122, 217;
+  --puddle-rgb: 190, 240, 70;
+  --singer-rgb: 236, 64, 236;
+  --muffler-rgb: 205, 220, 238;
+  --accent: rgb(var(--ui-rgb));
+  --danger: rgb(var(--danger-rgb));
 }
 
 * {
@@ -111,7 +121,7 @@ body {
   line-height: 1.55;
   letter-spacing: 0.04em;
   color: #cfe9f5;
-  text-shadow: 0 0 18px rgba(95, 212, 255, 0.35);
+  text-shadow: 0 0 18px rgba(var(--ui-rgb), 0.35);
   white-space: pre-line; /* a card can hold two lines */
   opacity: 0;
   transition: opacity 1.1s ease;
@@ -174,7 +184,7 @@ body {
   padding: 8px 16px;
   font-size: 12px;
   color: rgba(207, 233, 245, 0.55);
-  border-color: rgba(95, 212, 255, 0.18);
+  border-color: rgba(var(--ui-rgb), 0.18);
   pointer-events: auto;
 }
 
@@ -211,9 +221,9 @@ body {
   padding: 34px 36px 28px;
   text-align: center;
   background: var(--panel);
-  border: 1px solid rgba(95, 212, 255, 0.18);
+  border: 1px solid rgba(var(--ui-rgb), 0.18);
   border-radius: 14px;
-  box-shadow: 0 0 60px rgba(95, 212, 255, 0.08), inset 0 0 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 60px rgba(var(--ui-rgb), 0.08), inset 0 0 40px rgba(0, 0, 0, 0.5);
 }
 
 .panel.small {
@@ -221,8 +231,8 @@ body {
 }
 
 .danger .panel {
-  border-color: rgba(255, 59, 92, 0.3);
-  box-shadow: 0 0 60px rgba(255, 59, 92, 0.12);
+  border-color: rgba(var(--danger-rgb), 0.3);
+  box-shadow: 0 0 60px rgba(var(--danger-rgb), 0.12);
 }
 
 h1 {
@@ -232,13 +242,13 @@ h1 {
   letter-spacing: 0.32em;
   padding-left: 0.32em;
   color: #eaf8ff;
-  text-shadow: 0 0 22px rgba(95, 212, 255, 0.55), 0 0 60px rgba(95, 212, 255, 0.25);
+  text-shadow: 0 0 22px rgba(var(--ui-rgb), 0.55), 0 0 60px rgba(var(--ui-rgb), 0.25);
   animation: glow 4s ease-in-out infinite;
 }
 
 @keyframes glow {
   50% {
-    text-shadow: 0 0 10px rgba(95, 212, 255, 0.3), 0 0 30px rgba(95, 212, 255, 0.12);
+    text-shadow: 0 0 10px rgba(var(--ui-rgb), 0.3), 0 0 30px rgba(var(--ui-rgb), 0.12);
   }
 }
 
@@ -301,8 +311,8 @@ kbd {
   padding: 4px 7px;
   font: 600 12px/1 'Segoe UI', system-ui, sans-serif;
   color: var(--accent);
-  background: rgba(95, 212, 255, 0.07);
-  border: 1px solid rgba(95, 212, 255, 0.35);
+  background: rgba(var(--ui-rgb), 0.07);
+  border: 1px solid rgba(var(--ui-rgb), 0.35);
   border-radius: 5px;
 }
 
@@ -358,7 +368,7 @@ button {
   padding: 12px 28px;
   color: var(--ink);
   background: transparent;
-  border: 1px solid rgba(95, 212, 255, 0.4);
+  border: 1px solid rgba(var(--ui-rgb), 0.4);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
@@ -366,8 +376,8 @@ button {
 
 button:hover,
 button:focus-visible {
-  background: rgba(95, 212, 255, 0.12);
-  box-shadow: 0 0 22px rgba(95, 212, 255, 0.25);
+  background: rgba(var(--ui-rgb), 0.12);
+  box-shadow: 0 0 22px rgba(var(--ui-rgb), 0.25);
   outline: none;
 }
 
@@ -395,14 +405,14 @@ button.primary:focus-visible {
 
 .danger button.primary:hover {
   background: #ff6b85;
-  box-shadow: 0 0 22px rgba(255, 59, 92, 0.35);
+  box-shadow: 0 0 22px rgba(var(--danger-rgb), 0.35);
 }
 
 button.quiet {
   padding: 8px 18px;
   font-size: 12px;
   color: var(--dim);
-  border-color: rgba(95, 212, 255, 0.2);
+  border-color: rgba(var(--ui-rgb), 0.2);
 }
 
 button:disabled {
@@ -492,7 +502,7 @@ button.mode {
   font-size: 12px;
   letter-spacing: 0.1em;
   color: var(--dim);
-  border-color: rgba(95, 212, 255, 0.2);
+  border-color: rgba(var(--ui-rgb), 0.2);
 }
 
 button.mode small {
@@ -517,7 +527,7 @@ button.mode[data-mode='hardcore'].active {
 
 button.mode.active:hover,
 button.mode.active:focus-visible {
-  box-shadow: 0 0 22px rgba(95, 212, 255, 0.35);
+  box-shadow: 0 0 22px rgba(var(--ui-rgb), 0.35);
 }
 
 .mode-desc {
@@ -532,7 +542,7 @@ button.mode.active:focus-visible {
   font-size: 15px;
   letter-spacing: 0.06em;
   color: #ffb3c0;
-  text-shadow: 0 0 12px rgba(255, 59, 92, 0.35);
+  text-shadow: 0 0 12px rgba(var(--danger-rgb), 0.35);
 }
 
 .notice {
@@ -541,8 +551,8 @@ button.mode.active:focus-visible {
   font-size: 13px;
   line-height: 1.45;
   color: #ffc0cb;
-  background: rgba(255, 59, 92, 0.09);
-  border: 1px solid rgba(255, 59, 92, 0.3);
+  background: rgba(var(--danger-rgb), 0.09);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: 8px;
 }
 
@@ -857,8 +867,8 @@ body.touch #cs-skip {
   height: clamp(88px, 32vmin, 156px);
   margin: calc(clamp(88px, 32vmin, 156px) / -2) 0 0 calc(clamp(88px, 32vmin, 156px) / -2);
   border-radius: 50%;
-  border: 2px solid rgba(95, 212, 255, 0.4);
-  background: rgba(95, 212, 255, 0.06);
+  border: 2px solid rgba(var(--ui-rgb), 0.4);
+  background: rgba(var(--ui-rgb), 0.06);
   opacity: 0.3;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -875,9 +885,9 @@ body.touch #cs-skip {
   width: 46%;
   height: 46%;
   border-radius: 50%;
-  background: rgba(95, 212, 255, 0.34);
+  background: rgba(var(--ui-rgb), 0.34);
   border: 2px solid rgba(190, 235, 255, 0.7);
-  box-shadow: 0 0 18px rgba(95, 212, 255, 0.3);
+  box-shadow: 0 0 18px rgba(var(--ui-rgb), 0.3);
 }
 
 .tbtn {
@@ -886,8 +896,8 @@ body.touch #cs-skip {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 2px solid rgba(95, 212, 255, 0.5);
-  background: rgba(95, 212, 255, 0.1);
+  border: 2px solid rgba(var(--ui-rgb), 0.5);
+  background: rgba(var(--ui-rgb), 0.1);
   color: rgba(207, 233, 245, 0.9);
   font-size: 12px;
   font-weight: 600;
@@ -898,8 +908,8 @@ body.touch #cs-skip {
 }
 
 .tbtn.down {
-  background: rgba(95, 212, 255, 0.4);
-  box-shadow: 0 0 26px rgba(95, 212, 255, 0.5);
+  background: rgba(var(--ui-rgb), 0.4);
+  box-shadow: 0 0 26px rgba(var(--ui-rgb), 0.5);
   color: #fff;
 }
 
@@ -911,15 +921,15 @@ body.touch #cs-skip {
   right: var(--edge);
   bottom: var(--floor);
   font-size: 14px;
-  background: conic-gradient(rgba(95, 212, 255, 0.34) calc(var(--p) * 360deg), rgba(95, 212, 255, 0.06) 0);
+  background: conic-gradient(rgba(var(--ui-rgb), 0.34) calc(var(--p) * 360deg), rgba(var(--ui-rgb), 0.06) 0);
 }
 
 #tbtn-ripple.ready {
-  background: rgba(95, 212, 255, 0.2);
+  background: rgba(var(--ui-rgb), 0.2);
 }
 
 #tbtn-ripple.down {
-  background: rgba(95, 212, 255, 0.45);
+  background: rgba(var(--ui-rgb), 0.45);
 }
 
 #tbtn-crouch {
@@ -936,8 +946,8 @@ body.touch #cs-skip {
   height: var(--cro);
   right: calc(var(--edge) + (var(--rip) - var(--cro)) / 2);
   bottom: calc(var(--floor) + var(--rip) + 2.5vmin);
-  border-color: rgba(255, 122, 217, 0.6);
-  background: rgba(255, 122, 217, 0.1);
+  border-color: rgba(var(--decoy-rgb), 0.6);
+  background: rgba(var(--decoy-rgb), 0.1);
   font-size: 11px;
   letter-spacing: 0.08em;
 }
@@ -1078,6 +1088,353 @@ body.touch #cs-skip {
     margin: 6px -20px -12px;
     padding: 10px 20px 12px;
     background: rgba(4, 9, 16, 0.97);
-    border-top: 1px solid rgba(95, 212, 255, 0.14);
+    border-top: 1px solid rgba(var(--ui-rgb), 0.14);
   }
+}
+
+/* ---------------------------------------------------------------- settings
+   The Settings screen (js/settings.js): four tabs over the title screen or the pause menu. Every control is
+   a real button or input, and body.touch already gives every button a 48px minimum height. */
+#settings .panel {
+  max-width: 780px;
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 16px;
+  border-bottom: 1px solid rgba(var(--ui-rgb), 0.18);
+  padding-bottom: 10px;
+}
+.tab {
+  flex: 1 1 auto;
+  padding: 9px 14px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(var(--ui-rgb), 0.18);
+  color: var(--dim);
+}
+.tab.active {
+  color: var(--ink);
+  border-color: rgba(var(--ui-rgb), 0.55);
+  background: rgba(var(--ui-rgb), 0.12);
+}
+.tabpane {
+  text-align: left;
+}
+.tabpane h3 {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.tabpane h3:first-child {
+  margin-top: 0;
+}
+.tabpane .fine {
+  text-align: left;
+}
+.fine.warn {
+  color: rgba(var(--danger-rgb), 0.85);
+}
+
+/* Controls tab: one row per action, up to two key caps each */
+.keybinds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.keyrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(var(--ui-rgb), 0.07);
+}
+.keyname {
+  flex: 1 1 auto;
+  font-size: 14px;
+}
+.keyslots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.keycap {
+  min-width: 62px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(var(--ui-rgb), 0.08);
+  border: 1px solid rgba(var(--ui-rgb), 0.3);
+  color: var(--ink);
+}
+.keycap.empty {
+  color: var(--dim);
+  border-style: dashed;
+}
+.keycap.listening {
+  background: rgba(var(--ui-rgb), 0.28);
+  border-color: rgba(var(--ui-rgb), 0.8);
+  color: #fff;
+}
+.keyclear {
+  padding: 4px 8px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--dim);
+}
+.keyclear:hover {
+  color: rgba(var(--danger-rgb), 0.95);
+  border-color: rgba(var(--danger-rgb), 0.4);
+}
+.keyask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 2px 0 8px;
+  background: rgba(var(--ui-rgb), 0.08);
+  border: 1px solid rgba(var(--ui-rgb), 0.3);
+}
+.keyask span {
+  flex: 1 1 200px;
+  font-size: 13px;
+}
+.keyask button {
+  padding: 7px 12px;
+  font-size: 12px;
+}
+.keybind-msg {
+  min-height: 18px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--dim);
+}
+.keybind-msg.live {
+  color: var(--accent);
+}
+.keybind-msg.warn {
+  color: rgba(var(--danger-rgb), 0.9);
+}
+
+/* Audio tab */
+#settings .vol {
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 10px;
+}
+#settings .vol span {
+  min-width: 120px;
+  text-align: left;
+}
+#settings .vol input {
+  flex: 1 1 auto;
+  max-width: 320px;
+}
+#settings .vol b {
+  min-width: 46px;
+  text-align: right;
+  color: var(--ink);
+}
+
+/* Display tab: the palette picker, each option showing its own colours */
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.palette {
+  display: block;
+  width: 100%;
+  text-align: left;
+  /* these are buttons, but they read as prose: undo the button font (see the `button` rule above) */
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 10px 12px;
+  background: rgba(var(--ui-rgb), 0.05);
+  border: 1px solid rgba(var(--ui-rgb), 0.18);
+}
+.palette.active {
+  border-color: rgba(var(--ui-rgb), 0.7);
+  background: rgba(var(--ui-rgb), 0.14);
+}
+.palette b {
+  display: block;
+  font-size: 14px;
+  color: var(--ink);
+}
+.palette small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dim);
+  white-space: normal;
+}
+.palette .swatches {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 2px;
+}
+.palette .swatches i {
+  width: 22px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* Stats & Medals tab */
+.stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+  color: var(--dim);
+  border-bottom: 1px solid rgba(var(--ui-rgb), 0.06);
+}
+.stat b {
+  color: var(--ink);
+}
+.medal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.medal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--dim);
+}
+.medal-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.medal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  min-width: 44px;
+  background: rgba(var(--ui-rgb), 0.06);
+  border: 1px solid rgba(var(--ui-rgb), 0.16);
+}
+.medal-cell.none {
+  opacity: 0.45;
+}
+.medal-cell b {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* A medal pip. The three kinds have three different SHAPES as well as colours, so a palette (or colour
+   blindness) never makes them the same: time is a circle, ripples a diamond, flawless a square. */
+.pips {
+  display: inline-flex;
+  gap: 3px;
+}
+.pip {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: #3b4a55;
+  border: 1px solid rgba(207, 233, 245, 0.25);
+}
+.pip-time {
+  border-radius: 50%;
+}
+.pip-ripples {
+  transform: rotate(45deg);
+}
+.pip.tier-1 {
+  background: #b0764a;
+  border-color: #d8a074;
+}
+.pip.tier-2 {
+  background: #b9c6cf;
+  border-color: #e6eef3;
+}
+.pip.tier-3 {
+  background: #ffc849;
+  border-color: #ffe6a8;
+}
+.pip-flawless.tier-1 {
+  background: #7ef2d0;
+  border-color: #c8fff0;
+}
+
+/* The medals on the level-cleared screen */
+.medal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px auto 4px;
+  max-width: 420px;
+  text-align: left;
+}
+.medal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.medal-item.none {
+  opacity: 0.6;
+}
+.medal-item span {
+  flex: 1 1 auto;
+}
+.medal-item small {
+  color: var(--dim);
+  font-size: 12px;
+}
+.new-best {
+  color: #ffc849;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.medal-summary {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+/* the medal pips under a level number in the replay picker */
+.level-grid .lvl {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+/* the optional level timer in the HUD */
+#hud-time {
+  font-variant-numeric: tabular-nums;
+}
+
+body.touch .tab {
+  min-height: 48px;
+}
+body.touch .keycap {
+  min-height: 44px;
+  min-width: 74px;
+}
+body.touch .keyclear {
+  min-height: 44px;
 }

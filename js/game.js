@@ -34,8 +34,15 @@
   const T_DECOY = 7; // sonar decoy (pink) - lies flat like a puddle, shows up in a ripple but never blocks it
   const T_STALKER = 8; // stalker (orange) - a ripple can show it, but it learns nothing from it
   const T_SINGER = 9; // singer (magenta) - a ripple can show it, but it is deaf to yours. (The muffler has NO type: it absorbs the ray, so nothing is ever lit.)
-  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217', '255,116,16', '236,64,236'];
-  const SINGER_RGB = '236,64,236'; // the tint of a singer's own ripples (magenta)
+  // The ripple's hit colours, by type. They are filled in from js/palette.js and refilled whenever the player
+  // picks another palette (Settings -> Display); the array itself is never replaced, so everything that reads
+  // COLORS[T_...] keeps working, and a palette can never reach anything but the drawing.
+  const COLORS = [null, null, null, null, null, null, null, null, null, null];
+  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer'];
+  const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
+  EchoPalette.onChange((rgb) => {
+    for (let i = 1; i < COLOR_ROLE.length; i++) COLORS[i] = rgb[COLOR_ROLE[i]];
+  });
   // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
   // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
   const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5];
@@ -83,10 +90,19 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'pause', 'caught', 'complete', 'victory'];
+  const overlays = ['title', 'replay', 'settings', 'pause', 'caught', 'complete', 'victory'];
   // states: title | cutscene | play | paused | caught | complete
 
   const audio = new SoundEngine();
+  // the player's saved volumes, ready for when the AudioContext is created on the first click
+  {
+    const v = EchoProfile.volumes();
+    audio.volume = v.master;
+    audio.fxVolume = v.effects;
+    audio.ambVolume = v.ambience;
+  }
+  // The soundtrack (js/music.js). Audio only, on the ambience bus, and it swells on nothing but `danger`.
+  const music = EchoMusic.create(audio);
   // Visual sound cues (accessibility, js/cues.js): drawn only, never read back - they cannot affect the game
   const cues = EchoCues.create({ ctx, enabled: () => visualCues, calm: () => calm });
 
@@ -161,6 +177,8 @@
   let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
+  let levelDeaths = 0; // times caught on this level since entering it: 0 at the exit wins the Flawless medal
+  let showTimer = EchoProfile.getShowTimer(); // Settings -> Display: the level time in the HUD (off by default)
   let beaconTimer = 0;
   let heartTimer = 0;
   let cueBeatTimer = 0; // the heartbeat cue's own timer, for calm mode (which has no heartbeat sound to time it by)
@@ -183,6 +201,12 @@
   // ---------------------------------------------------------------- helpers
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const down = (...codes) => codes.some((c) => keys[c]);
+  /**
+   * Is a key for this action held? The keys themselves are the player's own (Settings -> Controls,
+   * js/profile.js); the game only ever asks about the ACTION, so rebinding cannot change how anything plays.
+   * An action with no key at all simply never fires.
+   */
+  const act = (action) => down.apply(null, EchoProfile.keysFor(action));
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -769,6 +793,7 @@
     e.tickCd = 0.55; // the first tick follows the sting
     audio.markSting(); // not spatial and not softened in calm mode
     cues.caption('[a sting - you are marked]');
+    EchoProfile.bump('marked');
   }
 
   function updateSinger(e, dt) {
@@ -1335,6 +1360,7 @@
     if (crouchHeld()) return; // you cannot send a ripple while crouching
     cooldown = cfg.cooldown;
     ripplesUsed++;
+    EchoProfile.bump('ripples');
     glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
     audio.ping();
@@ -1342,7 +1368,7 @@
 
   // ---------------------------------------------------------------- crouching
   /** Is a crouch key (Shift) held? Same speed as walking; no footsteps, no ripples, and a stalker cannot hear you. */
-  const crouchHeld = () => down('ShiftLeft', 'ShiftRight') || touch.crouch; // the Shift key, or the touch CROUCH button held
+  const crouchHeld = () => act('crouch') || touch.crouch; // a crouch key (Shift by default), or the touch CROUCH button held
 
   /**
    * The instant you start crouching, everything your ripples showed you is wiped from the screen and from the
@@ -1357,6 +1383,7 @@
     ripples = ripples.filter((rp) => rp.singer);
     marks = marks.filter((m) => m.singer);
     glimmerOff = true;
+    EchoProfile.bump('crouches'); // stats: counted only, never read back by the game
   }
 
   /** Bring `player.crouching` in line with the key. Called every frame, and straight from the key press so the wipe is instant. */
@@ -1589,6 +1616,7 @@
    */
   function revealMimic(e) {
     e.kind = 'echo';
+    e.fromMimic = true; // for the stats only: if this one kills you, it was "the mimic that got you"
     e.r = ENEMY_R;
     e.voice = audio.ready ? audio.createEnemyVoice(e.pitch, 'echo') : null;
     marks.push({ x: e.x, y: e.y, t: 0, life: 1.4, c: COLORS[T_ENEMY], r: 40 });
@@ -1659,6 +1687,7 @@
     if (state !== 'play' || !player.hasDecoy) return;
     player.hasDecoy = false;
     decoys.push({ x: player.x, y: player.y, t: 0, phase: 'arming', tick: 0, hum: 0, ring: 0, lured: [] });
+    EchoProfile.bump('decoys');
     marks.push({ x: player.x, y: player.y, t: 0, life: 0.9, c: COLORS[T_DECOY], r: 26 });
     audio.decoyDrop();
     cues.pulse('decoy', player.x, player.y, 0.6, {}); // a cue at its drop spot (at your feet: it points the way you were facing)
@@ -1737,6 +1766,7 @@
   // ----------------------------------------------------------------- update
   function updatePlay(dt) {
     levelTime += dt;
+    EchoProfile.bump('playTime', dt); // stats: written out at the end of the level, not every frame
     cooldown = Math.max(0, cooldown - dt);
     player.bumpCd = Math.max(0, player.bumpCd - dt);
     flash = Math.max(0, flash - dt * 2.2);
@@ -1745,8 +1775,8 @@
 
     // --- player movement (crouching is the same speed as walking; it just makes no sound - see syncCrouch)
     syncCrouch();
-    const ix = (down('KeyD', 'ArrowRight') ? 1 : 0) - (down('KeyA', 'ArrowLeft') ? 1 : 0);
-    const iy = (down('KeyS', 'ArrowDown') ? 1 : 0) - (down('KeyW', 'ArrowUp') ? 1 : 0);
+    const ix = (act('right') ? 1 : 0) - (act('left') ? 1 : 0);
+    const iy = (act('down') ? 1 : 0) - (act('up') ? 1 : 0);
     // Where to: a movement key (always full speed, exactly as ever) - or, if none is held, the touch joystick, which
     // is analog: any direction, speed from a crawl to the same 170 px/s. (0,0 unless a finger is pushing the stick.)
     let mvx = 0;
@@ -1769,6 +1799,7 @@
       const step = Math.hypot(player.x - px, player.y - py);
       walked = step > 0.3;
       player.stepDist += step;
+      EchoProfile.bump('distance', step);
       if (player.stepDist >= 30) {
         player.stepDist = 0;
         if (!player.crouching) {
@@ -1817,6 +1848,9 @@
       if (d < dmin) dmin = d;
     }
     danger = clamp(1 - dmin / 300, 0, 1);
+    // The soundtrack swells on exactly this number and nothing else, so it can never tell you anything the
+    // heartbeat and the red screen-edge do not already. In calm mode it is handed 0 and stays flat.
+    music.setDanger(calm ? 0 : danger);
     if (danger > 0 && !calm) {
       heartTimer -= dt;
       if (heartTimer <= 0) {
@@ -1842,10 +1876,11 @@
     // --- outcomes
     if (singerLanded) {
       singerLanded = false;
-      return onCaught(); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
+      return onCaught('singer'); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
     }
     for (const e of enemies) {
-      if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught();
+      // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
+      if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind);
     }
     if (Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) onLevelComplete();
   }
@@ -1908,7 +1943,7 @@
   function drawRipple(rp) {
     const r = rp.t * RIPPLE_SPEED;
     const { x, y, dist, type, R } = rp;
-    const tint = rp.singer ? SINGER_RGB : null; // a singer's own wave is magenta all through: front, walls, everything it finds
+    const tint = rp.singer ? singerRgb() : null; // a singer's own wave is magenta all through: front, walls, everything it finds
     for (let k = 1; k < NRAYTYPES; k++) {
       retBuckets[k].length = 0;
       for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a].length = 0;
@@ -2005,8 +2040,8 @@
       const a = 1 - m.t / m.life;
       const rad = m.r || 18;
       const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, rad);
-      g.addColorStop(0, `rgba(${m.singer ? SINGER_RGB : m.c},${a * 0.7})`);
-      g.addColorStop(1, `rgba(${m.singer ? SINGER_RGB : m.c},0)`);
+      g.addColorStop(0, `rgba(${m.singer ? singerRgb() : m.c},${a * 0.7})`);
+      g.addColorStop(1, `rgba(${m.singer ? singerRgb() : m.c},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(m.x, m.y, rad, 0, TAU);
@@ -2021,7 +2056,7 @@
         o.tell = 'none';
         EchoArt.draw(ctx, m.art, m.x, m.y, m.ar, o);
       } else if (m.puddle) {
-        ctx.strokeStyle = `rgba(${m.singer ? SINGER_RGB : m.c},${a * 0.8})`;
+        ctx.strokeStyle = `rgba(${m.singer ? singerRgb() : m.c},${a * 0.8})`;
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.arc(m.x, m.y, rad * 0.62, 0, TAU);
@@ -2250,6 +2285,7 @@
   function updateHud() {
     $('hud-level').textContent = `Level ${levelNum} · ${MODES[mode].label}`;
     $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
+    $('hud-time').textContent = showTimer ? mmss(levelTime) : '';
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : '';
     $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
     $('hud-audio').textContent = [calm ? 'Calm' : '', visualCues ? 'Visual cues' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
@@ -2264,8 +2300,10 @@
     bannerTimer = setTimeout(() => el.classList.remove('show'), n === 1 ? 9000 : 4500);
   }
 
-  function startLevel(n) {
+  /** `retrying` = the same level again after being caught, which is what costs you the Flawless medal. */
+  function startLevel(n, retrying = false) {
     destroyVoices();
+    if (!retrying) levelDeaths = 0;
     levelNum = n;
     // Hardcore keeps a high score even for a run that dies on level 1.
     if (MODES[mode].oneLife && !progress[mode]) {
@@ -2311,6 +2349,7 @@
     camY = player.y;
     state = 'play';
     audio.startAmbient(n);
+    music.start(n); // the level's own mood (js/music.js); silent until the AudioContext exists
     showOverlay(null);
     $('hud').classList.remove('hidden');
     updateHud();
@@ -2382,6 +2421,7 @@
     }
     destroyVoices();
     audio.stopAmbient();
+    music.stop(); // a cutscene has its own sound; the score never plays over it
     touch.setVisible(false); // no touch controls in a cutscene (a tap anywhere skips it - see below)
     state = 'cutscene';
     showOverlay(null);
@@ -2398,12 +2438,17 @@
     else startLevel(levelNum + 1);
   }
 
-  function onCaught() {
+  /** `cause` is what killed you ('echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer') - for the stats. */
+  function onCaught(cause) {
     if (state !== 'play') return;
     state = 'caught';
+    levelDeaths++; // one death on this level means no Flawless medal for it, even if the retry goes perfectly
+    EchoProfile.addDeath(mode, cause);
+    EchoProfile.flush();
     touch.releaseAll();
     audio.caught();
     audio.stopAmbient();
+    music.stop();
     destroyVoices();
     cues.clear();
     flash = calm ? 0 : 1; // calm mode: no red flash or screen shake
@@ -2433,28 +2478,75 @@
     }, 900);
   }
 
+  const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+  /**
+   * The three medals for the level just cleared, drawn as a row of "what you got, what the next one needs".
+   * Par comes from the maze you were actually given (js/profile.js: the shortest start-to-exit path), because
+   * every run is a different seed.
+   */
+  function renderMedals(el, res) {
+    el.textContent = '';
+    const P = EchoProfile;
+    const rows = [
+      { kind: 'time', tier: res.earned.time, got: mmss(levelTime), next: res.earned.time === P.GOLD ? '' : `${P.TIER_NAMES[res.earned.time + 1]} at ${mmss(res.pars.time[res.earned.time === P.SILVER ? 'gold' : res.earned.time === P.BRONZE ? 'silver' : 'bronze'])}`, isNew: res.improved.time },
+      { kind: 'ripples', tier: res.earned.ripples, got: `${ripplesUsed}`, next: res.earned.ripples === P.GOLD ? '' : `${P.TIER_NAMES[res.earned.ripples + 1]} at ${res.pars.ripples[res.earned.ripples === P.SILVER ? 'gold' : 'silver']}`, isNew: res.improved.ripples },
+      { kind: 'flawless', tier: res.record.flawless ? 1 : 0, got: levelDeaths === 0 ? 'no deaths' : `caught ${levelDeaths}×`, next: '', isNew: res.improved.flawless },
+    ];
+    const names = { time: 'Time', ripples: 'Ripples', flawless: 'Flawless' };
+    for (const r of rows) {
+      const row = document.createElement('div');
+      row.className = `medal-item${r.tier ? '' : ' none'}`;
+      row.appendChild(settings.medalPip(r.kind, r.tier));
+      const label = document.createElement('span');
+      const text = r.kind === 'flawless' ? (r.tier ? `Flawless — ${r.got}` : `Not flawless — ${r.got}`) : `${names[r.kind]} ${r.got} — ${r.tier ? EchoProfile.TIER_NAMES[r.tier] : 'no medal'}`;
+      label.append(document.createTextNode(text));
+      row.appendChild(label);
+      if (r.isNew) {
+        const nb = document.createElement('b');
+        nb.className = 'new-best';
+        nb.textContent = 'New best!';
+        row.appendChild(nb);
+      } else if (r.next) {
+        const nx = document.createElement('small');
+        nx.textContent = r.next;
+        row.appendChild(nx);
+      }
+      el.appendChild(row);
+    }
+  }
+
   function onLevelComplete() {
     if (state !== 'play') return;
     state = 'complete';
     touch.releaseAll();
     audio.stopAmbient();
+    music.stop();
     destroyVoices();
     cues.clear();
     saveBest(levelNum + 1);
-    const m = Math.floor(levelTime / 60);
-    const s = Math.floor(levelTime % 60);
-    const stats = `Time ${m}:${String(s).padStart(2, '0')}  ·  Ripples ${ripplesUsed}`;
+    EchoProfile.addClear(mode);
+    EchoProfile.flush();
+    const res = EchoProfile.recordClear(mode, levelNum, {
+      time: levelTime,
+      ripples: ripplesUsed,
+      flawless: levelDeaths === 0,
+      pathTiles: level.pathTiles,
+    });
+    const stats = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
     if (levelNum >= CAMPAIGN_LEVELS) {
       // The end of the game so far: there is no level after CAMPAIGN_LEVELS yet.
       $('victory-text').textContent = MODES[mode].oneLife
         ? 'You cleared every level on a single life. The echoes fade behind you… More levels are coming.'
         : `You cleared every level on ${MODES[mode].label}. The echoes fade behind you… More levels are coming.`;
+      renderMedals($('victory-medals'), res);
       audio.victory();
       setTimeout(() => state === 'complete' && showOverlay('victory'), 700);
     } else {
       audio.levelComplete();
       $('complete-title').textContent = `Level ${levelNum} cleared`;
       $('complete-stats').textContent = stats;
+      renderMedals($('complete-medals'), res);
       setTimeout(() => state === 'complete' && showOverlay('complete'), 700);
     }
   }
@@ -2463,6 +2555,7 @@
     if (state !== 'play') return;
     state = 'paused';
     touch.releaseAll(); // never carry a held finger across a screen change
+    EchoProfile.flush(); // write the stats out now: the page may never come back
     $('pause-mode').textContent = `${MODES[mode].label} · Level ${levelNum}`;
     refreshOptionUi();
     showOverlay('pause');
@@ -2480,8 +2573,10 @@
     destroyVoices();
     audio.stopAmbient();
     audio.resume();
+    EchoProfile.flush();
     state = 'title';
     level = null;
+    music.start('title'); // the title has a mood of its own (nothing happens until there is an AudioContext)
     cues.clear();
     $('hud').classList.add('hidden');
     $('banner').classList.remove('show');
@@ -2529,6 +2624,11 @@
       c.checked = calm;
     });
     $('btn-replay').classList.toggle('hidden', !replayAvailable());
+    // a small medal line for the mode that is picked (Settings -> Stats & Medals has the whole board)
+    const sum = EchoProfile.medalSummary(mode, CAMPAIGN_LEVELS);
+    const line = $('title-medals');
+    line.classList.toggle('hidden', sum.won === 0);
+    if (sum.won) line.textContent = `Medals on ${MODES[mode].label}: ${sum.won} of ${sum.total} · ${sum.gold} gold, ${sum.silver} silver, ${sum.bronze} bronze, ${sum.flawless} flawless`;
   }
 
   // ---------------------------------------------- replay: levels + cutscenes
@@ -2596,7 +2696,17 @@
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'lvl';
-        b.textContent = n;
+        const num = document.createElement('span');
+        num.textContent = n;
+        b.appendChild(num);
+        // the medals won on this level, in this mode (three little pips: time, ripples, flawless)
+        const rec = EchoProfile.medalsFor(mode, n);
+        if (rec) {
+          const pips = document.createElement('span');
+          pips.className = 'pips';
+          pips.append(settings.medalPip('time', rec.time), settings.medalPip('ripples', rec.ripples), settings.medalPip('flawless', rec.flawless ? 1 : 0));
+          b.appendChild(pips);
+        }
         if (n <= cleared) {
           b.setAttribute('aria-label', `Play level ${n} again`);
           b.addEventListener('click', () => playLevel(n));
@@ -2746,26 +2856,98 @@
     set('pbtn-cues', 'Visual cues', visualCues);
   }
 
+  // ------------------------------------------------------- settings screen
+  /**
+   * Settings opens over the title screen or over the pause menu and goes back to whichever it was; the game
+   * state does not change while it is up (paused stays paused). Everything it can change is an option - the
+   * keys, the volumes, the palette, the timer - so none of it can reach the simulation.
+   */
+  function setPalette(id) {
+    EchoPalette.set(id);
+    EchoProfile.setPalette(EchoPalette.id);
+    drawLegend(); // the title legend is painted with the real art, so it has to be redrawn in the new colours
+  }
+
+  function setShowTimer(on) {
+    showTimer = !!on;
+    EchoProfile.setShowTimer(showTimer);
+    if (!showTimer) $('hud-time').textContent = '';
+    if (level && state !== 'title' && state !== 'cutscene') updateHud();
+  }
+
+  const settings = EchoSettings.create({
+    click: () => audio.uiClick(),
+    showOverlay,
+    closeSettings(from) {
+      if (from === 'pause') {
+        showOverlay('pause');
+        refreshOptionUi();
+        audio.suspend(); // back to the paused game, so the sound sleeps again
+      } else {
+        refreshTitle();
+        showOverlay('title');
+      }
+    },
+    keysChanged() {
+      settings.renderHowTo();
+      releaseKeys(); // a key held while it was being rebound must never be left stuck down
+    },
+    setVolume(bus, v) {
+      EchoProfile.setVolume(bus, v);
+      audio.init(); // dragging a slider is a real gesture, so the sound is allowed to start here
+      audio.setBusVolume(bus, v);
+    },
+    setPalette,
+    setShowTimer,
+    medalsChanged: () => refreshTitle(),
+    mode: () => mode,
+    modeIds: () => MODE_ORDER,
+    modeLabel: (m) => MODES[m || mode].label,
+    campaignLevels: () => CAMPAIGN_LEVELS,
+  });
+
+  function openSettings(from) {
+    audio.init();
+    audio.uiClick();
+    if (from === 'pause') audio.resume(); // the audio sliders have to be audible while the game is paused
+    if (from === 'title') music.start('title');
+    settings.open(from);
+  }
+
   // ----------------------------------------------------------------- input
   const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
   window.addEventListener('keydown', (e) => {
-    if (GAME_KEYS.includes(e.code)) e.preventDefault();
+    // Settings -> Controls is waiting for a key to bind: it takes this one and nothing else sees it
+    if (settings.captureKey(e)) {
+      e.preventDefault();
+      return;
+    }
+    const a = EchoProfile.actionFor(e.code); // which ACTION this key runs, if any (Settings -> Controls)
+    if (GAME_KEYS.includes(e.code) || (state === 'play' && a)) e.preventDefault();
     keys[e.code] = true;
     if (e.repeat) return;
 
-    if (e.code === 'KeyM') return toggleMute();
-    if (e.code === 'KeyC') return setCalm(!calm); // works on every screen, in every mode
-    if (e.code === 'KeyV') return setVisualCues(!visualCues); // so does Visual cues
+    if (a === 'mute') return toggleMute();
+    if (a === 'calm') return setCalm(!calm); // works on every screen, in every mode
+    if (a === 'cues') return setVisualCues(!visualCues); // so does Visual cues
+    // the settings screen is open over the title or the pause menu: Esc is the way back out
+    if (settings.isOpen()) {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        settings.close();
+      }
+      return;
+    }
     switch (state) {
       case 'play':
-        if (e.code === 'Space') emitRipple();
-        else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') syncCrouch(); // wipe the ripple information this instant
-        else if (e.code === 'KeyE') dropDecoy();
-        else if (e.code === 'Escape' || e.code === 'KeyP') pause();
+        if (a === 'ripple') emitRipple();
+        else if (a === 'crouch') syncCrouch(); // wipe the ripple information this instant
+        else if (a === 'item') dropDecoy();
+        else if (e.code === 'Escape' || a === 'pause') pause();
         break;
       case 'paused':
-        if (e.code === 'Escape' || e.code === 'KeyP') unpause();
+        if (e.code === 'Escape' || a === 'pause') unpause();
         break;
       case 'title':
         if (!$('replay').classList.contains('hidden')) {
@@ -2816,6 +2998,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       releaseKeys();
+      EchoProfile.flush(); // the page may be closed while it is away: save the stats now
       pause();
       if (state === 'cutscene') audio.suspend();
     } else if (state === 'cutscene') {
@@ -2828,7 +3011,7 @@
   /** Try again: back to the start of the level you were caught on (same maze). */
   function retry() {
     audio.uiClick();
-    startLevel(levelNum);
+    startLevel(levelNum, true); // a retry, so the death still counts against the Flawless medal
   }
 
   document.querySelectorAll('.mode').forEach((b) => {
@@ -2907,6 +3090,8 @@
   $('btn-continue').addEventListener('click', () => newRun(getBest()));
   $('btn-replay').addEventListener('click', openReplay);
   $('btn-replay-back').addEventListener('click', closeReplay);
+  $('btn-settings').addEventListener('click', () => openSettings('title'));
+  $('btn-pause-settings').addEventListener('click', () => openSettings('pause'));
   $('btn-resume').addEventListener('click', () => {
     audio.uiClick();
     unpause();
@@ -2922,15 +3107,7 @@
     toTitle();
   });
 
-  document.querySelectorAll('.vol-slider').forEach((sl) => {
-    sl.addEventListener('input', () => {
-      const v = sl.value / 100;
-      audio.setVolume(v);
-      document.querySelectorAll('.vol-slider').forEach((o) => {
-        o.value = sl.value;
-      });
-    });
-  });
+  // (the volume sliders live in Settings -> Audio now; js/settings.js owns them)
 
   // -------------------------------------------------------------- main loop
   let last = performance.now();
@@ -2964,6 +3141,7 @@
       camY += (player.y - camY) * k;
       if (state === 'play') {
         $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
+        if (showTimer) $('hud-time').textContent = mmss(levelTime);
       }
     }
 
@@ -2974,6 +3152,9 @@
       touch.setCooldown(cfg.cooldown > 0 ? 1 - cooldown / cfg.cooldown : 1);
       touch.setItem(!!player.hasDecoy);
     }
+
+    // the soundtrack schedules its next notes (it does nothing at all when it is not running)
+    music.update(dt);
 
     draw();
     requestAnimationFrame(frame);
@@ -3005,7 +3186,9 @@
   }
 
   resize();
+  EchoPalette.set(EchoPalette.id); // paint the saved palette into the art, the cues, the CSS and the legend
   drawLegend();
+  settings.renderHowTo(); // the title / pause how-to, written with the player's own keys
   refreshTouchMode();
   refreshTitle();
   requestAnimationFrame(frame);
@@ -3094,8 +3277,45 @@
       // markPlayer(): force a singer to mark you now (for tests); state of every singer / muffler
       markBy: (e) => markPlayer(e),
       newMonsters: () => enemies.filter((e) => e.kind === 'muffler' || e.kind === 'singer').map((e) => ({ kind: e.kind, x: e.x, y: e.y, state: e.state, timer: e.timer, markFrac: e.markFrac, markX: e.markX, markY: e.markY, deaf: e.deaf, everHeard: e.everHeard, singCd: e.singCd })),
+      // v11.0: the settings screen, the palettes, the keys, the medals, the stats and the soundtrack
+      openSettings,
+      settingsUi: settings,
+      setPalette,
+      setShowTimer,
+      palette: () => ({ id: EchoPalette.id, label: EchoPalette.label(), colors: EchoPalette.colorsOf(), cores: EchoPalette.coresOf() }),
+      keys: () => {
+        const out = {};
+        for (const a of EchoProfile.ACTIONS) out[a.id] = EchoProfile.keysFor(a.id).slice();
+        return out;
+      },
+      bindKey: (action, slot, code) => {
+        EchoProfile.bindKey(action, slot, code);
+        settings.renderHowTo();
+        return EchoProfile.keysFor(action).slice();
+      },
+      resetKeys: () => {
+        EchoProfile.resetKeys();
+        settings.renderHowTo();
+      },
+      profile: EchoProfile,
+      medals: () => EchoProfile.allMedals(),
+      stats: () => EchoProfile.stats(),
+      pars: (tiles) => EchoProfile.pars(tiles),
+      music,
+      musicState: () => music.state(),
+      levelDeaths: () => levelDeaths,
       settings: () => ({
         campaignLevels: CAMPAIGN_LEVELS, // 12
+        palette: EchoPalette.id,
+        showTimer,
+        volumes: EchoProfile.volumes(),
+        keyBindings: (() => {
+          const out = {};
+          for (const a of EchoProfile.ACTIONS) out[a.id] = EchoProfile.keysFor(a.id).slice();
+          return out;
+        })(),
+        medalPar: cfg && level ? EchoProfile.pars(level.pathTiles) : null,
+        music: music.state(),
         // the new monsters' numbers in this mode (from the MODES table; speeds are for the current level when one is running)
         muffler: { footstepRadius: MODES[mode].mufflerFootstepRadius, presenceRadius: MODES[mode].mufflerPresenceRadius, crouchRadius: MODES[mode].mufflerCrouchRadius, memorySeconds: MODES[mode].mufflerMemorySeconds, speed: cfg ? cfg.mufflerSpeed : null, shownForDebug: debugShowMuffler },
         singer: { markSeconds: MODES[mode].markSeconds, landRadius: MODES[mode].landRadius, singInterval: MODES[mode].singInterval, singRange: MODES[mode].singRange, speed: cfg ? cfg.singerSpeed : null, leapSeconds: SINGER_LEAP_SECONDS },

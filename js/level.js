@@ -641,6 +641,9 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     enemies,
     start: { x: (sx + 0.5) * TILE, y: (sy + 0.5) * TILE },
     exit: { x: (ex + 0.5) * TILE, y: (ey + 0.5) * TILE, r: EXIT_R },
+    // the shortest way from the start to the exit, in tiles, around the obstacles. Nothing in the game reads
+    // it; the medals (js/profile.js) work their par out from it, because every run is a different maze.
+    pathTiles: dS[exitIdx],
     pxW: W * TILE,
     pxH: H * TILE,
   };
