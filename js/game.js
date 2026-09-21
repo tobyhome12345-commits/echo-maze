@@ -61,7 +61,7 @@
   }
 
   const HINTS = {
-    1: 'SPACE sends a ripple. Blue is wall, amber is an obstacle. Follow the green chime.',
+    1: '{ripple} sends a ripple. Blue is wall, amber is an obstacle. Follow the green chime.',
     2: 'You are not alone. Red means something alive. Its growl is your only warning.',
     3: 'A monster is blind to you until your ripple touches it. Then it comes for where you were.',
     4: 'Two echo monsters now. Move after every ripple - a monster you hit will hunt the spot you rippled from.',
@@ -69,8 +69,8 @@
     6: 'No echo monsters here. A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
     7: 'Your own trail can smell you again: step back onto it while it lasts and you are smelly, like a puddle. Give it about ten seconds between touches.',
     8: 'Not every green glow is the way out: something here copies the exit, and turns on you the moment your ripple touches it.',
-    9: 'More things follow your smell now, so mind the puddles and your trail. A pink sonar decoy lies somewhere: walk onto it, press E to drop it, and five seconds later it calls every monster nearby and traps them there.',
-    10: 'The stalker ignores ripples and decoys. It only listens: your footsteps, and even you standing close. Hold SHIFT to crouch - you make no sound, but you cannot send a ripple.',
+    9: 'More things follow your smell now, so mind the puddles and your trail. A pink sonar decoy lies somewhere: walk onto it, press {item} to drop it, and five seconds later it calls EVERY monster nearby - and shows up anything pretending to be the exit - and traps them there.',
+    10: 'The stalker ignores ripples and decoys. It only listens: your footsteps, and even you standing close. Hold {crouch} to crouch - you make no sound, but you cannot send a ripple.',
     11: 'If your ripple leaves a hole in the echo, something is standing in it. You cannot see it or smell it - only hear it. It listens harder than the stalker, and crouching helps a lot, but it is not a guarantee.',
     12: 'Something sings. Its song lights the maze, and if a wave of it reaches you, you are marked: a countdown ticks, then it leaps to where the song found you. Keep moving.',
   };
@@ -83,7 +83,7 @@
     'A monster that has locked onto you loses you the moment you get far enough away. Run.',
     'Smell only wears off while you WALK. Standing still keeps you smelly, so keep moving away.',
     'A scent monster ignores ripples and footsteps. Only smell - and its trails - lead it to you.',
-    'Hold SHIFT to crouch: no footsteps, no ripples - and crouching wipes whatever your ripples had shown you.',
+    'Hold {crouch} to crouch: no footsteps, no ripples - and crouching wipes whatever your ripples had shown you.',
   ];
 
   // ------------------------------------------------------------------- DOM
@@ -683,6 +683,7 @@
   function mufflersListen(walked) {
     for (const e of enemies) {
       if (e.kind !== 'muffler') continue;
+      if (e.state === 'lured' || e.state === 'trapped') continue; // a decoy has it: it hears nothing else until it is released
       const d = Math.hypot(e.x - player.x, e.y - player.y);
       const heard = player.crouching
         ? walked && d <= cfg.mufflerCrouchRadius
@@ -912,6 +913,7 @@
     if (player.crouching) return;
     for (const e of enemies) {
       if (e.kind !== 'stalker') continue;
+      if (e.state === 'lured' || e.state === 'trapped') continue; // a decoy has it: it hears nothing else until it is released
       const d = Math.hypot(e.x - player.x, e.y - player.y);
       if (d <= cfg.presenceRadius || (walked && d <= cfg.footstepRadius)) stalkerHeard(e);
     }
@@ -999,7 +1001,14 @@
   function updateLured(e, dt) {
     let moved = 0;
     if (e.state === 'lured') {
-      moved = followPath(e, e.kind === 'scent' ? cfg.scentSpeed : cfg.enemySpeed, dt);
+      // each kind walks to the decoy at its own speed (they are all slower than the player, as ever)
+      const speed =
+        e.kind === 'scent' ? cfg.scentSpeed
+        : e.kind === 'stalker' ? cfg.stalkerSpeed
+        : e.kind === 'muffler' ? cfg.mufflerSpeed
+        : e.kind === 'singer' ? cfg.singerSpeed
+        : cfg.enemySpeed;
+      moved = followPath(e, speed, dt);
       if (!e.path) {
         e.state = 'trapped';
         e.timer = DECOY_TRAP_SECONDS; // counts from the moment it arrives
@@ -1011,12 +1020,17 @@
     return moved;
   }
 
-  /** Back to normal: a scent monster patrols again; an echo monster or a still-disguised mimic goes idle where it is. */
+  /**
+   * Back to normal. The kinds that never stand still (scent, stalker, muffler, singer) start patrolling again
+   * from where the decoy left them; an echo monster goes idle where it is, deaf until a ripple finds it.
+   */
   function releaseLured(e) {
     e.path = null;
-    if (e.kind === 'scent') {
+    if (e.kind === 'scent' || e.kind === 'stalker' || e.kind === 'muffler' || e.kind === 'singer') {
       e.state = 'patrol';
-      e.pause = 0.5;
+      e.pause = e.kind === 'scent' ? 0.5 : 0;
+      e.deaf = 0; // the stalker and the muffler start listening again from this moment
+      if (e.kind === 'singer') e.singCd = Math.max(e.singCd, 1.5); // it gathers itself before it sings again
     } else {
       e.state = 'idle';
       e.pause = 1 + Math.random() * 2;
@@ -1699,10 +1713,13 @@
     d.phase = 'active';
     d.ring = 0;
     d.hum = 1.2;
+    // EVERY kind of monster answers a decoy - the stalker, the muffler and the singer included (owner's
+    // change, v11.1). A disguised mimic is not just dragged along any more either: the call breaks its
+    // disguise on the spot, exactly as a ripple would, and the echo monster it becomes walks over with the rest.
     for (const e of enemies) {
-      if (e.kind === 'stalker' || e.kind === 'muffler' || e.kind === 'singer') continue; // a stalker, a muffler and a singer ignore the decoy: they only listen for you / sing
       if (e.state === 'lured' || e.state === 'trapped') continue;
       if (Math.hypot(e.x - d.x, e.y - d.y) > DECOY_RADIUS) continue;
+      if (e.kind === 'mimic') revealMimic(e);
       if (lureEnemy(e, d.x, d.y)) d.lured.push(e);
     }
     const sp = spatial(d.x, d.y, 1100);
@@ -2291,10 +2308,16 @@
     $('hud-audio').textContent = [calm ? 'Calm' : '', visualCues ? 'Visual cues' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
   }
 
+  /**
+   * A hint names keys as {ripple} / {item} / {crouch} and they are filled in from the player's OWN bindings
+   * (Settings -> Controls), so a hint never tells them to press a key they have changed.
+   */
+  const hintText = (s) => s.replace(/\{(\w+)\}/g, (_, a) => EchoProfile.keysText(a).toUpperCase());
+
   function showBanner(n) {
     const el = $('banner');
     $('banner-title').textContent = `Level ${n}`;
-    $('banner-text').textContent = HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length];
+    $('banner-text').textContent = hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]);
     el.classList.add('show');
     clearTimeout(bannerTimer);
     bannerTimer = setTimeout(() => el.classList.remove('show'), n === 1 ? 9000 : 4500);
