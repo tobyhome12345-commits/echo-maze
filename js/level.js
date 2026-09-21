@@ -25,7 +25,8 @@ function mulberry32(seed) {
  *                     inside this, and a monster that has locked on keeps
  *                     tracking you only while you stay inside it
  *   ripple / cooldown multipliers on your ripple's range / recharge time
- *   puddles           multiplier on how many smell puddles a level has (level 6+)
+ *   puddles           multiplier on how many smell puddles a level has (level 6+; a level where this mode has no
+ *                     scent monster has none at all)
  *   smell             px: how far away a scent monster can smell you while you
  *                     are smelly (it loses you beyond this)
  *   presenceRadius    px: how close a stalker (level 10+) must be to hear you just
@@ -55,14 +56,19 @@ function mulberry32(seed) {
  *   markSeconds   s: the countdown from being marked to the leap (the same in calm mode: it is gameplay information)
  *   landRadius    px: you are caught if you are this close to the landing spot when it lands
  *   singInterval  s: between its ripples
- *   singRange     px: how far its ripples reach
- * Keep every value ordered easy < normal < hard < hardcore in difficulty (a SHORTER countdown is harder).
+ *   singRange     px: how far its ripples reach. On level 12 the player's own range is 252 px before the mode multiplier
+ *                 (see RIPPLE_RANGE_* below), i.e. 302 / 260 / 222 / 214 px, so the Singer's reach is 0.89 / 1.23 / 1.44 /
+ *                 1.50 times it. Normal, Hard and Hardcore share 320 px on purpose: Hard and Hardcore are harder through
+ *                 markSeconds, singInterval and landRadius, not through a longer reach (it used to grow to 2x the
+ *                 player's range, because the player's range SHRINKS by mode while this grew).
+ * Keep every value ordered easy < normal < hard < hardcore in difficulty (a SHORTER countdown is harder). The one
+ * exception is singRange, which may stay level (it may never get shorter).
  */
 const MODES = {
-  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240, mimicTell: 'clear', mufflerFootstepRadius: 125, mufflerPresenceRadius: 75, mufflerCrouchRadius: 30, mufflerMemorySeconds: 3, markSeconds: 4.0, landRadius: 45, singInterval: 6, singRange: 300 },
-  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300, mimicTell: 'subtle', mufflerFootstepRadius: 155, mufflerPresenceRadius: 95, mufflerCrouchRadius: 40, mufflerMemorySeconds: 5, markSeconds: 3.0, landRadius: 60, singInterval: 5, singRange: 360 },
-  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360, mimicTell: 'none', mufflerFootstepRadius: 185, mufflerPresenceRadius: 115, mufflerCrouchRadius: 50, mufflerMemorySeconds: 6, markSeconds: 2.5, landRadius: 70, singInterval: 4, singRange: 420 },
-  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, mimicTell: 'none', mufflerFootstepRadius: 198, mufflerPresenceRadius: 125, mufflerCrouchRadius: 55, mufflerMemorySeconds: 7, markSeconds: 2.0, landRadius: 80, singInterval: 3.5, singRange: 460, oneLife: true },
+  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240, mimicTell: 'clear', mufflerFootstepRadius: 125, mufflerPresenceRadius: 75, mufflerCrouchRadius: 30, mufflerMemorySeconds: 3, markSeconds: 4.0, landRadius: 45, singInterval: 6, singRange: 270 },
+  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300, mimicTell: 'subtle', mufflerFootstepRadius: 155, mufflerPresenceRadius: 95, mufflerCrouchRadius: 40, mufflerMemorySeconds: 5, markSeconds: 3.0, landRadius: 60, singInterval: 5, singRange: 320 },
+  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360, mimicTell: 'none', mufflerFootstepRadius: 185, mufflerPresenceRadius: 115, mufflerCrouchRadius: 50, mufflerMemorySeconds: 6, markSeconds: 2.5, landRadius: 70, singInterval: 4, singRange: 320 },
+  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, mimicTell: 'none', mufflerFootstepRadius: 198, mufflerPresenceRadius: 125, mufflerCrouchRadius: 55, mufflerMemorySeconds: 7, markSeconds: 2.0, landRadius: 80, singInterval: 3.5, singRange: 320, oneLife: true },
 };
 const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
 for (const id of MODE_ORDER) {
@@ -76,9 +82,10 @@ for (const id of MODE_ORDER) {
 for (let i = 1; i < MODE_ORDER.length; i++) {
   const a = MODES[MODE_ORDER[i - 1]];
   const b = MODES[MODE_ORDER[i]];
-  const up = ['mufflerFootstepRadius', 'mufflerPresenceRadius', 'mufflerCrouchRadius', 'mufflerMemorySeconds', 'landRadius', 'singRange'];
+  const up = ['mufflerFootstepRadius', 'mufflerPresenceRadius', 'mufflerCrouchRadius', 'mufflerMemorySeconds', 'landRadius'];
   const down = ['markSeconds', 'singInterval']; // harder = shorter
   if (up.some((k) => !(b[k] > a[k])) || down.some((k) => !(b[k] < a[k]))) console.warn(`MODES.${MODE_ORDER[i]}: the muffler / singer values must get harder from ${MODE_ORDER[i - 1]}`);
+  if (!(b.singRange >= a.singRange)) console.warn(`MODES.${MODE_ORDER[i]}: singRange must not get shorter than ${MODE_ORDER[i - 1]}'s`); // (it may stay level: see above)
 }
 
 /**
@@ -201,8 +208,10 @@ function levelConfig(n, modeId = 'normal') {
     scentSpeed: enemySpeed * 0.9, // a little slower than an echo monster; always well under the player's 170
     smellRange: m.smell,
     smellSeconds: SMELL_SECONDS,
-    puddles: PUDDLE_CAP[n] ? Math.min(puddlesWanted, PUDDLE_CAP[n]) : puddlesWanted, // how many the level ends up with (level 9 is capped: two scent monsters, no swamp)
-    puddlesDrawn: puddlesWanted, // how many the generator draws before the cap is applied (so the random numbers, and everything drawn after them, stay exactly as before)
+    // how many the level ends up with: none at all where this mode has no scent monster on the level (nothing to smell
+    // them - levels 11-12 and Easy level 10), and level 9 is capped (two scent monsters, no swamp)
+    puddles: scentCount === 0 ? 0 : PUDDLE_CAP[n] ? Math.min(puddlesWanted, PUDDLE_CAP[n]) : puddlesWanted,
+    puddlesDrawn: puddlesWanted, // how many the generator draws before the cap / the "no scent monster" rule is applied (so the random numbers, and everything drawn after them, stay exactly as before)
     // the mimic (level 8+) and the sonar decoy (level 8+)
     mimics: mimicCount, // see MIMIC_MONSTERS
     decoy: n >= DECOY_FROM_LEVEL, // one to find on the level
@@ -441,10 +450,10 @@ function generateLevel(n, runSeed, modeId = 'normal') {
   }
 
   // 8. Smell puddles (level 6+). Mostly in rooms, where you can walk around them.
-  //    Puddles are always at least 3 tiles apart. A level with a cap on its puddles (PUDDLE_CAP: level 9, two scent
-  //    monsters) still DRAWS the full number - so every random number after this is exactly what it always was - and
-  //    then keeps only the first `cfg.puddles` of them (see the return below); the decoy below is still placed as
-  //    if none had been dropped.
+  //    Puddles are always at least 3 tiles apart. A level that keeps fewer puddles than the formula asks for (PUDDLE_CAP:
+  //    level 9, two scent monsters; or none at all where the mode has no scent monster on the level) still DRAWS the
+  //    full number - so every random number after this is exactly what it always was - and then keeps only the first
+  //    `cfg.puddles` of them (see the return below); the decoy below is still placed as if none had been dropped.
   const puddlesAll = [];
   const pRoom = shuffle(roomTiles.filter((i) => !blocked[i]), rand);
   const pOther = shuffle(spots.filter((i) => !roomSet.has(i)), rand);
@@ -466,19 +475,64 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     });
   }
 
-  // 9. Mimics (level 8+): a monster that passes for the exit. It sits well away from the start (so it is a
-  //    plausible exit), and never right next to the real one. (These come after every other random draw so
-  //    that levels without a mimic generate exactly as they always did.)
-  const exitFar = dS[exitIdx];
+  // Helpers for the placements below (they draw no random numbers).
+  //  spotKind   what kind of spot a cell is, from the walls alone (obstacles ignored): 'room' (inside a chamber),
+  //             'deadend' (exactly one way in), 'corridor' (two) or 'junction' (three or four)
+  //  routeSafe  the start can still reach the exit with this tile blocked (so it is not on the only route)
+  const spotKind = (idx) => {
+    if (roomSet.has(idx)) return 'room';
+    const open = (walls[idx - 1] ? 0 : 1) + (walls[idx + 1] ? 0 : 1) + (walls[idx - W] ? 0 : 1) + (walls[idx + W] ? 0 : 1);
+    return open === 1 ? 'deadend' : open === 2 ? 'corridor' : 'junction';
+  };
+  const routeSafe = (idx) => {
+    const b = blocked.slice();
+    b[idx] = 1;
+    return bfsDist(b, W, H, startIdx)[exitIdx] >= 0;
+  };
+
+  // 9. Mimics (level 8+): a monster that passes for the exit, so it is placed by the exit's OWN rule: the real exit is
+  //    "the maze cell farthest from the start" (step 4: cell centres only, ranked by d0, first one wins a tie), and the
+  //    mimic is the farthest cell from the start that is left once these are ruled out - the same loop, the same
+  //    ranking - so it lands on the same style of spot and at the same sort of depth (a far dead end, the far side of
+  //    a loop, the end of a room ...). It is also on the same KIND of spot as the real exit (spotKind), so that nothing
+  //    about where it sits gives it away. Ruled out: within 8 path tiles of the real exit (6 at the very least, once
+  //    the rules are relaxed), a tile the only route from the start to the exit passes through (routeSafe), a tile
+  //    right next to another monster, and the start area (minStart). Stages: same kind first; if none is left, any
+  //    kind. The old rule is the very last resort, so a mimic is found whenever one was found before and no random
+  //    number moves: the only random draw is its pitch, as ever. (These come after every other random draw so that
+  //    levels without a mimic generate exactly as they always did.)
+  const exitKind = spotKind(exitIdx);
+  const farthestCell = (kind, minExit, minSep) => {
+    let best = -1;
+    let bestD = -1;
+    for (let cy = 0; cy < ch; cy++) {
+      for (let cx = 0; cx < cw; cx++) {
+        const idx = (2 * cy + 1) * W + (2 * cx + 1);
+        if (blocked[idx] || d0[idx] <= bestD || dS[idx] < minStart || dE[idx] < minExit || tooClose(idx, minSep)) continue;
+        if ((kind && spotKind(idx) !== kind) || !routeSafe(idx)) continue;
+        best = idx;
+        bestD = d0[idx];
+      }
+    }
+    return best;
+  };
   for (let k = 0; k < cfg.mimics; k++) {
     let pick = -1;
-    for (const [minSep, farFrac] of [[6, 0.5], [3, 0.3], [0, 0]]) {
-      for (const idx of spots) {
-        if (dS[idx] < Math.max(minStart, exitFar * farFrac) || dE[idx] < 8 || tooClose(idx, minSep)) continue;
-        pick = idx;
-        break;
-      }
+    for (const [kind, minExit, minSep] of [[exitKind, 8, 6], [exitKind, 8, 3], [exitKind, 6, 0], [null, 6, 0]]) {
+      pick = farthestCell(kind, minExit, minSep);
       if (pick >= 0) break;
+    }
+    if (pick < 0) {
+      // (the old rule, only ever reached on a maze too cramped for the stages above)
+      const exitFar = dS[exitIdx];
+      for (const [minSep, farFrac] of [[6, 0.5], [3, 0.3], [0, 0]]) {
+        for (const idx of spots) {
+          if (dS[idx] < Math.max(minStart, exitFar * farFrac) || dE[idx] < 8 || tooClose(idx, minSep)) continue;
+          pick = idx;
+          break;
+        }
+        if (pick >= 0) break;
+      }
     }
     if (pick < 0) pick = spots.find((i) => dS[i] >= 4 && dE[i] >= 4 && !tooClose(i, 0)) ?? -1;
     if (pick < 0) continue;
@@ -550,11 +604,6 @@ function generateLevel(n, runSeed, modeId = 'normal') {
   //     distance from the start every monster keeps (at least minStart path tiles), keep away from the other monsters,
   //     and never stand on a tile the route from the start to the exit HAS to pass through (with the tile blocked, the
   //     exit must still be reachable) - so no level can need you to walk through where one spawns.
-  const routeSafe = (idx) => {
-    const b = blocked.slice();
-    b[idx] = 1;
-    return bfsDist(b, W, H, startIdx)[exitIdx] >= 0;
-  };
   const placeNewMonster = (kind, pitch) => {
     let pick = -1;
     for (const safe of [true, false]) {
@@ -584,6 +633,7 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     H,
     walls,
     blocked,
+    roomTiles, // tile indices of every chamber (the tests use it to tell a room from a corridor)
     obstacles,
     puddles,
     decoy, // the sonar decoy lying on the floor waiting to be picked up (level 8+), or null
