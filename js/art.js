@@ -7,6 +7,7 @@
  *   echo monster  (red)     spiky and eyeless: a jagged star of a body with a gaping V mouth and ribs
  *   scent monster (violet)  a soft blob with a wavy edge, drips trailing behind it and small bubbles
  *   stalker       (orange)  a thin body with a tiny blind head, two feelers and long, jointed limbs
+ *   singer        (magenta) a slender body with a wide ring for a mouth and arcs of song radiating from it
  *   boulder       (amber)   an irregular rock with a few cracks
  *   pillar        (amber)   a round column: a ring on top and fluting round the edge
  *   puddle        (lime)    a glossy blob with a shine, two bubbles and a ripple
@@ -46,6 +47,7 @@ const EchoArt = (() => {
     puddle: '190,240,70',
     decoy: '255,122,217',
     stalker: '255,116,16',
+    singer: '236,64,236',
   };
   const CORE = {
     wall: '170,230,255',
@@ -57,8 +59,9 @@ const EchoArt = (() => {
     puddle: '222,255,130',
     decoy: '255,182,236',
     stalker: '255,186,116',
+    singer: '255,176,255',
   };
-  const HEADED = { echo: 1, scent: 1, stalker: 1 };
+  const HEADED = { echo: 1, scent: 1, stalker: 1, singer: 1 };
 
   // ----------------------------------------------------------- tiny helpers
   function hash2(a, b) {
@@ -214,6 +217,46 @@ const EchoArt = (() => {
       }
     }
     detail(ctx, CORE.stalker, a, w, 0.9);
+  }
+
+  // ------------------------------------------------------------------ singer
+  // A slender, tapering body trailing behind a wide RING of a mouth, singing: three arcs of song radiate from the
+  // mouth, each a little fainter, drifting outward. Facing +x. Everything stays inside radius 1.
+  function singer(ctx, a, w, o) {
+    const t = o.t || 0;
+    ctx.beginPath();
+    ctx.moveTo(-0.92, 0);
+    ctx.quadraticCurveTo(-0.4, -0.2, 0.04, -0.1);
+    ctx.lineTo(0.04, 0.1);
+    ctx.quadraticCurveTo(-0.4, 0.2, -0.92, 0);
+    ctx.closePath();
+    paint(ctx, RGB.singer, CORE.singer, a, w, 0.18);
+    // the mouth: a wide, open ring
+    ctx.beginPath();
+    circle(ctx, 0.3, 0, 0.27);
+    ctx.lineWidth = w * 3.6;
+    ctx.strokeStyle = `rgba(${RGB.singer},${0.2 * a})`;
+    ctx.stroke();
+    ctx.lineWidth = w * 1.5;
+    ctx.strokeStyle = `rgba(${CORE.singer},${0.95 * a})`;
+    ctx.stroke();
+    // the song: arcs that drift outward and fade
+    for (let k = 0; k < 3; k++) {
+      const ph = (t * 0.9 + k * 0.33) % 1;
+      const rad = 0.4 + 0.24 * ph;
+      ctx.beginPath();
+      ctx.arc(0.3, 0, rad, -0.78, 0.78);
+      ctx.lineWidth = w * 0.85;
+      ctx.strokeStyle = `rgba(${CORE.singer},${(1 - ph) * 0.85 * a})`;
+      ctx.stroke();
+    }
+    // a few thin trailing filaments behind the body
+    ctx.beginPath();
+    ctx.moveTo(-0.5, -0.08);
+    ctx.quadraticCurveTo(-0.7, -0.34 + 0.05 * Math.sin(t * 2), -0.9, -0.3 + 0.08 * Math.sin(t * 2 + 1));
+    ctx.moveTo(-0.5, 0.08);
+    ctx.quadraticCurveTo(-0.7, 0.34 - 0.05 * Math.sin(t * 2), -0.9, 0.3 - 0.08 * Math.sin(t * 2 + 1));
+    detail(ctx, CORE.singer, a, w, 0.7);
   }
 
   // ------------------------------------------------------------- obstacles
@@ -516,7 +559,7 @@ const EchoArt = (() => {
   }
 
   // ---------------------------------------------------------------- drawing
-  const SHAPES = { echo, scent, stalker, boulder, pillar, puddle, decoy, exit, wall };
+  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall };
   const NO = {};
 
   function draw(ctx, kind, x, y, r, o) {

@@ -40,17 +40,45 @@ function mulberry32(seed) {
  *                     that differs by mode, on purpose. It changes nothing but how the disguised mimic is DRAWN
  *                     (never its sound, size, speed or behaviour, and never the visual sound cue).
  *   oneLife           being caught ends the whole run
+ *
+ * The MUFFLER (debuts on level 11; js/game.js: updateMuffler / mufflersListen). It cannot be seen or smelled and it
+ * absorbs ripples; it only HEARS you, like the stalker, but harder to hide from. The stalker already owns the plain
+ * names `hear` and `presenceRadius`, so the muffler's own values are prefixed:
+ *   mufflerFootstepRadius  px: it hears your footsteps (while you move, standing up) from this far
+ *   mufflerPresenceRadius  px: it hears you STANDING (even still) from this far - smaller than the footstep radius
+ *   mufflerCrouchRadius    px: crouching does NOT silence you fully: crouched MOVEMENT is heard from this far
+ *                          (crouched standing is silent)
+ *   mufflerMemorySeconds   s: how long it remembers the last spot it heard you (it goes there and waits) before it
+ *                          gives up and patrols again
+ * The SINGER (debuts on level 12; updateSinger): it roams and sings ripples of its own; a ripple that reaches you
+ * MARKS you, and after `markSeconds` it leaps to the exact spot the wave found you at.
+ *   markSeconds   s: the countdown from being marked to the leap (the same in calm mode: it is gameplay information)
+ *   landRadius    px: you are caught if you are this close to the landing spot when it lands
+ *   singInterval  s: between its ripples
+ *   singRange     px: how far its ripples reach
+ * Keep every value ordered easy < normal < hard < hardcore in difficulty (a SHORTER countdown is harder).
  */
 const MODES = {
-  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240, mimicTell: 'clear' },
-  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300, mimicTell: 'subtle' },
-  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360, mimicTell: 'none' },
-  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, mimicTell: 'none', oneLife: true },
+  easy: { label: 'Easy', speed: 0.72, speedCap: 105, count: 0.6, listen: 3.5, hear: 100, presenceRadius: 60, ripple: 1.2, cooldown: 0.8, puddles: 0.6, smell: 240, mimicTell: 'clear', mufflerFootstepRadius: 125, mufflerPresenceRadius: 75, mufflerCrouchRadius: 30, mufflerMemorySeconds: 3, markSeconds: 4.0, landRadius: 45, singInterval: 6, singRange: 300 },
+  normal: { label: 'Normal', speed: 0.96, speedCap: 140, count: 1, listen: 4.8, hear: 124, presenceRadius: 75, ripple: 1.03, cooldown: 0.97, puddles: 1, smell: 300, mimicTell: 'subtle', mufflerFootstepRadius: 155, mufflerPresenceRadius: 95, mufflerCrouchRadius: 40, mufflerMemorySeconds: 5, markSeconds: 3.0, landRadius: 60, singInterval: 5, singRange: 360 },
+  hard: { label: 'Hard', speed: 1.1, speedCap: 150, count: 1.25, listen: 6, hear: 148, presenceRadius: 90, ripple: 0.88, cooldown: 1.15, puddles: 1.3, smell: 360, mimicTell: 'none', mufflerFootstepRadius: 185, mufflerPresenceRadius: 115, mufflerCrouchRadius: 50, mufflerMemorySeconds: 6, markSeconds: 2.5, landRadius: 70, singInterval: 4, singRange: 420 },
+  hardcore: { label: 'Hardcore', speed: 1.14, speedCap: 155, count: 1.35, listen: 6.5, hear: 158, presenceRadius: 100, ripple: 0.85, cooldown: 1.2, puddles: 1.4, smell: 380, mimicTell: 'none', mufflerFootstepRadius: 198, mufflerPresenceRadius: 125, mufflerCrouchRadius: 55, mufflerMemorySeconds: 7, markSeconds: 2.0, landRadius: 80, singInterval: 3.5, singRange: 460, oneLife: true },
 };
 const MODE_ORDER = ['easy', 'normal', 'hard', 'hardcore'];
 for (const id of MODE_ORDER) {
-  if (!(MODES[id].presenceRadius < MODES[id].hear)) console.warn(`MODES.${id}: presenceRadius must be smaller than hear (its footstep radius)`);
-  if (!['none', 'subtle', 'clear'].includes(MODES[id].mimicTell)) console.warn(`MODES.${id}: mimicTell must be 'none', 'subtle' or 'clear'`);
+  const m = MODES[id];
+  if (!(m.presenceRadius < m.hear)) console.warn(`MODES.${id}: presenceRadius must be smaller than hear (its footstep radius)`);
+  if (!['none', 'subtle', 'clear'].includes(m.mimicTell)) console.warn(`MODES.${id}: mimicTell must be 'none', 'subtle' or 'clear'`);
+  // the muffler hears from farther off than the stalker does (both ways), standing is heard from nearer than moving, and a crouch is quieter than standing
+  if (!(m.mufflerFootstepRadius > m.hear && m.mufflerPresenceRadius > m.presenceRadius)) console.warn(`MODES.${id}: the muffler's radii must be larger than the stalker's`);
+  if (!(m.mufflerCrouchRadius < m.mufflerPresenceRadius && m.mufflerPresenceRadius < m.mufflerFootstepRadius)) console.warn(`MODES.${id}: mufflerCrouchRadius < mufflerPresenceRadius < mufflerFootstepRadius expected`);
+}
+for (let i = 1; i < MODE_ORDER.length; i++) {
+  const a = MODES[MODE_ORDER[i - 1]];
+  const b = MODES[MODE_ORDER[i]];
+  const up = ['mufflerFootstepRadius', 'mufflerPresenceRadius', 'mufflerCrouchRadius', 'mufflerMemorySeconds', 'landRadius', 'singRange'];
+  const down = ['markSeconds', 'singInterval']; // harder = shorter
+  if (up.some((k) => !(b[k] > a[k])) || down.some((k) => !(b[k] < a[k]))) console.warn(`MODES.${MODE_ORDER[i]}: the muffler / singer values must get harder from ${MODE_ORDER[i - 1]}`);
 }
 
 /**
@@ -87,37 +115,52 @@ const SMELL_SECONDS = 5; // seconds of WALKING you stay smelly after stepping in
 const TRAIL_LIFETIME = 60; // seconds a finished smell trail lasts before it fades away
 const TRAIL_RESMELL_COOLDOWN = 10; // seconds after a trail re-smells you before a trail can do it again
 
+// The muffler (debuts on level 11) and the singer (level 12): see MODES above and js/game.js
+const MUFFLER_FROM_LEVEL = 11;
+const SINGER_FROM_LEVEL = 12;
+const MUFFLER_SPEED_FACTOR = 1.05; // of (70 + 8 * level) * the mode's speed
+const MUFFLER_TOP_SPEED = 160; // px/s: a muffler never exceeds this (the player walks at 170)
+const SINGER_SPEED_FACTOR = 0.8; // of an echo monster's speed on the same level and mode (patrolling)
+const SINGER_LEAP_SECONDS = 0.6; // its leap takes this long from launch to landing
+const SINGER_LAND_WAIT = 2; // s it waits where it landed before it roams and sings again
+const PUDDLE_CAP = { 9: 6 }; // level 9 has two scent monsters (Normal, Hard, Hardcore): no swamp - at most this many puddles
+
 /**
- * The monsters on each level of the game so far - EXACT (the number never varies from run to run; the modes
- * differ in speed, hearing, ripples and so on). The game currently ends after level 10.
+ * The monsters on each level of the game - EXACT (the number never varies from run to run; the modes differ in
+ * speed, hearing, ripples and so on - and, from level 9, in Easy having one fewer). The game ends after level 12.
  *
- * Normal, Hard and Hardcore (these four tables):
- *   level:   1  2  3  4  5  6  7  8  9  10
- *   echo:    0  1  1  2  2  0  1  1  0  0
- *   scent:   0  0  0  0  0  1  1  1  2  1
- *   mimic:   0  0  0  0  0  0  0  1  1  0
- *   stalker: 0  0  0  0  0  0  0  0  0  1
- * Easy is the same except for levels 9 and 10 (MODE_MONSTERS below):
- *   level 9:  1 scent + 1 mimic, nothing else      level 10: 1 stalker, nothing else
+ * Normal, Hard and Hardcore (these tables):
+ *   level:   1  2  3  4  5  6  7  8  9  10  11  12
+ *   echo:    0  1  1  2  2  0  1  1  0  0   1   1
+ *   scent:   0  0  0  0  0  1  1  1  2  1   0   0
+ *   mimic:   0  0  0  0  0  0  0  1  1  0   0   0
+ *   stalker: 0  0  0  0  0  0  0  0  0  1   0   0
+ *   muffler: 0  0  0  0  0  0  0  0  0  0   1   0
+ *   singer:  0  0  0  0  0  0  0  0  0  0   0   1
+ * Easy is the same for levels 1-8 and then (MODE_MONSTERS below):
+ *   level 9:  1 scent + 1 mimic      level 10: 1 stalker      level 11: 1 muffler      level 12: 1 singer
+ * (the mimic turns into an echo monster when pinged, so "no echo monsters" on level 9 still hides one threat).
  *
- * Level 6 is scent-only (no echo monsters); level 7 brings one echo back; level 8 adds the mimic; level 9 (owner's
- * v9.2 schedule) has NO echo monsters - two scent monsters and the mimic - and the sonar decoy to find; level 10 is
- * the stalker's (1 stalker + 1 scent monster; no echo monsters, no mimic - the owner first asked for a mimic there
- * too, then removed it in v9.0), with the decoy, like every level from 9. (Before v9.2 level 9 was 2 echo + 1 scent
- * + 1 mimic in every mode, and level 10 was the same for Easy as for the others.) The decoy and the smell puddles
- * are terrain, not monsters: they are on every level that had them, whatever the mode's monster mix.
- * Levels past 10 do not exist yet; the fallback formula below only keeps them
- * generating sensibly (debug/testing) until they are designed.
+ * Level 6 is scent-only; level 7 brings one echo back; level 8 adds the mimic; level 9 has two scent monsters and the
+ * mimic and the sonar decoy to find; level 10 is the stalker's (with one scent monster); level 11 pairs the new
+ * Muffler with one familiar echo monster; level 12 pairs the new Singer with one. One new threat per level, at most
+ * three monsters at a time (levels 8 and 9 are the peak; the mimic counts as one). The decoy and the smell puddles are
+ * terrain, not monsters: they are on every level that had them, whatever the mode's monster mix.
+ * Levels past 12 do not exist; the fallback formula below only keeps them generating sensibly for debug / testing.
  */
-const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0 };
+const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0, 11: 1, 12: 1 };
 const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 2, 10: 1 };
 const MIMIC_MONSTERS = { 8: 1, 9: 1 };
 const STALKER_MONSTERS = { 10: 1 };
-/** Per-mode exceptions to the tables above: { mode: { level: { echo, scent, mimic, stalker } } } (a level not listed here follows the tables). */
+const MUFFLER_MONSTERS = { 11: 1 };
+const SINGER_MONSTERS = { 12: 1 };
+/** Per-mode exceptions to the tables above: { mode: { level: { echo, scent, mimic, stalker, muffler, singer } } } (a level not listed here follows the tables; a kind left out is 0). */
 const MODE_MONSTERS = {
   easy: {
-    9: { echo: 0, scent: 1, mimic: 1, stalker: 0 },
-    10: { echo: 0, scent: 0, mimic: 0, stalker: 1 },
+    9: { echo: 0, scent: 1, mimic: 1 },
+    10: { stalker: 1 },
+    11: { muffler: 1 },
+    12: { singer: 1 },
   },
 };
 
@@ -127,14 +170,17 @@ function levelConfig(n, modeId = 'normal') {
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
   const basePuddles = n < SCENT_FROM_LEVEL ? 0 : Math.min(3 + (n - SCENT_FROM_LEVEL), 10);
-  const scheduled = n in ECHO_MONSTERS; // levels 1-10 have an exact schedule; anything past them uses the fallback formula
+  const scheduled = n in ECHO_MONSTERS; // levels 1-12 have an exact schedule; anything past them uses the fallback formula
   const pick = MODES[modeId] ? modeId : 'normal';
   const exception = scheduled && MODE_MONSTERS[pick] ? MODE_MONSTERS[pick][n] : undefined; // this mode's own mix for this level, if it has one
-  const echoCount = exception ? exception.echo : scheduled ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
-  const scentCount = exception ? exception.scent : scheduled ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
-  const mimicCount = exception ? exception.mimic : scheduled ? MIMIC_MONSTERS[n] || 0 : n >= MIMIC_FROM_LEVEL ? 1 : 0;
-  const stalkerCount = exception ? exception.stalker : scheduled ? STALKER_MONSTERS[n] || 0 : n >= STALKER_FROM_LEVEL ? 1 : 0;
+  const echoCount = exception ? exception.echo || 0 : scheduled ? ECHO_MONSTERS[n] : Math.min(Math.max(2, Math.round(baseEnemies * m.count)), 10);
+  const scentCount = exception ? exception.scent || 0 : scheduled ? SCENT_MONSTERS[n] || 0 : baseScent === 0 ? 0 : Math.min(Math.max(1, Math.round(baseScent * m.count)), 4);
+  const mimicCount = exception ? exception.mimic || 0 : scheduled ? MIMIC_MONSTERS[n] || 0 : n >= MIMIC_FROM_LEVEL ? 1 : 0;
+  const stalkerCount = exception ? exception.stalker || 0 : scheduled ? STALKER_MONSTERS[n] || 0 : n >= STALKER_FROM_LEVEL ? 1 : 0;
+  const mufflerCount = exception ? exception.muffler || 0 : scheduled ? MUFFLER_MONSTERS[n] || 0 : 0; // (nothing past level 12)
+  const singerCount = exception ? exception.singer || 0 : scheduled ? SINGER_MONSTERS[n] || 0 : 0;
   const enemySpeed = Math.min((70 + n * 8) * m.speed, m.speedCap); // px/s while hunting
+  const puddlesWanted = basePuddles === 0 ? 0 : Math.max(2, Math.round(basePuddles * m.puddles)); // what the formula asks for (the generator draws this many)
   return {
     n,
     mode: modeId,
@@ -155,13 +201,28 @@ function levelConfig(n, modeId = 'normal') {
     scentSpeed: enemySpeed * 0.9, // a little slower than an echo monster; always well under the player's 170
     smellRange: m.smell,
     smellSeconds: SMELL_SECONDS,
-    puddles: basePuddles === 0 ? 0 : Math.max(2, Math.round(basePuddles * m.puddles)),
+    puddles: PUDDLE_CAP[n] ? Math.min(puddlesWanted, PUDDLE_CAP[n]) : puddlesWanted, // how many the level ends up with (level 9 is capped: two scent monsters, no swamp)
+    puddlesDrawn: puddlesWanted, // how many the generator draws before the cap is applied (so the random numbers, and everything drawn after them, stay exactly as before)
     // the mimic (level 8+) and the sonar decoy (level 8+)
     mimics: mimicCount, // see MIMIC_MONSTERS
     decoy: n >= DECOY_FROM_LEVEL, // one to find on the level
     // the stalker (level 10+): hears you (never a ripple, an echo or a decoy), a little slower than an echo monster
     stalkers: stalkerCount, // see STALKER_MONSTERS
     stalkerSpeed: Math.min(enemySpeed * STALKER_SPEED_FACTOR, STALKER_TOP_SPEED), // px/s, patrolling and hunting alike
+    // the muffler (level 11): cannot be seen, absorbs ripples, hears you (a crouch only from close up)
+    mufflers: mufflerCount, // see MUFFLER_MONSTERS
+    mufflerSpeed: Math.min((70 + 8 * n) * m.speed * MUFFLER_SPEED_FACTOR, MUFFLER_TOP_SPEED), // px/s, patrolling and hunting alike; always < 170
+    mufflerFootstepRadius: m.mufflerFootstepRadius,
+    mufflerPresenceRadius: m.mufflerPresenceRadius,
+    mufflerCrouchRadius: m.mufflerCrouchRadius,
+    mufflerMemorySeconds: m.mufflerMemorySeconds,
+    // the singer (level 12): sings ripples; one that reaches you marks you, and it leaps to that spot
+    singers: singerCount, // see SINGER_MONSTERS
+    singerSpeed: enemySpeed * SINGER_SPEED_FACTOR, // px/s walking (its LEAP is a jump and is the one fast thing about it)
+    markSeconds: m.markSeconds,
+    landRadius: m.landRadius,
+    singInterval: m.singInterval,
+    singRange: m.singRange,
   };
 }
 
@@ -380,19 +441,23 @@ function generateLevel(n, runSeed, modeId = 'normal') {
   }
 
   // 8. Smell puddles (level 6+). Mostly in rooms, where you can walk around them.
-  const puddles = [];
+  //    Puddles are always at least 3 tiles apart. A level with a cap on its puddles (PUDDLE_CAP: level 9, two scent
+  //    monsters) still DRAWS the full number - so every random number after this is exactly what it always was - and
+  //    then keeps only the first `cfg.puddles` of them (see the return below); the decoy below is still placed as
+  //    if none had been dropped.
+  const puddlesAll = [];
   const pRoom = shuffle(roomTiles.filter((i) => !blocked[i]), rand);
   const pOther = shuffle(spots.filter((i) => !roomSet.has(i)), rand);
-  let pTries = cfg.puddles * 10;
-  while (puddles.length < cfg.puddles && pTries-- > 0 && (pRoom.length || pOther.length)) {
+  let pTries = cfg.puddlesDrawn * 10;
+  while (puddlesAll.length < cfg.puddlesDrawn && pTries-- > 0 && (pRoom.length || pOther.length)) {
     const idx = pRoom.length && (rand() < 0.8 || !pOther.length) ? pRoom.pop() : pOther.pop();
     if (blocked[idx]) continue;
     const tx = idx % W;
     const ty = (idx / W) | 0;
     if (Math.max(Math.abs(tx - sx), Math.abs(ty - sy)) < 4) continue;
     if (Math.max(Math.abs(tx - ex), Math.abs(ty - ey)) < 2) continue;
-    if (puddles.some((p) => Math.hypot(p.tx - tx, p.ty - ty) < 3)) continue;
-    puddles.push({
+    if (puddlesAll.some((p) => Math.hypot(p.tx - tx, p.ty - ty) < 3)) continue;
+    puddlesAll.push({
       x: (tx + 0.5) * TILE + (rand() - 0.5) * 10,
       y: (ty + 0.5) * TILE + (rand() - 0.5) * 10,
       r: PUDDLE_R,
@@ -440,7 +505,7 @@ function generateLevel(n, runSeed, modeId = 'normal') {
         const ty = (idx / W) | 0;
         if (dS[idx] < lo || dS[idx] > hi || tooClose(idx, minSep)) continue;
         if (Math.max(Math.abs(tx - ex), Math.abs(ty - ey)) < 3) continue;
-        if (puddles.some((p) => Math.hypot(p.tx - tx, p.ty - ty) < 2)) continue;
+        if (puddlesAll.some((p) => Math.hypot(p.tx - tx, p.ty - ty) < 2)) continue;
         pick = idx;
         break;
       }
@@ -480,6 +545,39 @@ function generateLevel(n, runSeed, modeId = 'normal') {
     });
   }
 
+  // 12. Muffler (level 11) and 13. Singer (level 12) - the two newest monsters, placed after everything else and drawing
+  //     nothing on a level without one, so levels 1-10 generate exactly as they always did. Both keep the same
+  //     distance from the start every monster keeps (at least minStart path tiles), keep away from the other monsters,
+  //     and never stand on a tile the route from the start to the exit HAS to pass through (with the tile blocked, the
+  //     exit must still be reachable) - so no level can need you to walk through where one spawns.
+  const routeSafe = (idx) => {
+    const b = blocked.slice();
+    b[idx] = 1;
+    return bfsDist(b, W, H, startIdx)[exitIdx] >= 0;
+  };
+  const placeNewMonster = (kind, pitch) => {
+    let pick = -1;
+    for (const safe of [true, false]) {
+      for (const minSep of [8, 5, 2, 0]) {
+        for (const idx of spots) {
+          if (dS[idx] < minStart || tooClose(idx, minSep) || (safe && !routeSafe(idx))) continue;
+          pick = idx;
+          break;
+        }
+        if (pick >= 0) break;
+      }
+      if (pick >= 0) break;
+    }
+    if (pick < 0) pick = spots.find((i) => dS[i] >= Math.ceil(minStart / 2) && !tooClose(i, 0)) ?? -1;
+    if (pick < 0) return;
+    const tx = pick % W;
+    const ty = (pick / W) | 0;
+    enemies.push({ kind, tx, ty, x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, sleeper: false, pitch });
+  };
+  for (let k = 0; k < cfg.mufflers; k++) placeNewMonster('muffler', 46 + rand() * 8); // its deep hum
+  for (let k = 0; k < cfg.singers; k++) placeNewMonster('singer', 200 + rand() * 40); // its sung note
+
+  const puddles = cfg.puddles < puddlesAll.length ? puddlesAll.slice(0, cfg.puddles) : puddlesAll;
   return {
     cfg,
     W,

@@ -34,6 +34,8 @@ Headphones recommended: echoes and monsters are stereo-panned, muffled by walls,
 | Red | Echo monsters | **spiky and eyeless**: a jagged star of a body with a gaping V mouth and ribs |
 | Violet | Scent monsters (level 6+) | a **soft blob with a wavy edge**, drips trailing behind it and small bubbles inside |
 | Orange | Stalkers (level 10+) | **tall and thin**: a narrow body, a tiny blind head, two feelers and long jointed limbs |
+| Magenta | Singers (level 12) | a **slender body with a wide ring for a mouth**, and arcs of song radiating from it. Its own ripples are magenta too |
+| (none) | The Muffler (level 11) | **never seen**: a ripple that reaches it is swallowed, so it leaves a hole in the echo map instead of a shape. The title legend has a text-only line for it |
 | Lime | Smell puddles (level 6+) and your smell trail | a **glossy blob** with a shine, two bubbles and a ripple |
 | Pink | The sonar decoy (level 9+) | a **small device**: a box with a dial, a short antenna and a ring round it |
 | Green | The way out | a **portal**: concentric rings, a slowly rotating arc, a little doorway and a few soft sparkles |
@@ -64,14 +66,22 @@ Clearing level 8 plays a last scene (~30 s, skippable, **Continue** skips it) be
 
 Clearing level 9 plays a scene (~25 s, skippable, **Continue** skips it) before level 10, and it is the only one where the explorer survives. After the card *Some things do not need a ripple to find you.*, a fifth explorer (day 47, a cold white lamp) is walking softly along a corridor when something breathes in behind them: a **stalker** (orange) has heard their steps. It keeps coming. They stop, drop into a **crouch** and creep up out of its way; it reaches the exact spot it heard them, stands there listening with its feelers sweeping while they hold their breath beside it, hears nothing for three seconds and walks on. "It couldn't hear me. Not a thing." / "Can't ping down here. But nothing can hear me either." The closing card is the hint: *It hears every step, even you standing still. Hold SHIFT to crouch.* Then level 10.
 
-The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. All five scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens all of them (no flash or shake, dimmer monsters, quieter sound). Every scene can be rewatched from the replay screen once it has played.
+### The sixth scene (after level 10): the muffler — nothing comes back
+
+Clearing level 10 plays a scene (~22 s, skippable, **Continue** skips it) before level 11. After the card *Some things swallow your echo.*, a sixth explorer (day 58, a grey-white lamp) sends one ripple down a dark corridor — and the echo just **stops**, leaving a gap: something unseen has swallowed the wave (the game's own rule: the Muffler absorbs ripples). A deep hum, then slow, dull thumps coming closer. They drop into a crouch and creep back — but the thing hears even a crouched step from close up, the thumps stop right beside them, a deep thud, blackout. The closing card: *You cannot see it. You can only hear it. Crouching helps a lot. Stay still when it is close.* The Muffler itself is never drawn, in the scene either.
+
+### The seventh scene (after level 11): the singer — keep moving
+
+Clearing level 11 plays a scene (~19 s, skippable, **Continue** skips it) before level 12, and the explorer gets away. After the card *Some things sing to find you.*, a seventh explorer (day 66, a violet-white lamp) hears something wavering far off; it **sings a ripple** of its own — a magenta wave that lights the corridor and reaches them. A sting and a ticking countdown that speeds up: they are **marked**. They freeze a beat, then run. At zero the Singer **leaps** over the walls and lands exactly where they were standing — and finds nothing there. *If its song finds you, keep moving.*
+
+The explorers' voices are synthesised too: formant-shaped buzzing under typewriter subtitles, no audio files. All seven scenes live in [`js/cutscene.js`](js/cutscene.js), each driven by a single timeline of times at the top of that file. Calm mode softens all of them (no flash or shake, dimmer monsters, quieter sound). Every scene can be rewatched from the replay screen once it has played.
 
 ## Replaying levels and cutscenes
 
 Once there is something to replay, a **Levels & cutscenes** button appears under Begin on the title screen (`Esc` goes back).
 
 - **Levels:** every level you have already **cleared on the selected difficulty** can be picked and played again (1 up to the one before your best). Levels you haven't cleared — including the one you're currently up to, which is what **Continue** is for — are dimmed and can't be picked. Each mode has its own list, so switch mode on the title screen to see another mode's levels. Replaying never lowers your saved progress, and it starts straight in the level with no cutscene, like Continue (except that a story scene you have never seen plays first — see below). **Hardcore has no level select**: it is one life from level 1 and can't be resumed, so a level select would just be a way around that.
-- **Cutscenes:** the five story scenes can be rewatched once they have played — or once you are past the point where they play, even if the scene was added after you got there (the ones you haven't reached yet show as locked "???"). They work in every mode, honour calm mode, can be skipped, and drop you back on this screen when they end.
+- **Cutscenes:** the seven story scenes can be rewatched once they have played — or once you are past the point where they play, even if the scene was added after you got there (the ones you haven't reached yet show as locked "???"). They work in every mode, honour calm mode, can be skipped, and drop you back on this screen when they end.
 - **A scene you never saw plays first:** **Continue** (and picking a level from the list) normally skips the story scenes, but if the scene that leads into that level has never been shown — for example you cleared level 7 before the mimic scene existed — it plays once before the level, then never again on Continue.
 
 ## How it works
@@ -96,21 +106,23 @@ When a ripple's wave reaches something, it is drawn **as itself**, not just as a
 
 ## Levels
 
-There are **ten levels so far**. Clearing level 10 ends the game with a *You finished the game* screen — more levels are coming later. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows. Level 1 has no monsters so you can learn the ropes.
+There are **twelve levels**. Clearing level 12 ends the game with a *You finished the game* screen. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows (maze sizes run from 7 x 5 cells on level 1 to 18 x 14 on level 12). Level 1 has no monsters so you can learn the ropes. A maze for a given seed is the same in every mode.
 
-The monsters on each level are **exact** (the number never varies from run to run). They are the same in every mode **except on levels 9 and 10 on Easy** (the modes otherwise differ in speed, hearing, ripples and puddles, not in how many monsters there are). **Normal, Hard and Hardcore:**
+The monsters on each level are **exact** (the number never varies from run to run). **Levels 1 to 8 are the same in every mode. From level 9 on, Easy has one fewer monster** (the modes otherwise differ in speed, hearing, ripples and puddles, not in how many monsters there are). **Normal, Hard and Hardcore:**
 
-| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 0 | 0 |
-| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 2 | 1 |
-| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
-| Stalker (orange) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
-| Sonar decoy to find | – | – | – | – | – | – | – | – | 1 | 1 |
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Echo monsters (red) | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 1 | 0 | 0 | 1 | 1 |
+| Scent monsters (violet) | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 2 | 1 | 0 | 0 |
+| Mimic (looks like the exit) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | 0 | 0 |
+| Stalker (orange) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| Muffler (never seen) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| Singer (magenta) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| Sonar decoy to find | – | – | – | – | – | – | – | – | 1 | 1 | 1 | 1 |
 
-**Easy** is identical for levels 1 to 8, and then: **level 9** has just **one scent monster and one mimic** (no echo monster), and **level 10** has **only a stalker** (no scent monster, nothing else). The sonar decoy and the smell puddles are terrain, not monsters, so they stay on those levels as before.
+**Easy** is identical for levels 1 to 8, and then: **level 9** has **one scent monster and one mimic** (no second scent monster); **level 10** has **only a stalker**; **level 11** has **only the Muffler** (no echo monster); **level 12** has **only the Singer** (no echo monster). The mimic turns into an echo monster when a ripple touches it, so "no echo monsters" on level 9 still hides one threat. The sonar decoy and the smell puddles are terrain, not monsters, so they stay on those levels as before.
 
-Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** has **no echo monsters**: two scent monsters and the mimic (one scent monster on Easy), and the **sonar decoy** (below); from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker and one scent monster (only the stalker on Easy) — no echo monsters and no mimic — so nothing on it can be alerted by a ripple at all. (It was planned with a mimic too; that was removed in v9.0. Before v9.2, level 9 had two echo monsters and one scent monster in every mode.)
+Each level introduces **one new threat**, and a debut level pairs the new monster with at most one familiar one (none on Easy); there are never more than **three monsters** at a time (levels 8 and 9 are the peak; the mimic counts as one). Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo monsters at all** — only the scent monster, so nothing on it hears your ripples; level 7 brings an echo monster back alongside it. **Level 8** adds the **mimic** (below). **Level 9** has no echo monsters: two scent monsters and the mimic, and the **sonar decoy** (below) — and, because of the two scent monsters, **no more than six puddles** (puddles are always at least three tiles apart); from here every level has a sonar decoy to find. **Level 10** is the **stalker's**: one stalker and one scent monster, no echo monsters and no mimic, so nothing on it can be alerted by a ripple at all. **Level 11** brings the **Muffler** and **level 12** the **Singer** (both below), each with one echo monster. Both new monsters spawn far from the start like every other monster (at least `min(8 + level / 2, 16)` path tiles away), never on a tile the way from the start to the exit *has* to pass through, and never next to another monster. (Before v9.2, level 9 had two echo monsters and one scent monster in every mode.)
 
 ### Crouching (every level, every mode)
 
@@ -119,7 +131,7 @@ Smell puddles arrive with the scent monster on level 6. **Level 6 has no echo mo
 - you make **no footstep sound** — so nothing can hear one;
 - you **cannot send a ripple**;
 - the top right shows **Crouching**, and your dot shrinks and dims;
-- **the instant you start crouching, everything your ripples showed you is wiped**: waves still travelling, the echoes they hadn't returned yet (their sounds are cancelled and never play), every fading mark on walls, obstacles, monsters, puddles and the sonar decoy, and the exit's glimmer (the mimic's too, or the difference would give it away). **Standing up does not bring any of it back** — only a new ripple shows anything again (that includes the exit's glimmer, which stays hidden until you next send one).
+- **the instant you start crouching, everything YOUR ripples showed you is wiped** (a Singer's waves are not yours: crouching does not stop them and does not wipe what they lit): waves still travelling, the echoes they hadn't returned yet (their sounds are cancelled and never play), every fading mark on walls, obstacles, monsters, puddles and the sonar decoy, and the exit's glimmer (the mimic's too, or the difference would give it away). **Standing up does not bring any of it back** — only a new ripple shows anything again (that includes the exit's glimmer, which stays hidden until you next send one).
 
 Crouching works in every mode, on every level. (Bumping into a wall still makes its small mark; that is you feeling the wall, not a footstep.)
 
@@ -131,6 +143,23 @@ An **orange** monster, a little slower than an echo monster (**0.95 x** its spee
 - **Presence** — while you are standing, **even completely still**, from within a smaller radius (**60 / 75 / 90 / 100 px** on Easy / Normal / Hard / Hardcore; always smaller than that mode's footstep distance).
 
 A presence hit counts exactly like a footstep: it **walks to the exact spot it heard you**, keeps updating that spot for as long as it keeps hearing you, and **loses you if it hears nothing for 3 seconds** (even if it has not got there yet). When it hears nothing it **patrols to random tiles at a steady pace and never stands still**, so waiting in a corner does not work. **Crouching silences both.** It has its own voice — slow breathing and soft clicks, no growl — its own footsteps and a soft breath-and-click when it hears you. Touching it kills you.
+
+### The Muffler (level 11): the thing you cannot see
+
+A "mini boss" that is **never drawn** (the title legend says so in words: *Muffler: can't be seen, only heard*). It **absorbs ripples**: when a ripple ray reaches it, the ray simply ends there — no echo, no colour, no sound — so it is never lit, and everything behind it (walls, monsters, puddles, the decoy) is in **shadow**. That gap in your echo map is the only tell; nothing else reveals it. It absorbs the Singer's ripples too. It cannot be smelled either: it has no scent, ignores puddles and trails, and leaves none.
+
+You can only **hear** it: a deep, dampened hum with slow, muffled thumps, spatialised like the other monsters and following the same wall-muffling and Doppler rules. It joins the heartbeat and the red screen-edge creep (both still off in calm mode), and has a small Visual-cue glyph (a pale hollow ring with a dash through it).
+
+It **tracks by footsteps, like the stalker but harder**: it ignores ripples, echoes and the sonar decoy; it hears your footsteps from `mufflerFootstepRadius` and hears you **standing** (even still) from the smaller `mufflerPresenceRadius` — both larger than the stalker's — at all times, with no listening window. **Crouching does not fully silence you**: a crouched *move* is heard from a small `mufflerCrouchRadius`; crouched standing is silent. When it hears you it goes to the exact spot, and keeps following while it keeps hearing you; it remembers the last spot for `mufflerMemorySeconds` after losing you (and waits there), then patrols to random tiles, **leaning towards where it last heard you**. Touching it kills (radius 14, like an echo monster). Its speed is `min((70 + 8 x level) x mode speed x 1.05, 160)` px/s — always below your 170.
+
+### The Singer (level 12): the song that marks you
+
+**Magenta.** It roams (at 0.8 x an echo monster's speed) and **sings ripples of its own** through the game's real ripple system: a sung tone from where it stands, and a magenta wave that lights walls, obstacles, monsters and the exit as it reaches them, so you see the maze lit by it. Its waves are blocked by walls and obstacles and swallowed by the Muffler, like any ripple. It is **deaf** to your footsteps, your standing, your ripples and the sonar decoy; it learns about you **only** when one of its waves reaches you — and **crouching does not protect you** from its waves.
+
+- **Marked.** When a wave reaches you, the exact spot it found you at is recorded and a countdown of `markSeconds` starts. You hear a clear **sting**, then **ticking that speeds up**. The countdown audio stays at full volume in calm mode (it is gameplay information), and the countdown length never changes in calm mode. With Visual cues on, a magenta **ring shrinks around you**.
+- **The leap.** At zero the Singer launches — a rising whoosh — and **jumps over the walls to the recorded spot**, taking 0.6 s from launch, and lands **exactly** on it. If you are within `landRadius` of the spot when it lands, you are caught. Touching the Singer at any time kills you. It waits about 2 s where it landed, then roams and sings again. Further wave hits during the countdown and the leap are ignored. So: **keep moving** — a marked player who runs still has the countdown *and* the 0.6 s of the leap to get clear.
+- Its leap is a jump, not a walk: it covers the distance in 0.6 s, which is faster than 170 px/s — the one fast thing about it. Walking, it is slower than an echo monster.
+- Voice: an eerie sustained hum with a wavering pitch (same wall-muffling and Doppler rules); its sung tone and the launch whoosh get a magenta cue glyph (a ring with three small arcs). Calm mode softens the whoosh, the landing crash and any shake; not the countdown.
 
 ### The mimic (level 8+)
 
@@ -150,11 +179,11 @@ This is an **intentional difference between modes, and a deliberate exception to
 
 Every level from 9 has one **sonar decoy** lying somewhere (it glimmers pink when you are near, blips faintly, and shows up pink in a ripple). Walk onto it to pick it up — you can carry **only one**, shown in the top right — and press **`E`** to drop it where you stand. It beeps (faster and higher) for **5 seconds**, then **calls**: every monster within **480 px** of it — an echo monster (whatever it was doing, even asleep or tracking you), a scent monster, or a mimic **even if it hasn't turned yet** — is drawn to it. They pathfind to it and are **trapped there for 5 seconds after they arrive**, deaf to ripples, footsteps and smell, and then go back to normal (echo monsters and disguised mimics stand idle where they are; scent monsters patrol again). It is **one time use**. A trapped monster is still deadly to touch, so get past it, don't bump it. A mimic that is dragged over stays disguised and silent while it walks (only its chime moves).
 
-Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change (and, apart from levels 9 and 10 on Easy, not even how many).
+Mazes are generated from a seed, so **Try again** gives you the same layout; a new run gets new mazes. The maze for a given seed is the same in every mode — only the monsters change (and, up to level 8, not even how many).
 
 ## Difficulty modes
 
-Pick one on the title screen. Each mode scales the level curve (the table shows level 6 as an example). The number of monsters is not part of it — that is the same in every mode, except that Easy has fewer monsters on levels 9 and 10 (see **Levels**).
+Pick one on the title screen. Each mode scales the level curve (the table shows level 6 as an example). The number of monsters is not part of it — that is the same in every mode, except that from level 9 on Easy has one fewer (see **Levels**).
 
 | | Easy | Normal | Hard | Hardcore |
 | --- | --- | --- | --- | --- |
@@ -168,9 +197,20 @@ Pick one on the title screen. Each mode scales the level curve (the table shows 
 | Smell puddles on level 6 | 2 | 3 | 4 | 4 |
 | Scent monster smell range | 240 px | 300 px | 360 px | 380 px |
 | A disguised mimic's look (level 8-9) | clear tell | subtle tell | identical to the exit | identical to the exit |
+| Muffler hears your footsteps within | 125 px | 155 px | 185 px | 198 px |
+| Muffler hears you standing still within | 75 px | 95 px | 115 px | 125 px |
+| Muffler hears a *crouched* move within (crouched still: never) | 30 px | 40 px | 50 px | 55 px |
+| Muffler remembers the last spot for | 3 s | 5 s | 6 s | 7 s |
+| Muffler speed on level 11 | 119 px/s | 159 | 160 | 160 |
+| Singer: countdown once marked | 4.0 s | 3.0 s | 2.5 s | 2.0 s |
+| Singer: you are caught if this close to where it lands | 45 px | 60 px | 70 px | 80 px |
+| Singer sings every | 6 s | 5 s | 4 s | 3.5 s |
+| Singer's ripples reach | 300 px | 360 px | 420 px | 460 px |
+| Singer walking speed on level 12 (0.8 x an echo monster's) | 84 px/s | 112 | 120 | 124 |
+| Your own ripple range on level 12 (for comparison) | 302 px | 260 px | 222 px | 214 px |
 | Lives | unlimited retries | unlimited retries | unlimited retries | **one life** |
 
-Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Easy, Normal and Hard**, being caught shows *Try again*, which puts you back at the start of the level you were on (same maze, monsters reset). In **Hardcore**, being caught ends the run: you are sent straight back to the title screen, there is no Continue and no way to resume, and the next Begin starts over from level 1 on a fresh maze. Your Hardcore **high score** (the furthest level you reached, or "finished the game") stays on the title screen — on the Hardcore button and as its own line — and is never lowered by a worse run. Every monster is always slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode.
+Normal is a hair easier than the game used to be (before modes existed), Hard is clearly tougher, and Hardcore is a touch harder again. In **Easy, Normal and Hard**, being caught shows *Try again*, which puts you back at the start of the level you were on (same maze, monsters reset). In **Hardcore**, being caught ends the run: you are sent straight back to the title screen, there is no Continue and no way to resume, and the next Begin starts over from level 1 on a fresh maze. Your Hardcore **high score** (the furthest level you reached, or "finished the game") stays on the title screen — on the Hardcore button and as its own line — and is never lowered by a worse run. Every monster *walks* slower than you (you walk at 170 px/s), so you can outrun a locked-on monster in any mode; the one exception is the Singer's 0.6 s leap, which is a jump over the walls to a spot it already knows — and you have the whole countdown, and the leap itself, to get clear of it.
 
 Progress (best level unlocked) is saved separately for each mode, and your choice of mode is remembered. The cutscenes you have seen are remembered too.
 
@@ -196,6 +236,9 @@ Each sound that has a direction is also drawn as a small glyph on a ring about *
 | The exit's chime | green **chevron** with a short arc of the portal's ring behind it, on the chime's own 2.4 s rhythm, only within its range |
 | A mimic's fake chime | **exactly the same** green chevron as the exit's, with exactly the same tell the sound has — no more, no less (in every mode) |
 | Sonar decoy | pink **four-point star in a ring**: at its drop spot, and each time it pings (and the floor one when you are near) |
+| The Muffler: its hum and its thumps | a pale **hollow ring with a dash through it**. Like every cue it shows only direction, rough loudness and timing, only while the sound is audible |
+| The Singer: its hum, its sung tone, its launch whoosh, its landing | a magenta **ring with three small arcs** |
+| Being marked by a singer | a magenta **ring that shrinks around you** as the countdown runs out (the ticking is the sound) |
 | Heartbeat | a thin **ring** around you, pulsing at the heartbeat's rate |
 
 - Nothing pulses more than **3 times a second**: each source is limited to one pulse per third of a second, however fast its sound repeats (a chasing monster's footsteps are heard about six times a second but flash the cue at most three).
@@ -233,7 +276,7 @@ style.css       styling (everything for touch is under `body.touch`)
 js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling and Doppler)
 js/level.js     level generation + difficulty curve (levelConfig)
 js/art.js       EchoArt - how everything a ripple lights up is drawn (shapes, textures, the exit portal, the mimic's tell)
-js/cutscene.js  the five story cutscenes: lore cards + scripted scenes (timelines at the top)
+js/cutscene.js  the seven story cutscenes: lore cards + scripted scenes (timelines at the top)
 js/cues.js      Visual cues (accessibility): the glyphs on the ring around you
 js/touch.js     on-screen touch controls: the virtual joystick and buttons
 js/game.js      input, physics, ripples, monster AI, rendering, game flow
@@ -247,4 +290,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `audio`) for poking at the game from the console. `settings()` reports `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress` and `seen`. `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `showMuffler(on)` (draw the Muffler, which is never drawn in normal play, as a dim ring with a dash), `newMonsters()` (the Muffler's and Singer's state), `markBy(singer)` (force a mark), `audio`) for poking at the game from the console. `settings()` reports `campaignLevels` (12), `muffler` and `singer` (this mode's numbers from the MODES table, plus the level's speeds), `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress` and `seen`. `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.

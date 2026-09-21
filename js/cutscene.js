@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * The story cutscenes - five scripted scenes in the dark maze, chosen by start(kind):
+ * The story cutscenes - seven scripted scenes in the dark maze, chosen by start(kind):
  *   'intro'   (before level 1) an explorer who has been lost for too long sends out a ripple, hears
  *                              something answer, and is taken by an echo monster. Then it is your turn.
  *   'scent'   (level 5 -> 6)   an explorer steps in a puddle and a scent monster follows their trail.
@@ -10,6 +10,10 @@
  *   'stalker' (level 9 -> 10)  a stalker hears an explorer's steps and comes for the spot; they crouch, creep
  *                              clear and it finds nothing. The one scene where the explorer gets away, and
  *                              it shows the player how (hold SHIFT to crouch).
+ *   'muffler' (level 10 -> 11) an explorer pings a corridor and the echo just stops: something unseen swallows the wave.
+ *                              A hum, slow thumps; even a crouched creep is heard from close up. Blackout.
+ *   'singer'  (level 11 -> 12) something far off sings a magenta ripple; when it reaches an explorer they are marked
+ *                              (sting, ticking countdown). It leaps to the spot they were at - they kept moving.
  *
  * Everything runs off one clock (`time`, seconds since the cutscene began), and
  * everything you hear is synthesised - including the mumble of the explorer's
@@ -196,6 +200,71 @@ const EchoCutscene = (() => {
     [12.8, "Can't ping down here. But nothing can hear me either."],
   ];
 
+  // ------------------------------------------------ the muffler scene (levels 10 -> 11)
+  // A sixth explorer pings a dark corridor and the echo simply STOPS: something swallows the wave, leaving a gap in
+  // the echo map. A deep hum, and slow dull thumps that come closer. They drop into a crouch and creep back - but a
+  // muffler hears even a crouched step from close up, and it stops beside them. Blackout. It is never seen: the only
+  // things on screen are the hole in the ripple and the explorer's failing lamp. (Plays after level 10 is cleared.)
+  const MF_S = 4.4;
+  const MF_X0 = 640; // where it waits, in the corridor (never drawn)
+  const MF_R = 26; // how big its shadow is in the scene (the game's muffler is 14 px; this reads better on a small stage)
+  const MF_PING_T = 5.4; // they send one ripple...
+  const MF_MOVE_T = 6.6; // ...it starts walking towards where the sound came from...
+  const MF_V = 48; // ...at this pace, px/s
+  const MF_CROUCH_T = 9.2; // they drop low...
+  const MF_STOP_X = 330; // ...and it stops here, right beside them
+  const MF_ARRIVE_T = MF_MOVE_T + (MF_X0 - MF_STOP_X) / MF_V; // (about 13.1)
+  const MF_HIT_T = MF_ARRIVE_T + 0.1; // a deep thud, and blackout
+  const MF_CARD_T = 16.6;
+  const MF_END_T = 21.6;
+  const MF_PATH = [[0, 100, PY], [3.8, 300, PY], [MF_CROUCH_T, 300, PY], [12.3, 262, PY], [99, 262, PY]]; // they walk in, stand, then creep back crouched
+  const MF_LINES = [
+    [1.2, 'Nothing but my own steps.'],
+    [3.9, 'One ping. Just to be sure.'],
+    [7.3, '...It just stopped. Right there.'],
+    [9.0, 'Something is humming. Something big.'],
+    [10.9, 'Low. Slow. Quiet.'],
+    [12.4, "It stopped. It knows-"],
+  ];
+
+  // ------------------------------------------------ the singer scene (levels 11 -> 12)
+  // A seventh explorer walks the corridor while something far off sings. Its song is a ripple: a magenta wave lights the
+  // corridor - and reaches them. A sting, and a countdown that ticks faster and faster: they are marked. They run. At
+  // zero it LEAPS over the walls, lands exactly on the spot the wave found them at - and finds nothing there. They keep
+  // moving and get away; the scene ends on the way to that. (Plays after level 11 is cleared.)
+  const SG_S = 4.4;
+  const SG_X0 = 780; // where it sings from (never lit until it leaps)
+  const SG_SING_T = 4.4; // its song (a ripple of its own)
+  const SG_MARK_X = 380; // where the explorer is when the wave reaches them - the spot it will land on
+  const SG_MARK_T = SG_SING_T + (SG_X0 - SG_MARK_X) / 520; // the wave (RIPPLE_SPEED 520) reaches them
+  const SG_COUNT = 3.0; // the countdown: Normal's markSeconds. The same length in calm mode.
+  const SG_LEAP_T = SG_MARK_T + SG_COUNT; // it launches...
+  const SG_LEAP_S = 0.6; // ...the leap takes this long (SINGER_LEAP_SECONDS)...
+  const SG_LAND_T = SG_LEAP_T + SG_LEAP_S; // ...and lands on the marked spot
+  const SG_CARD_T = 13.8;
+  const SG_END_T = 18.8;
+  const SG_PATH = [[0, 100, PY], [SG_MARK_T, SG_MARK_X, PY], [SG_MARK_T + 0.5, SG_MARK_X, PY], [SG_LEAP_T + 0.3, 200, PY], [SG_LAND_T + 3.8, 150, PY], [99, 150, PY]]; // walk, get marked, freeze a beat, then run
+  const SG_LINES = [
+    [1.0, 'Long way yet.'],
+    [3.4, '...Is something singing?'],
+    [SG_MARK_T + 0.3, 'It found me! Move, move-'],
+    [SG_LAND_T + 0.9, 'It landed right where I was.'],
+    [SG_LAND_T + 3.0, 'Keep moving. Never stop.'],
+  ];
+  /** The gaps between the ticks of the countdown: the same rule the game uses (0.85 s shrinking to 0.11 s). Returns [time since the sting, progress 0..1]. */
+  function sgTicks() {
+    const out = [];
+    for (let tt = 0.55; tt < SG_COUNT; ) {
+      const pr = tt / SG_COUNT;
+      out.push([tt, pr]);
+      tt += 0.85 - 0.74 * pr;
+    }
+    return out;
+  }
+
+  const PAL_MUFFLER = { glow: '204,214,228', cone: '216,224,236', body: '214,222,234', hand: '222,230,240', head: '238,243,249', lamp: '250,252,255' }; // a grey-white lamp: nothing warm down here
+  const PAL_SINGER = { glow: '236,196,250', cone: '240,212,252', body: '238,208,250', hand: '244,222,254', head: '250,238,255', lamp: '254,248,255' }; // a violet-white lamp
+  const MAGENTA = '236,64,236'; // the singer's tint
   const PAL_INTRO = { glow: '255,208,140', cone: '255,226,170', body: '255,226,175', hand: '255,232,190', head: '255,240,212', lamp: '255,250,232' };
   const PAL_SCENT = { glow: '196,236,170', cone: '210,242,196', body: '206,236,196', hand: '214,242,204', head: '234,250,228', lamp: '246,255,240' };
   const PAL_MIMIC = { glow: '255,176,156', cone: '255,200,182', body: '255,200,186', hand: '255,210,196', head: '255,228,216', lamp: '255,242,234' }; // a coral lamp
@@ -207,9 +276,9 @@ const EchoCutscene = (() => {
   const ORANGE = '255,116,16'; // the stalker's orange
 
   // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
-  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S };
-  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER };
-  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10 };
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER };
+  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12 };
 
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
@@ -310,6 +379,12 @@ const EchoCutscene = (() => {
     // stalker scene state
     let crouchAmt = 0; // 0..1: how far down the explorer is (smaller, and the lamp dims)
     let stMon = { x: -200, heading: 0, stepDist: 0, clickCd: 0.8, listening: false, moving: false }; // the stalker
+    // muffler scene state (the muffler itself is never drawn)
+    let mfMon = { x: MF_X0, stepDist: 0, thumpCd: 0.6, stopped: false }; // where it is, and its slow thumps
+    // singer scene state
+    let sgMon = { x: SG_X0, y: PY, phase: 'sing', arc: 0 }; // phase: sing | leap | landed; arc = its height above the corridor in the leap
+    let sgTickIdx = 0; // which countdown tick comes next
+    let sgHit = false; // the wave has reached the explorer: they are marked (until it launches)
     // scent scene state
     let smell = 0; // seconds of walking left of being smelly
     let trail = null; // the smell trail behind the explorer: { pts, active }
@@ -1097,8 +1172,282 @@ const EchoCutscene = (() => {
       camY = 150;
     }
 
+    // ------------------------------------------- the muffler scene: the timeline
+    /** Where the (unseen) muffler is at scene time st: it waits in the corridor, then walks towards where the sound came from and stops beside the explorer. */
+    function mufflerX(st) {
+      if (st < MF_MOVE_T) return MF_X0;
+      return Math.max(MF_STOP_X, MF_X0 - MF_V * (st - MF_MOVE_T));
+    }
+
+    function buildMuffler() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S6 = MF_S;
+
+      at(0.6, () => {
+        showCard('Some things swallow your echo.');
+        audio.swell(48);
+      });
+      at(S6 - 1.0, hideCard);
+      at(S6, () => {
+        rings = [];
+      });
+      at(S6 + 0.8, () => {
+        el.caption.textContent = 'Day 58';
+        el.caption.classList.add('show');
+      });
+      at(S6 + 3.4, () => el.caption.classList.remove('show'));
+      MF_LINES.forEach(([t, text]) => at(S6 + t, () => say(text)));
+      [2.0, 5.0, 8.6].forEach((t) => at(S6 + t, () => audio.breath(0.9)));
+
+      // its hum starts far down the corridor, long before anything else - and nothing is ever seen
+      at(S6 + 2.4, () => {
+        mvoice = audio.createEnemyVoice(50, 'muffler');
+      });
+      // one ripple down the corridor: the wave that reaches the muffler simply ENDS there (the game's own rule, via an absorber)
+      at(S6 + MF_PING_T, () => {
+        audio.ping(0.85);
+        stage.cfg.rippleRadius = 430;
+        env.castRipple(person.x, person.y, 430, { absorbers: [{ x: MF_X0, y: PY, r: MF_R }] });
+      });
+      [[10.2, 0.5], [11.0, 0.65], [11.8, 0.8], [12.5, 0.9]].forEach(([t, g]) => at(S6 + t, () => audio.heartbeat(g)));
+      at(S6 + MF_HIT_T - 0.05, () => {
+        const h = heard(mfMon.x, PY, 900);
+        audio.mufflerAlert(h.pan, 1);
+      });
+      at(S6 + MF_HIT_T, () => {
+        flash = isCalm() ? 0 : 1;
+        shake = isCalm() ? 0 : 14;
+        personVisible = false;
+        lampOn = false;
+        stopMonsterVoice();
+        clearSub();
+        audio.stopAmbient();
+        audio.silence(1.25);
+      });
+      at(S6 + MF_HIT_T + 0.25, () => {
+        dark = true;
+      });
+      at(S6 + MF_HIT_T + 1.3, () => audio.clank()); // their sonar device clatters to the floor
+      at(S6 + MF_CARD_T, () => {
+        showCard('You cannot see it. You can only hear it.\nCrouching helps a lot. Stay still when it is close.');
+        audio.swell(46, 1.1);
+      });
+      at(S6 + MF_CARD_T + 4.6, hideCard);
+      at(S6 + MF_END_T, () => finish());
+
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S6 + t, () => fx(text, dur));
+      fxs(2.4, '[a low, dampened hum]', 1.9);
+      fxs(MF_PING_T, '[sonar ping]', 1.3);
+      fxs(MF_PING_T + 1.4, '[the echo stops short]', 1.8);
+      fxs(MF_MOVE_T + 0.6, '[slow, heavy thumps]', 2.2);
+      fxs(10.2, '[heartbeat pounding]', 1.6);
+      fxs(12.5, '[the thumps stop]', 1.3);
+      fxs(MF_HIT_T - 0.05, '[a deep thud]', 1.2);
+      fxs(MF_HIT_T + 1.3, '[device clatters]', 1.6);
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the muffler scene. */
+    function updateMufflerScene(dt) {
+      if (time < MF_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - MF_S;
+      flash = Math.max(0, flash - dt * 2.4);
+      shake = Math.max(0, shake - dt * 30);
+
+      // the explorer walks in, stands, drops into a crouch and creeps back (a crouch makes no footsteps)
+      crouchAmt = smooth((st - MF_CROUCH_T) / 0.5);
+      const bx = person.x;
+      const by = person.y;
+      const p = pathAt(MF_PATH, st);
+      person.x = p.x;
+      person.y = p.y;
+      const moved = Math.hypot(person.x - bx, person.y - by);
+      isWalking = personVisible && moved > 0.01;
+      if (isWalking && crouchAmt < 0.5) {
+        stepDist += moved;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(0.35);
+        }
+      }
+      angle = 0;
+
+      // the muffler (invisible): waits, then walks towards them with slow, dull thumps - and the thumps stop when it is beside them
+      const before = mfMon.x;
+      mfMon.x = mufflerX(st);
+      mfMon.stopped = st >= MF_ARRIVE_T - 0.55;
+      if (mfMon.x < before - 0.001 && !mfMon.stopped && personVisible) {
+        mfMon.thumpCd -= dt;
+        if (mfMon.thumpCd <= 0) {
+          const near = clamp((MF_X0 - mfMon.x) / (MF_X0 - MF_STOP_X), 0, 1);
+          mfMon.thumpCd = 1.15 - 0.5 * near; // quicker as it closes in
+          const h = heard(mfMon.x, PY, 800);
+          audio.mufflerThump(h.pan, 0.5 + 0.5 * h.g);
+        }
+      }
+      danger = personVisible ? clamp((st - MF_MOVE_T) / (MF_HIT_T - MF_MOVE_T), 0, 1) : 0;
+      if (mvoice) {
+        const h = heard(mfMon.x, PY, 900);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.16 + 0.4 * danger), pan: h.pan, mood: 0.3 + 0.7 * danger, muffle: false });
+      }
+
+      // the lamp gutters as it comes, and is turned down while they are crouched
+      const wobble = 0.86 + 0.14 * Math.sin(time * 19) + (Math.random() - 0.5) * 0.08;
+      const dropout = danger > 0.5 && Math.sin(time * 9.3) * Math.sin(time * 4.1) > 0.85 ? 0.3 : 1;
+      lampFlicker = lampOn ? wobble * dropout * (1 - 0.4 * crouchAmt) : 0;
+
+      camX = lerp(camX, person.x + (st > MF_CARD_T - 1.2 ? 300 : 120), Math.min(1, dt * 2.5));
+      camY = 150;
+    }
+
+    // ------------------------------------------- the singer scene: the timeline
+    function buildSinger() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S7 = SG_S;
+
+      at(0.6, () => {
+        showCard('Some things sing to find you.');
+        audio.swell(52);
+      });
+      at(S7 - 1.0, hideCard);
+      at(S7, () => {
+        rings = [];
+      });
+      at(S7 + 0.8, () => {
+        el.caption.textContent = 'Day 66';
+        el.caption.classList.add('show');
+      });
+      at(S7 + 3.4, () => el.caption.classList.remove('show'));
+      SG_LINES.forEach(([t, text]) => at(S7 + t, () => say(text)));
+      [2.0, 6.4].forEach((t) => at(S7 + t, () => audio.breath(0.9)));
+
+      // its hum, far off, then its song: a ripple of its own from where it stands (the game's real ripple system, in magenta)
+      at(S7 + SG_SING_T - 2.0, () => {
+        mvoice = audio.createEnemyVoice(215, 'singer');
+      });
+      at(S7 + SG_SING_T, () => {
+        const h = heard(SG_X0, PY, 1100);
+        audio.singerSing(h.pan, Math.max(h.g, 0.5));
+        stage.cfg.rippleRadius = 460;
+        env.castRipple(SG_X0, PY, 460, { singer: true });
+      });
+      // the wave reaches them: a sting, then a countdown of ticks that speed up (never softened in calm mode)
+      at(S7 + SG_MARK_T, () => {
+        sgHit = true;
+        noticed = true;
+        audio.markSting();
+      });
+      at(S7 + SG_MARK_T + 0.55, () => {
+        noticed = false;
+      });
+      sgTicks().forEach(([tt, pr]) => at(S7 + SG_MARK_T + tt, () => audio.markTick(pr)));
+      [[1.0, 0.45], [1.8, 0.65], [2.4, 0.85], [2.8, 0.95]].forEach(([t, g]) => at(S7 + SG_MARK_T + t, () => audio.heartbeat(g)));
+      // it launches - a rising whoosh - and lands on the spot they WERE at
+      at(S7 + SG_LEAP_T, () => {
+        sgHit = false;
+        sgMon.phase = 'leap';
+        const h = heard(SG_X0, PY, 1200);
+        audio.singerWhoosh(h.pan, Math.max(h.g, 0.5));
+      });
+      at(S7 + SG_LAND_T, () => {
+        sgMon.phase = 'landed';
+        const h = heard(SG_MARK_X, PY, 1000);
+        audio.singerLand(h.pan, Math.max(h.g, 0.5));
+        shake = isCalm() ? 0 : 6;
+      });
+      at(S7 + SG_CARD_T, () => {
+        showCard('If its song finds you, keep moving.');
+        audio.swell(50, 1.1);
+      });
+      at(S7 + SG_CARD_T + 4.2, hideCard);
+      at(S7 + SG_END_T, () => finish());
+
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S7 + t, () => fx(text, dur));
+      fxs(SG_SING_T - 2.0, '[an eerie, wavering hum]', 1.9);
+      fxs(SG_SING_T, '[a long, sung tone]', 1.6);
+      fxs(SG_MARK_T, '[a sting - they are marked]', 1.5);
+      fxs(SG_MARK_T + 0.9, '[ticking, faster and faster]', 2.0);
+      fxs(SG_LEAP_T, '[a rising whoosh]', 1.0);
+      fxs(SG_LAND_T, '[a heavy landing]', 1.4);
+      fxs(SG_LAND_T + 2.3, '[footsteps, hurrying away]', 1.8);
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the singer scene. */
+    function updateSingerScene(dt) {
+      if (time < SG_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - SG_S;
+      flash = 0;
+      shake = Math.max(0, shake - dt * 30);
+
+      // the explorer walks, is marked (a beat's freeze), then runs - away from the spot the wave found them at
+      const bx = person.x;
+      const by = person.y;
+      const p = pathAt(SG_PATH, st);
+      person.x = p.x;
+      person.y = p.y;
+      const moved = Math.hypot(person.x - bx, person.y - by);
+      isWalking = moved > 0.01;
+      if (isWalking) {
+        stepDist += moved;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(st > SG_MARK_T ? 0.5 : 0.35);
+        }
+      }
+      angle = lerp(angle, st > SG_MARK_T + 0.4 ? Math.PI : 0, Math.min(1, dt * 8)); // they turn and run
+
+      // the singer: stays where it sings from; at zero it leaps over the corridor's walls (an arc) to the marked spot, and stays there
+      if (sgMon.phase === 'leap') {
+        const u = clamp((st - SG_LEAP_T) / SG_LEAP_S, 0, 1);
+        sgMon.x = lerp(SG_X0, SG_MARK_X, u * u * (3 - 2 * u));
+        sgMon.arc = 90 * Math.sin(Math.PI * u);
+      } else if (sgMon.phase === 'landed') {
+        sgMon.x = SG_MARK_X;
+        sgMon.arc = 0;
+      }
+      danger = st < SG_MARK_T ? 0 : st < SG_LAND_T ? clamp((st - SG_MARK_T) / SG_COUNT, 0, 1) : clamp(1 - (st - SG_LAND_T) / 3, 0, 1);
+      if (mvoice) {
+        const h = heard(sgMon.x, PY, 1000);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.14 + 0.34 * (0.4 + 0.6 * danger)), pan: h.pan, mood: 0.4 + 0.6 * danger, muffle: false });
+      }
+
+      const wobble = 0.86 + 0.14 * Math.sin(time * 19) + (Math.random() - 0.5) * 0.08;
+      const dropout = danger > 0.6 && st < SG_LAND_T && Math.sin(time * 9.3) * Math.sin(time * 4.1) > 0.85 ? 0.3 : 1;
+      lampFlicker = wobble * dropout;
+
+      camX = lerp(camX, person.x + (st > SG_CARD_T - 1.2 ? 300 : 110), Math.min(1, dt * 2.5));
+      camY = 150;
+    }
+
     // ----------------------------------------------------------------- flow
-    /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8), 'decoy' (8 -> 9) or 'stalker' (9 -> 10). */
+    /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8), 'decoy' (8 -> 9), 'stalker' (9 -> 10), 'muffler' (10 -> 11) or 'singer' (11 -> 12). */
     function start(k = 'intro') {
       kind = SCENE_START[k] !== undefined ? k : 'intro';
       sceneStart = SCENE_START[kind];
@@ -1112,6 +1461,10 @@ const EchoCutscene = (() => {
       dcStep = { echo: 0, scent: 0 };
       crouchAmt = 0;
       stMon = { x: -200, heading: 0, stepDist: 0, clickCd: 0.8, listening: false, moving: false };
+      mfMon = { x: MF_X0, stepDist: 0, thumpCd: 0.6, stopped: false };
+      sgMon = { x: SG_X0, y: PY, phase: 'sing', arc: 0 };
+      sgTickIdx = 0;
+      sgHit = false;
       glowPulse = 0;
       isWalking = false;
       active = true;
@@ -1141,6 +1494,8 @@ const EchoCutscene = (() => {
       else if (kind === 'mimic') buildMimic();
       else if (kind === 'decoy') buildDecoy();
       else if (kind === 'stalker') buildStalker();
+      else if (kind === 'muffler') buildMuffler();
+      else if (kind === 'singer') buildSinger();
       else build();
       el.root.classList.remove('hidden');
       el.card.classList.remove('show');
@@ -1202,6 +1557,14 @@ const EchoCutscene = (() => {
       }
       if (kind === 'stalker') {
         updateStalkerScene(dt);
+        return;
+      }
+      if (kind === 'muffler') {
+        updateMufflerScene(dt);
+        return;
+      }
+      if (kind === 'singer') {
+        updateSingerScene(dt);
         return;
       }
 
@@ -1272,7 +1635,7 @@ const EchoCutscene = (() => {
 
     function drawPerson() {
       const lamp = lampFlicker;
-      const walking = kind === 'mimic' || kind === 'decoy' || kind === 'stalker' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
+      const walking = kind === 'mimic' || kind === 'decoy' || kind === 'stalker' || kind === 'muffler' || kind === 'singer' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
       const phase = time * 9;
       ctx.save();
       ctx.translate(person.x + offX, person.y + (walking ? Math.sin(phase) * 0.8 : 0));
@@ -1361,6 +1724,7 @@ const EchoCutscene = (() => {
     const ECHO_R = 34;
     const SCENT_R = 30;
     const STALKER_R = 44;
+    const SINGER_R = 40; // the singer, shown bigger than the game's 14 px
     const MIMIC_R = ECHO_R * 0.9; // the mimic's "exit" in the scene: the size of the monster it turns into as it starts to
 
     /** An echo monster's body at (mx,my), facing `heading`: the spiky, eyeless, ribbed monster of the game, in red line-art. */
@@ -1610,6 +1974,50 @@ const EchoCutscene = (() => {
       if (personVisible) drawPerson();
     }
 
+    /** Everything in the muffler scene: the lit walls, the wave that ends in nothing, the explorer. The muffler itself is NEVER drawn. */
+    function drawMufflerWorld() {
+      if (!dark) drawLitWalls(person.x, person.y, 170, 0.45);
+      env.drawRippleLayer(); // the explorer's ping: the wave that hits the muffler just stops, leaving a hole in the picture
+      if (personVisible) drawPerson();
+    }
+
+    /** Everything in the singer scene: the lit walls, its magenta song, the singer in the air during its leap, the marked ring, the explorer. */
+    function drawSingerWorld() {
+      const st = sceneT();
+      const soft = isCalm();
+      drawLitWalls(person.x, person.y, 170, 0.45);
+      env.drawRippleLayer(); // its song is a real ripple (magenta) that lights the corridor
+      // the singer is not lit by its own song: a faint glow while it sings, then seen in the air as it leaps, and where it lands
+      let a = 0;
+      if (sgMon.phase === 'sing') a = st > SG_SING_T - 0.1 && st < SG_SING_T + 1.3 ? 0.3 * (1 - (st - SG_SING_T) / 1.4) : 0;
+      else if (sgMon.phase === 'leap') a = 0.95;
+      else a = clamp((300 - Math.abs(sgMon.x - person.x)) / 160, 0.15, 1) * clamp(1 - (st - (SG_LAND_T + 2.6)) / 2.4, 0, 1);
+      if (a > 0.01) {
+        ctx.globalCompositeOperation = 'lighter';
+        if (sgMon.phase === 'leap') {
+          // a streak of afterimages behind it
+          for (let k = 3; k >= 1; k--) {
+            const u = clamp((st - SG_LEAP_T) / SG_LEAP_S - k * 0.07, 0, 1);
+            EchoArt.draw(ctx, 'singer', lerp(SG_X0, SG_MARK_X, u * u * (3 - 2 * u)), sgMon.y - 90 * Math.sin(Math.PI * u), SINGER_R, { a: (0.32 / k) * (soft ? 0.6 : 1), t: time, h: Math.PI });
+          }
+        }
+        EchoArt.draw(ctx, 'singer', sgMon.x, sgMon.y - sgMon.arc, SINGER_R, { a: a * (soft ? 0.6 : 1), t: time, h: Math.PI });
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      // marked: the countdown as a magenta ring that shrinks around the explorer (only with the Visual cues option, as in the game)
+      if (sgHit && env.visualCues && env.visualCues()) {
+        const frac = clamp(1 - (st - SG_MARK_T) / SG_COUNT, 0, 1);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(${MAGENTA},0.85)`;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(person.x, person.y, 14 + 34 * frac, 0, TAU);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      if (personVisible) drawPerson();
+    }
+
     function draw() {
       if (!active) return;
       const { DPR, viewScale } = env.size();
@@ -1640,6 +2048,10 @@ const EchoCutscene = (() => {
         drawDecoyWorld();
       } else if (kind === 'stalker') {
         drawStalkerWorld();
+      } else if (kind === 'muffler') {
+        drawMufflerWorld();
+      } else if (kind === 'singer') {
+        drawSingerWorld();
       } else {
         env.drawRippleLayer();
         if (personVisible) drawPerson();

@@ -9,10 +9,10 @@
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
-  const CAMPAIGN_LEVELS = 10; // the game so far: clearing level 10 ends it ("you finished") - more levels come later
+  const CAMPAIGN_LEVELS = 12; // the game so far: clearing level 12 ends it ("you finished") - more levels may come later
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
-  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker' };
-  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10 };
+  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer' };
+  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12 };
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -33,11 +33,13 @@
   const T_PUDDLE = 6; // smell puddle (lime) - never blocks a ripple, just shows up in it
   const T_DECOY = 7; // sonar decoy (pink) - lies flat like a puddle, shows up in a ripple but never blocks it
   const T_STALKER = 8; // stalker (orange) - a ripple can show it, but it learns nothing from it
-  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217', '255,116,16'];
+  const T_SINGER = 9; // singer (magenta) - a ripple can show it, but it is deaf to yours. (The muffler has NO type: it absorbs the ray, so nothing is ever lit.)
+  const COLORS = [null, '95,212,255', '255,179,71', '255,59,92', '93,255,160', '176,124,255', '190,240,70', '255,122,217', '255,116,16', '236,64,236'];
+  const SINGER_RGB = '236,64,236'; // the tint of a singer's own ripples (magenta)
   // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
   // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
-  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5];
-  const NRAYTYPES = 9; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster) and 8 (stalker); 0 = nothing. 6 and 7 are flat marks (puddle, decoy), never rays
+  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5];
+  const NRAYTYPES = 10; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker) and 9 (singer); 0 = nothing (also where the muffler ate the ray). 6 and 7 are flat marks (puddle, decoy), never rays
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
@@ -60,8 +62,10 @@
     6: 'No echo monsters here. A new monster follows SMELL, not sound. Lime puddles make you smelly while you walk, and you leave a trail it will follow for about a minute.',
     7: 'Your own trail can smell you again: step back onto it while it lasts and you are smelly, like a puddle. Give it about ten seconds between touches.',
     8: 'Not every green glow is the way out: something here copies the exit, and turns on you the moment your ripple touches it.',
-    9: 'A pink sonar decoy lies somewhere on this level. Walk onto it, then press E to drop it: five seconds later it calls every monster nearby and traps them there.',
+    9: 'More things follow your smell now, so mind the puddles and your trail. A pink sonar decoy lies somewhere: walk onto it, press E to drop it, and five seconds later it calls every monster nearby and traps them there.',
     10: 'The stalker ignores ripples and decoys. It only listens: your footsteps, and even you standing close. Hold SHIFT to crouch - you make no sound, but you cannot send a ripple.',
+    11: 'If your ripple leaves a hole in the echo, something is standing in it. You cannot see it or smell it - only hear it. It listens harder than the stalker, and crouching helps a lot, but it is not a guarantee.',
+    12: 'Something sings. Its song lights the maze, and if a wave of it reaches you, you are marked: a countdown ticks, then it leaps to where the song found you. Keep moving.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -153,6 +157,8 @@
   let cooldown = 0;
   let artT = 0; // seconds: the clock the art (js/art.js) animates by. Drawing only - it never touches the simulation
   let artHold = null; // ?debug only: hold the art's clock still, for screenshots
+  let singerLanded = false; // a singer has just landed within landRadius of you: you are caught (checked with the outcomes of updatePlay)
+  let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
   let beaconTimer = 0;
@@ -462,14 +468,24 @@
    *                    It hears you two ways, both only while you are NOT crouching, both at all times: your footsteps
    *                    (while you move, within footstepRadius) and your presence (standing, even still, within the
    *                    smaller presenceRadius). See stalkersListen / updateStalker.
+   *   'muffler' (level 11; never drawn) ABSORBS ripples (castRipple: a ray that reaches it just ends - no echo, no colour, no
+   *                    sound - so it leaves a hole in the echo map and is never lit) and cannot be smelled (no scent, no
+   *                    trail, ignores puddles). Like the stalker it hears you at all times with no listening window, but from
+   *                    farther off, and a crouch only quiets you: crouched MOVEMENT is heard from a small radius. It
+   *                    remembers the last spot for mufflerMemorySeconds. See mufflersListen / updateMuffler.
+   *   'singer' (level 12; magenta) roams and SINGS ripples of its own (castRipple with { singer }); it is deaf to everything
+   *                    of yours. A wave of its that reaches you MARKS you: a countdown, then it leaps to the exact spot the
+   *                    wave found you at. See updateSinger / singerRippleHits.
    * `state` is idle | hunt (walking to a spot) | search (listening) | track (following you)
-   * for an echo monster, patrol | follow (along a smell trail) | track (smelling you) for a scent monster, and
-   * patrol | hunt (walking to the exact spot it last heard you) for a stalker.
+   * for an echo monster, patrol | follow (along a smell trail) | track (smelling you) for a scent monster,
+   * patrol | hunt (walking to the exact spot it last heard you) for a stalker or a muffler, and
+   * patrol | marked (counting down) | leap | recover for a singer.
    * Any monster a sonar decoy has called is `lured` (walking to it) and then `trapped` (held there for
-   * DECOY_TRAP_SECONDS) before it goes back to normal (see lureEnemy / updateLured). A stalker is never called.
+   * DECOY_TRAP_SECONDS) before it goes back to normal (see lureEnemy / updateLured). A stalker, a muffler and a singer are never called.
    */
   function makeEnemy(spec) {
     const kind = spec.kind || 'echo';
+    const roamer = kind === 'scent' || kind === 'stalker' || kind === 'muffler' || kind === 'singer'; // these never stand about
     return {
       kind,
       x: spec.x,
@@ -477,12 +493,21 @@
       r: kind === 'mimic' ? EXIT_R : ENEMY_R, // a disguised mimic is exactly as big as the exit it copies
       pitch: spec.pitch, // kept so a mimic can get its echo-monster voice when it turns
       sleeper: spec.sleeper,
-      state: kind === 'scent' || kind === 'stalker' ? 'patrol' : 'idle',
+      state: roamer ? 'patrol' : 'idle',
       path: null,
       pi: 0,
       timer: 0,
       repath: 0,
-      pause: kind === 'scent' ? 0.3 + Math.random() : kind === 'stalker' ? 0 : 1 + Math.random() * 2,
+      pause: kind === 'scent' ? 0.3 + Math.random() : kind === 'stalker' || kind === 'muffler' || kind === 'singer' ? 0 : 1 + Math.random() * 2,
+      everHeard: false, // muffler: it has heard you at least once (its patrol leans towards heardX/heardY)
+      singCd: kind === 'singer' ? 2 + Math.random() * 2 : 0, // singer: seconds to its next song (the first comes a little after you arrive) - a draw only for a singer, so no other monster's random numbers move
+      markX: 0, // singer: the exact spot the wave that marked you found you at (where it will land)
+      markY: 0,
+      markFrac: 0, // singer: how much of the countdown is left (1 = just marked, 0 = it leaps)
+      tickCd: 0, // singer: seconds to the next countdown tick
+      leapT: 0, // singer: seconds since it launched
+      leapX0: 0,
+      leapY0: 0,
       stepDist: 0,
       alertCd: 0,
       heardX: 0, // stalker: the exact spot it last heard you
@@ -610,8 +635,244 @@
       return;
     }
     // a disguised mimic just sits there, silent, being an exit
-    const moved = e.kind === 'stalker' ? updateStalker(e, dt) : e.kind === 'scent' ? updateScent(e, dt) : e.kind === 'mimic' ? 0 : updateEcho(e, dt);
+    const moved =
+      e.kind === 'stalker' ? updateStalker(e, dt)
+      : e.kind === 'muffler' ? updateMuffler(e, dt)
+      : e.kind === 'singer' ? updateSinger(e, dt)
+      : e.kind === 'scent' ? updateScent(e, dt)
+      : e.kind === 'mimic' ? 0
+      : updateEcho(e, dt);
     enemyAudio(e, moved, dt);
+  }
+
+  // ---------------------------------------------------------------- muffler
+  /**
+   * The MUFFLER (level 11). It cannot be seen (a ripple that reaches it is swallowed: see castRipple) and cannot be
+   * smelled (it has no scent and ignores puddles, smell and trails). It only HEARS you, at all times (no listening
+   * window), by straight-line distance through walls like every monster:
+   *   - standing up: your footsteps (while you actually move) from mufflerFootstepRadius, and your presence
+   *     (standing, even still) from the smaller mufflerPresenceRadius;
+   *   - crouching does NOT fully silence you: crouched MOVEMENT is heard from the small mufflerCrouchRadius; crouched
+   *     standing is silent.
+   * It ignores ripples, echoes and the sonar decoy entirely.
+   */
+  function mufflersListen(walked) {
+    for (const e of enemies) {
+      if (e.kind !== 'muffler') continue;
+      const d = Math.hypot(e.x - player.x, e.y - player.y);
+      const heard = player.crouching
+        ? walked && d <= cfg.mufflerCrouchRadius
+        : d <= cfg.mufflerPresenceRadius || (walked && d <= cfg.mufflerFootstepRadius);
+      if (heard) mufflerHeard(e);
+    }
+  }
+
+  /** It heard you: it goes to the exact spot you are at right now, and keeps updating it while it keeps hearing you. */
+  function mufflerHeard(e) {
+    if (e.state !== 'hunt') {
+      e.state = 'hunt';
+      e.repath = 0; // plan the route at once
+      if (e.alertCd <= 0) {
+        // a single deep, dull thud as it turns towards you (a cue for it too, and a short caption)
+        const sp = spatial(e.x, e.y, 700);
+        audio.mufflerAlert(sp.pan, sp.g);
+        if (sp.g >= 0.01) {
+          cues.pulse('muffler', e.x, e.y, cueLoud(sp.g), { big: true, key: e, sub: 'alert' });
+          cues.caption('[a deep thud]');
+        }
+        e.alertCd = 2;
+      }
+    }
+    e.deaf = 0;
+    e.everHeard = true;
+    e.heardX = player.x;
+    e.heardY = player.y;
+    e.spotNew = true;
+  }
+
+  /** Muffler AI. Returns the distance it moved this frame. It never has a listening window and never stands about. */
+  function updateMuffler(e, dt) {
+    const speed = cfg.mufflerSpeed; // one steady pace, patrolling or hunting
+    let moved = 0;
+    if (e.state === 'hunt') {
+      e.deaf += dt; // seconds since it last heard you: it remembers the spot for mufflerMemorySeconds, then gives up
+      if (e.deaf >= cfg.mufflerMemorySeconds) {
+        e.state = 'patrol';
+        e.path = null;
+        e.pause = 0;
+      } else {
+        e.repath -= dt;
+        if (e.spotNew && e.repath <= 0) {
+          e.repath = 0.15;
+          e.spotNew = false;
+          setPathTo(e, e.heardX, e.heardY);
+        }
+        moved = followPath(e, speed, dt); // at the spot it just waits there (until the memory runs out)
+      }
+    }
+    if (e.state === 'patrol') {
+      if (e.path) moved = followPath(e, speed, dt);
+      else {
+        e.pause -= dt;
+        if (e.pause <= 0) mufflerPatrol(e);
+      }
+    }
+    return moved;
+  }
+
+  /**
+   * Patrol to a random tile a good way off - leaning towards the last place it heard you: of a handful of random
+   * tiles it usually picks the one nearest that spot (and any of them the rest of the time, so it still wanders).
+   */
+  function mufflerPatrol(e) {
+    const tiles = [];
+    for (let i = 0; i < 6; i++) {
+      const t = randomNearbyTile(e, 12);
+      if (t) tiles.push(t);
+    }
+    if (e.everHeard && tiles.length > 1 && Math.random() < 0.65) {
+      const dh = (t) => Math.hypot((t[0] + 0.5) * TILE - e.heardX, (t[1] + 0.5) * TILE - e.heardY);
+      tiles.sort((a, b) => dh(a) - dh(b));
+    }
+    for (const t of tiles) {
+      if (setPathTo(e, (t[0] + 0.5) * TILE, (t[1] + 0.5) * TILE)) {
+        e.pause = 0;
+        return;
+      }
+    }
+    e.path = null;
+    e.pause = 0.25; // nowhere to go from here this frame: try again very shortly
+  }
+
+  // ----------------------------------------------------------------- singer
+  /**
+   * The SINGER (level 12) roams the maze (0.8 x an echo monster's speed) and every singInterval seconds SINGS: a ripple
+   * of its own, from where it stands, through the game's real ripple system (magenta; walls and obstacles block it,
+   * the muffler swallows it). It is deaf to your footsteps, your standing, your ripples and the sonar decoy; the only
+   * thing it learns about you is that one of its waves reached you (singerRippleHits -> markPlayer). Crouching does
+   * not stop a wave. Being marked:
+   *   1. the exact spot the wave found you at is recorded and a countdown of markSeconds starts (a clear sting, then
+   *      ticks that speed up - the same volume in calm mode: it is gameplay information);
+   *   2. at zero it LEAPS - a jump over the walls that takes SINGER_LEAP_SECONDS from launch, with a rising whoosh -
+   *      and lands exactly on the recorded spot;
+   *   3. you are caught if you are within landRadius of the spot when it lands; touching it at any time also kills;
+   *   4. it waits SINGER_LAND_WAIT seconds where it landed, then roams and sings again.
+   * More waves reaching you while it counts down, leaps or waits are ignored. (It keeps singing during the countdown.)
+   */
+  function markPlayer(e) {
+    if (e.state !== 'patrol') return; // marked / leaping / recovering already: further hits are ignored
+    e.state = 'marked';
+    e.markX = player.x;
+    e.markY = player.y;
+    e.timer = cfg.markSeconds;
+    e.markFrac = 1;
+    e.tickCd = 0.55; // the first tick follows the sting
+    audio.markSting(); // not spatial and not softened in calm mode
+    cues.caption('[a sting - you are marked]');
+  }
+
+  function updateSinger(e, dt) {
+    let moved = 0;
+    if (e.state === 'leap') {
+      e.leapT += dt;
+      const u = clamp(e.leapT / SINGER_LEAP_SECONDS, 0, 1);
+      if (u >= 1) {
+        // it lands EXACTLY on the recorded spot
+        e.x = e.markX;
+        e.y = e.markY;
+        e.path = null;
+        e.state = 'recover';
+        e.timer = SINGER_LAND_WAIT;
+        const sp = spatial(e.x, e.y, 900);
+        audio.singerLand(sp.pan, Math.max(sp.g, 0.2));
+        if (!calm) shake = Math.max(shake, 8 * Math.max(sp.g, 0.2));
+        cues.pulse('singer', e.x, e.y, cueLoud(Math.max(sp.g, 0.3)), { big: true, key: e, sub: 'land' });
+        cues.caption('[a heavy landing]');
+        if (Math.hypot(player.x - e.markX, player.y - e.markY) <= cfg.landRadius) singerLanded = true; // caught: see the outcomes at the end of updatePlay
+      } else {
+        const k = u * u * (3 - 2 * u);
+        e.x = e.leapX0 + (e.markX - e.leapX0) * k;
+        e.y = e.leapY0 + (e.markY - e.leapY0) * k;
+      }
+      return 0; // (a jump makes no footsteps)
+    }
+    if (e.state === 'recover') {
+      e.timer -= dt;
+      if (e.timer <= 0) {
+        e.state = 'patrol';
+        e.pause = 0;
+        e.singCd = Math.min(e.singCd, cfg.singInterval * 0.5); // it starts singing again soon after it has recovered
+      }
+      return 0;
+    }
+    // patrol (and the countdown, during which it keeps roaming and singing)
+    if (e.path) moved = followPath(e, cfg.singerSpeed, dt);
+    else {
+      e.pause -= dt;
+      if (e.pause <= 0) stalkerPatrol(e); // a random tile a good way off, and on to the next when it gets there
+    }
+    e.singCd -= dt;
+    if (e.singCd <= 0) {
+      e.singCd = cfg.singInterval;
+      singerSing(e);
+    }
+    if (e.state === 'marked') {
+      e.timer -= dt;
+      e.markFrac = clamp(e.timer / cfg.markSeconds, 0, 1);
+      e.tickCd -= dt;
+      if (e.tickCd <= 0) {
+        audio.markTick(1 - e.markFrac); // ticks that speed up (and rise) as the countdown runs out
+        e.tickCd = 0.85 - 0.74 * (1 - e.markFrac);
+      }
+      if (e.timer <= 0) {
+        // LAUNCH
+        e.state = 'leap';
+        e.leapT = 0;
+        e.leapX0 = e.x;
+        e.leapY0 = e.y;
+        e.path = null;
+        const sp = spatial(e.x, e.y, 1100);
+        audio.singerWhoosh(sp.pan, Math.max(sp.g, 0.35));
+        cues.pulse('singer', e.x, e.y, cueLoud(Math.max(sp.g, 0.4)), { big: true, key: e, sub: 'whoosh' });
+        cues.caption('[a rising whoosh]');
+      }
+    }
+    return moved;
+  }
+
+  /** One song: a magenta ripple from where it stands, and its sung tone from there. */
+  function singerSing(e) {
+    castRipple(e.x, e.y, cfg.singRange, { singer: e });
+    const sp = spatial(e.x, e.y, 1000);
+    const blocked = soundBlocked(e.x, e.y, player.x, player.y);
+    audio.singerSing(sp.pan, sp.g, audioFx && blocked);
+    if (sp.g >= 0.01) {
+      cues.pulse('singer', e.x, e.y, cueLoud(sp.g), { big: true, key: e, sub: 'sing', muffled: blocked });
+      cues.caption('[a sung tone]');
+    }
+  }
+
+  /**
+   * One of the singer's waves has just passed over where you are? Physically, like touchMonsters: the wavefront must
+   * be passing over you now, within its range, and one of its rays must actually REACH you (a wall, an obstacle, a
+   * monster - or the muffler - that ends the ray first shields you). Crouching does not matter. The first hit marks you.
+   */
+  function singerRippleHits(rp, r0, r1) {
+    if (state !== 'play' || rp.hitPlayer || r0 >= rp.R) return;
+    const dx = player.x - rp.x;
+    const dy = player.y - rp.y;
+    const d = Math.hypot(dx, dy);
+    if (d > rp.R || d - PLAYER_R > r1 || d + PLAYER_R < r0) return;
+    const j0 = Math.round((Math.atan2(dy, dx) / TAU) * RAYS);
+    const span = Math.ceil(Math.atan(PLAYER_R / Math.max(d, PLAYER_R)) / (TAU / RAYS));
+    for (let k = -span; k <= span; k++) {
+      const j = (((j0 + k) % RAYS) + RAYS) % RAYS;
+      if (rp.dist[j] >= d - 1) {
+        rp.hitPlayer = true;
+        if (rp.singer && rp.singer !== true) markPlayer(rp.singer);
+        return;
+      }
+    }
   }
 
   // ---------------------------------------------------------------- stalker
@@ -1001,8 +1262,10 @@
     if (e.kind === 'mimic') return; // disguised: no footsteps, no voice - the only sound it makes is the exit's chime
     const scent = e.kind === 'scent';
     const stalker = e.kind === 'stalker';
+    const muffler = e.kind === 'muffler';
+    const singer = e.kind === 'singer';
     const chasing = isChasing(e);
-    const cueKind = stalker ? 'stalker' : scent ? 'scent' : 'echo';
+    const cueKind = stalker ? 'stalker' : scent ? 'scent' : muffler ? 'muffler' : singer ? 'singer' : 'echo';
     const blocked = soundBlocked(e.x, e.y, player.x, player.y);
     const muf = audioFx && blocked; // what the audio does about it (?debug can switch the audio effect off; the cue still follows `blocked`)
 
@@ -1016,13 +1279,25 @@
 
     e.stepDist += moved;
     const stride = stalker ? (chasing ? 22 : 19) : scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
-    if (e.stepDist >= stride) {
+    if (!muffler && !singer && e.stepDist >= stride) {
+      // (a muffler's "footsteps" are its slow thumps, below; a singer glides - it is only its hum and its song you hear)
       e.stepDist = 0;
       const sp = spatial(e.x, e.y, 540);
       if (stalker) audio.stalkerStep(sp.pan, sp.g, muf);
       else if (scent) audio.scentStep(sp.pan, sp.g, muf);
       else audio.enemyStep(sp.pan, sp.g, muf);
       if (sp.g >= 0.01) cues.pulse(cueKind, e.x, e.y, cueLoud(sp.g), { key: e, sub: 'step', dots: 2, muffled: blocked });
+    }
+
+    if (muffler) {
+      // slow, dull thumps (with the humming voice below): quicker while it is on your trail, and wall-muffled like every voice
+      e.clickCd -= dt;
+      if (e.clickCd <= 0) {
+        e.clickCd = chasing ? 0.7 : 1.35;
+        const sc = spatial(e.x, e.y, 620);
+        audio.mufflerThump(sc.pan, sc.g, muf);
+        if (sc.g >= 0.01) cues.pulse('muffler', e.x, e.y, cueLoud(sc.g), { key: e, sub: 'thump', muffled: blocked });
+      }
     }
 
     if (stalker) {
@@ -1037,7 +1312,8 @@
     }
 
     const sp = spatial(e.x, e.y, 720);
-    const mood = chasing ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker ? 0.5 : 0.35;
+    const excited = chasing || e.state === 'marked' || e.state === 'leap'; // hunting you / a singer with you marked
+    const mood = excited ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker || singer ? 0.5 : muffler ? 0.4 : 0.35;
     const gain = sp.g * (0.16 + 0.3 * mood);
     if (e.voice) audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: muf, doppler });
     // its voice as a sustained cue, while it would be audible (the stalker's breathing: three small dots)
@@ -1076,8 +1352,10 @@
    * every frame, so wiping it is a flag - `glimmerOff` - that the next ripple clears.)
    */
   function startCrouch() {
-    ripples = [];
-    marks = [];
+    // Only what YOUR ripples showed is wiped. A singer's waves are not yours: crouching does not stop them, so they keep
+    // travelling (and can still mark you), and what they lit stays.
+    ripples = ripples.filter((rp) => rp.singer);
+    marks = marks.filter((m) => m.singer);
     glimmerOff = true;
   }
 
@@ -1091,22 +1369,41 @@
     updateHud();
   }
 
-  /** Fire a ripple of reach R (px) from (ox,oy) into the current level (also used by the cutscenes). */
-  function castRipple(ox, oy, R = cfg.rippleRadius) {
+  /**
+   * Fire a ripple of reach R (px) from (ox,oy) into the current level (also used by the cutscenes).
+   * `opts` (optional):
+   *   singer      a singer's OWN ripple (the enemy that sang it, or `true` in a cutscene): magenta, silent (its sung tone is
+   *               played by the caller), and it lights things up but alerts nothing and is not your sonar (crouching does not
+   *               wipe it); the singer itself is not part of its own wave
+   *   absorbers   extra invisible absorbers [{x, y, r}] (the muffler scene of the cutscenes); the real muffler is found in `enemies`
+   * A MUFFLER absorbs ripples: a ray that reaches one simply ENDS there - no echo, no colour, no sound - so the muffler is
+   * never lit and everything behind it is in shadow (the gap in the echo map is the only tell).
+   */
+  function castRipple(ox, oy, R = cfg.rippleRadius, opts = null) {
+    const singerRp = opts && opts.singer ? opts.singer : null;
 
-    // Round things the wave can bounce off.
+    // Round things the wave can bounce off (and the absorbers it cannot get past).
     const circles = [];
     level.obstacles.forEach((o) => {
       if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE });
     });
     enemies.forEach((e) => {
-      // a ripple SEES a scent monster (violet) and a stalker (orange) but only an echo monster (red) learns of you
-      // from it; a disguised mimic is seen as an EXIT (green, with the exit's bell) until the wave touches it
+      if (e === singerRp) return; // a singer's own wave starts inside it: it is not part of it
+      // a ripple SEES a scent monster (violet), a stalker (orange) and a singer (magenta) but only an echo monster (red)
+      // learns of you from it; a disguised mimic is seen as an EXIT (green, with the exit's bell) until the wave touches
+      // it; a muffler is not seen at all - it eats the ray
       if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) {
-        const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'mimic' ? T_EXIT : T_ENEMY;
+        if (e.kind === 'muffler') {
+          circles.push({ x: e.x, y: e.y, r: e.r, type: 0, absorb: true });
+          return;
+        }
+        const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'singer' ? T_SINGER : e.kind === 'mimic' ? T_EXIT : T_ENEMY;
         circles.push({ x: e.x, y: e.y, r: e.r, type, enemy: e, mimic: e.kind === 'mimic' }); // (mimic: drawn as the exit until revealMimic sets revealAt)
       }
     });
+    if (opts && opts.absorbers) {
+      for (const a of opts.absorbers) if (Math.hypot(a.x - ox, a.y - oy) < R + a.r) circles.push({ x: a.x, y: a.y, r: a.r, type: 0, absorb: true });
+    }
     const ex = level.exit;
     if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push({ x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
 
@@ -1123,8 +1420,13 @@
         const t = rayCircle(ox, oy, dx, dy, circles[c].x, circles[c].y, circles[c].r);
         if (t >= 0 && t < best) {
           best = t;
-          bt = circles[c].type;
-          bid = c;
+          if (circles[c].absorb) {
+            bt = 0; // eaten: the ray ends here and nothing is lit
+            bid = -1;
+          } else {
+            bt = circles[c].type;
+            bid = c;
+          }
         }
       }
       dist[i] = best;
@@ -1186,13 +1488,23 @@
     const flats = (level.puddles || []).map((p) => ({ x: p.x, y: p.y, r: p.r, type: T_PUDDLE }));
     if (level.decoy && !level.decoy.taken) flats.push({ x: level.decoy.x, y: level.decoy.y, r: 12, type: T_DECOY });
     for (const dc of decoys) flats.push({ x: dc.x, y: dc.y, r: 12, type: T_DECOY });
+    // (Anything behind a muffler is in its shadow, puddles and decoys included.)
+    const shadowed = (px, py, d) => {
+      for (const c of circles) {
+        if (!c.absorb) continue;
+        const t = rayCircle(ox, oy, (px - ox) / d, (py - oy) / d, c.x, c.y, c.r);
+        if (t >= 0 && t < d) return true;
+      }
+      return false;
+    };
     for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
-      if (d > R || !hasLOS(ox, oy, p.x, p.y)) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.type === T_DECOY ? 'decoy' : 'puddle', ar: p.r });
+      if (d > R || !hasLOS(ox, oy, p.x, p.y) || (d > 1 && shadowed(p.x, p.y, d))) continue;
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.type === T_DECOY ? 'decoy' : 'puddle', ar: p.r, singer: !!singerRp });
       echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
+    if (singerRp) echoes.length = 0; // a singer's wave makes no echo sounds of its own: its sung tone is played from where it stands
 
     // The echo monsters this wave's rays hit at the moment it was sent (they are in `echoes`).
     // Whether a monster is really TOUCHED - and so learns of you - is not decided here: it is
@@ -1200,7 +1512,7 @@
     const seen = new Set();
     for (const bin of objBins.keys()) if (circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy);
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6 });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6, singer: singerRp, hitPlayer: false });
   }
 
   /** Can the wave get from (ox,oy) to this monster? A wall, a boulder or another monster in the way stops it. */
@@ -1311,6 +1623,7 @@
       case T_PUDDLE: audio.echoPuddle(ev.pan, vol, ev.d); break;
       case T_DECOY: audio.echoDecoy(ev.pan, vol, ev.d); break;
       case T_STALKER: audio.echoStalker(ev.pan, vol, ev.d); break;
+      case T_SINGER: audio.echoSinger(ev.pan, vol, ev.d); break;
     }
   }
 
@@ -1318,7 +1631,9 @@
     for (const rp of ripples) {
       const before = Math.min(rp.t * RIPPLE_SPEED, rp.R); // where the wavefront was
       rp.t += dt;
-      touchMonsters(rp, before, Math.min(rp.t * RIPPLE_SPEED, rp.R));
+      const after = Math.min(rp.t * RIPPLE_SPEED, rp.R);
+      if (rp.singer) singerRippleHits(rp, before, after); // a singer's wave alerts no monster; it can only MARK you
+      else touchMonsters(rp, before, after);
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
     }
     ripples = ripples.filter((rp) => rp.t < rp.life);
@@ -1356,7 +1671,7 @@
     d.ring = 0;
     d.hum = 1.2;
     for (const e of enemies) {
-      if (e.kind === 'stalker') continue; // a stalker ignores the decoy: it only listens for you
+      if (e.kind === 'stalker' || e.kind === 'muffler' || e.kind === 'singer') continue; // a stalker, a muffler and a singer ignore the decoy: they only listen for you / sing
       if (e.state === 'lured' || e.state === 'trapped') continue;
       if (Math.hypot(e.x - d.x, e.y - d.y) > DECOY_RADIUS) continue;
       if (lureEnemy(e, d.x, d.y)) d.lured.push(e);
@@ -1470,6 +1785,7 @@
     }
     player.blocked = !!contact;
     stalkersListen(walked); // a stalker hears your footsteps and your presence - unless you are crouching
+    mufflersListen(walked); // a muffler hears them too, from farther - and even a crouched MOVE from up close
     updateSmell(dt, walked);
     // a finished smell trail lasts about a minute, then it is gone
     for (let i = level.trails.length - 1; i >= 0; i--) {
@@ -1517,9 +1833,17 @@
         cues.heartbeat(0.35 + danger * 0.65);
       }
     }
+    // marked by a singer: the countdown as a shrinking ring around you (Visual cues; the ticking is the sound). 0 = not marked.
+    let markLeft = 0;
+    for (const e of enemies) if (e.kind === 'singer' && e.state === 'marked') markLeft = Math.max(markLeft, e.markFrac);
+    cues.setMark(markLeft);
     cues.update(dt, player.x, player.y);
 
     // --- outcomes
+    if (singerLanded) {
+      singerLanded = false;
+      return onCaught(); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
+    }
     for (const e of enemies) {
       if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught();
     }
@@ -1557,6 +1881,7 @@
       case T_ENEMY: EchoArt.draw(ctx, 'echo', c.x, c.y, c.r, o); break;
       case T_SCENT: EchoArt.draw(ctx, 'scent', c.x, c.y, c.r, o); break;
       case T_STALKER: EchoArt.draw(ctx, 'stalker', c.x, c.y, c.r, o); break;
+      case T_SINGER: EchoArt.draw(ctx, 'singer', c.x, c.y, c.r, o); break;
       case T_EXIT:
         if (!c.mimic) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
         else {
@@ -1583,6 +1908,7 @@
   function drawRipple(rp) {
     const r = rp.t * RIPPLE_SPEED;
     const { x, y, dist, type, R } = rp;
+    const tint = rp.singer ? SINGER_RGB : null; // a singer's own wave is magenta all through: front, walls, everything it finds
     for (let k = 1; k < NRAYTYPES; k++) {
       retBuckets[k].length = 0;
       for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a].length = 0;
@@ -1606,10 +1932,10 @@
           }
         } else pen = false;
       }
-      ctx.strokeStyle = `rgba(150,215,255,${a * 0.25})`;
+      ctx.strokeStyle = tint ? `rgba(${tint},${a * 0.3})` : `rgba(150,215,255,${a * 0.25})`;
       ctx.lineWidth = 9;
       ctx.stroke();
-      ctx.strokeStyle = `rgba(190,235,255,${a})`;
+      ctx.strokeStyle = tint ? `rgba(255,190,255,${a})` : `rgba(190,235,255,${a})`;
       ctx.lineWidth = 1.8;
       ctx.stroke();
     }
@@ -1650,19 +1976,19 @@
     for (let k = 1; k < NRAYTYPES; k++) {
       for (let a = 0; a < ALPHA_LEVELS; a++) {
         const al = (a + 0.5) / ALPHA_LEVELS;
-        strokeBucket(segBuckets[k][a], `rgba(${COLORS[k]},${al * 0.2})`, LINE_W[k] * 3.2);
-        strokeBucket(segBuckets[k][a], `rgba(${COLORS[k]},${al})`, LINE_W[k]);
+        strokeBucket(segBuckets[k][a], `rgba(${tint || COLORS[k]},${al * 0.2})`, LINE_W[k] * 3.2);
+        strokeBucket(segBuckets[k][a], `rgba(${tint || COLORS[k]},${al})`, LINE_W[k]);
       }
-      strokeBucket(retBuckets[k], `rgba(${COLORS[k]},${retAlpha * 0.3})`, 6);
-      strokeBucket(retBuckets[k], `rgba(${COLORS[k]},${retAlpha})`, 1.6);
+      strokeBucket(retBuckets[k], `rgba(${tint || COLORS[k]},${retAlpha * 0.3})`, 6);
+      strokeBucket(retBuckets[k], `rgba(${tint || COLORS[k]},${retAlpha})`, 1.6);
     }
-    for (let a = 0; a < ALPHA_LEVELS; a++) strokeBucket(texBuckets[a], `rgba(${EchoArt.CORE.wall},${((a + 0.5) / ALPHA_LEVELS) * 0.6})`, 1.1);
+    for (let a = 0; a < ALPHA_LEVELS; a++) strokeBucket(texBuckets[a], `rgba(${tint ? "255,170,255" : EchoArt.CORE.wall},${((a + 0.5) / ALPHA_LEVELS) * 0.6})`, 1.1);
 
     // the things the wave found, drawn as themselves (the rays above are their true collision outline)
     for (const ob of rp.objs) {
       if (r < ob.dmin) continue;
       const al = Math.exp(-(r - ob.dmin) / RIPPLE_SPEED / 1.3);
-      if (al > 0.04) drawLit(rp, ob, al * Math.min(1, 0.4 + ob.n / 10));
+      if (al > 0.04) drawLit(rp, ob, al * Math.min(1, 0.4 + ob.n / 10) * (tint ? 0.75 : 1));
     }
   }
 
@@ -1679,8 +2005,8 @@
       const a = 1 - m.t / m.life;
       const rad = m.r || 18;
       const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, rad);
-      g.addColorStop(0, `rgba(${m.c},${a * 0.7})`);
-      g.addColorStop(1, `rgba(${m.c},0)`);
+      g.addColorStop(0, `rgba(${m.singer ? SINGER_RGB : m.c},${a * 0.7})`);
+      g.addColorStop(1, `rgba(${m.singer ? SINGER_RGB : m.c},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(m.x, m.y, rad, 0, TAU);
@@ -1695,7 +2021,7 @@
         o.tell = 'none';
         EchoArt.draw(ctx, m.art, m.x, m.y, m.ar, o);
       } else if (m.puddle) {
-        ctx.strokeStyle = `rgba(${m.c},${a * 0.8})`;
+        ctx.strokeStyle = `rgba(${m.singer ? SINGER_RGB : m.c},${a * 0.8})`;
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.arc(m.x, m.y, rad * 0.62, 0, TAU);
@@ -1808,6 +2134,20 @@
     drawTrails();
     drawRippleLayer();
     ctx.globalCompositeOperation = 'lighter';
+
+    // ?debug only (__echo.showMuffler): the muffler is NEVER drawn in normal play - here it is, dimly, for testing
+    if (debugShowMuffler) {
+      for (const e of enemies) {
+        if (e.kind !== 'muffler') continue;
+        ctx.strokeStyle = 'rgba(200,215,235,0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.r, 0, TAU);
+        ctx.moveTo(e.x - e.r * 1.5, e.y);
+        ctx.lineTo(e.x + e.r * 1.5, e.y);
+        ctx.stroke();
+      }
+    }
 
     // the player: a small pale dot with a faint halo (smaller and dimmer while crouching)
     const low = !!player.crouching;
@@ -1952,6 +2292,7 @@
     enemies = level.enemies.map(makeEnemy);
     decoys = [];
     decoyBlipTimer = 1.5;
+    singerLanded = false;
     glimmerOff = false;
     ripples = [];
     marks = [];
@@ -2197,6 +2538,8 @@
     { kind: 'mimic', name: 'Not Everything That Glows', blurb: 'What waits at the end of the corridor.', locked: 'You will see it when you clear level 7.' },
     { kind: 'decoy', name: 'Somewhere Else To Go', blurb: 'How to buy five seconds.', locked: 'You will see it when you clear level 8.' },
     { kind: 'stalker', name: 'Nothing To Hear', blurb: 'What to do when something listens.', locked: 'You will see it when you clear level 9.' },
+    { kind: 'muffler', name: 'Nothing Comes Back', blurb: 'What lives where the echo stops.', locked: 'You will see it when you clear level 10.' },
+    { kind: 'singer', name: 'Keep Moving', blurb: 'What to do when the song finds you.', locked: 'You will see it when you clear level 11.' },
   ];
 
   /** The furthest level unlocked in any mode (the cutscenes are the same in every mode). */
@@ -2743,7 +3086,19 @@
       captionText: () => ($('cue-caption').classList.contains('show') ? $('cue-caption').textContent : ''),
       touch,
       soundBlocked,
+      // draw the muffler (never drawn in normal play) as a dim ring with a dash, for testing
+      showMuffler: (on) => {
+        debugShowMuffler = on === undefined ? !debugShowMuffler : !!on;
+        return debugShowMuffler;
+      },
+      // markPlayer(): force a singer to mark you now (for tests); state of every singer / muffler
+      markBy: (e) => markPlayer(e),
+      newMonsters: () => enemies.filter((e) => e.kind === 'muffler' || e.kind === 'singer').map((e) => ({ kind: e.kind, x: e.x, y: e.y, state: e.state, timer: e.timer, markFrac: e.markFrac, markX: e.markX, markY: e.markY, deaf: e.deaf, everHeard: e.everHeard, singCd: e.singCd })),
       settings: () => ({
+        campaignLevels: CAMPAIGN_LEVELS, // 12
+        // the new monsters' numbers in this mode (from the MODES table; speeds are for the current level when one is running)
+        muffler: { footstepRadius: MODES[mode].mufflerFootstepRadius, presenceRadius: MODES[mode].mufflerPresenceRadius, crouchRadius: MODES[mode].mufflerCrouchRadius, memorySeconds: MODES[mode].mufflerMemorySeconds, speed: cfg ? cfg.mufflerSpeed : null, shownForDebug: debugShowMuffler },
+        singer: { markSeconds: MODES[mode].markSeconds, landRadius: MODES[mode].landRadius, singInterval: MODES[mode].singInterval, singRange: MODES[mode].singRange, speed: cfg ? cfg.singerSpeed : null, leapSeconds: SINGER_LEAP_SECONDS },
         mode,
         calm,
         visualCues,

@@ -9,6 +9,9 @@
  *   stalker (breathing, clicks, steps)         orange tall thin capsules
  *   exit chime, and a mimic's fake chime       green chevron            (the very same cue for both)
  *   sonar decoy (drop spot, its pings)         pink four-point star in a ring
+ *   muffler (its hum and thumps)               pale hollow ring with a dash through it
+ *   singer (hum, sung tone, whoosh, landing)   magenta ring with three small arcs; while you are marked by it,
+ *                                              a magenta ring that shrinks around you (setMark)
  *   heartbeat                                  a thin ring around the player, pulsing at the heartbeat's rate
  *
  * Every cue has its own SHAPE as well as its colour, so colour alone is never needed.
@@ -44,6 +47,8 @@ const EchoCues = (() => {
     exit: '93,255,160',
     decoy: '255,122,217',
     heart: '255,132,150',
+    muffler: '205,220,238', // pale: the thing you cannot see
+    singer: '236,64,236', // magenta, like its own ripples
   };
 
   const smooth = (t) => {
@@ -61,6 +66,7 @@ const EchoCues = (() => {
     const holds = new Map(); // sustained cues (a voice): key -> { kind, x, y, target, a, dim, muffled, dots, frame }
     const lastPulse = new WeakMap(); // source -> { sub: clock time of its last pulse }
     let beats = []; // heartbeat rings: { strength, born }
+    let markLeft = 0; // a singer has marked you: how much of the countdown is left (1 = just marked ... 0 = none / it leaps)
     let lastBeat = -9;
     let facing = -Math.PI / 2; // the way the player last moved (where a cue at the player's own feet points)
     let prevX = null;
@@ -127,10 +133,16 @@ const EchoCues = (() => {
       capEl.classList.add('show');
     }
 
+    /** While a singer has you marked, the game tells this every frame how much of the countdown is left (0 = not marked): a ring that shrinks around you. */
+    function setMark(frac) {
+      markLeft = on() ? clamp(frac, 0, 1) : 0;
+    }
+
     function clear() {
       pulses = [];
       holds.clear();
       beats = [];
+      markLeft = 0;
       capTimer = 0;
       capText = '';
       if (capEl) capEl.classList.remove('show');
@@ -251,6 +263,27 @@ const EchoCues = (() => {
         ctx.lineWidth = Math.max(1.1, size * 0.13);
         ctx.strokeStyle = `rgba(${rgb},${Math.min(1, alpha * 1.05) * 0.55})`;
         ctx.stroke();
+      } else if (kind === 'muffler') {
+        // a pale hollow ring with a dash through it: the thing that cannot be seen (a ring that is empty inside, struck out)
+        ctx.arc(0, 0, size * 0.95, 0, TAU);
+        ctx.lineWidth = Math.max(1.6, size * 0.24);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-size * 1.55, 0);
+        ctx.lineTo(size * 1.55, 0);
+        ctx.stroke();
+      } else if (kind === 'singer') {
+        // a ring with three small arcs radiating from it (a song, and the waves of its ripples)
+        ctx.arc(0, 0, size * 0.62, 0, TAU);
+        ctx.lineWidth = Math.max(1.6, size * 0.22);
+        ctx.stroke();
+        ctx.lineWidth = Math.max(1.3, size * 0.16);
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * TAU - Math.PI / 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, size * 1.22, a - 0.36, a + 0.36);
+          ctx.stroke();
+        }
       } else if (kind === 'decoy') {
         // a four-point star inside a ring (the decoy's ring)
         for (let i = 0; i < 8; i++) {
@@ -276,7 +309,7 @@ const EchoCues = (() => {
      * (1 / the view scale), so the ring is really about 45 px on screen whatever the size of the window.
      */
     function draw(px, py, unit) {
-      if (!on() || (!pulses.length && !holds.size && !beats.length)) return;
+      if (!on() || (!pulses.length && !holds.size && !beats.length && !(markLeft > 0))) return;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       const items = [];
@@ -315,6 +348,18 @@ const EchoCues = (() => {
       for (const it of items) {
         glyph(it.kind, px + Math.cos(it.ang) * R, py + Math.sin(it.ang) * R, it.ang, it.size * unit, it.alpha, it.dots, clock, clock * 1.4 + it.ang);
       }
+      // marked by a singer: the countdown as a magenta ring that shrinks towards you, and closes in on you as it runs out
+      if (markLeft > 0) {
+        const rr = (13 + 32 * markLeft) * unit;
+        ctx.strokeStyle = `rgba(${RGB.singer},0.85)`;
+        ctx.lineWidth = 2.4 * unit;
+        ctx.beginPath();
+        ctx.arc(px, py, rr, 0, TAU);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(${RGB.singer},0.22)`;
+        ctx.lineWidth = 7 * unit;
+        ctx.stroke();
+      }
       // heartbeat: a thin ring around the player that swells and fades once per beat
       for (const b of beats) {
         const age = clock - b.born;
@@ -338,7 +383,7 @@ const EchoCues = (() => {
       return out;
     }
 
-    return { pulse, hold, heartbeat, caption, clear, update, draw, list, get pulseCount() { return pulses.length; } };
+    return { pulse, hold, heartbeat, caption, clear, update, draw, list, setMark, get markLeft() { return markLeft; }, get pulseCount() { return pulses.length; } };
   }
 
   return { create, MIN_GAP, RING };

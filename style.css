@@ -337,6 +337,11 @@ kbd.wide {
   white-space: nowrap;
 }
 
+/* a legend line with no art on purpose (the muffler is never seen): just words */
+.legend li.text-only .unseen {
+  color: #cddcee;
+}
+
 .buttons {
   display: flex;
   flex-wrap: wrap;

@@ -67,6 +67,8 @@
         <li><canvas class="swatch" data-art="echo" width="32" height="32"></canvas>Echo monsters</li>
         <li><canvas class="swatch" data-art="scent" width="32" height="32"></canvas>Scent monsters</li>
         <li><canvas class="swatch" data-art="stalker" width="32" height="32"></canvas>Stalkers</li>
+        <li class="text-only"><span class="unseen">Muffler:</span> can't be seen, only heard</li>
+        <li><canvas class="swatch" data-art="singer" width="32" height="32"></canvas>Singers</li>
         <li><canvas class="swatch" data-art="puddle" width="32" height="32"></canvas>Smell puddles</li>
         <li><canvas class="swatch" data-art="decoy" width="32" height="32"></canvas>Sonar decoy</li>
         <li><canvas class="swatch" data-art="exit" width="32" height="32"></canvas>The way out</li>
@@ -79,10 +81,12 @@
         <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7410"><ellipse cx="-6" cy="0" rx="1.9" ry="4.6"/><ellipse cx="0" cy="0" rx="1.9" ry="4.6"/><ellipse cx="6" cy="0" rx="1.9" ry="4.6"/></svg>Stalker: tall thin capsules</li>
         <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#5dffa0"><path d="M-4,-8 L5,0 L-4,8"/><path class="arc" d="M-1.5,-9.4 A10.2,10.2 0 0 1 -1.5,9.4"/></svg>Exit chime: chevron</li>
         <li><svg class="glyph" viewBox="-10 -10 20 20" style="--c:#ff7ad9"><path d="M0.0,-9.0 L2.4,-2.4 L9.0,0.0 L2.4,2.4 L0.0,9.0 L-2.4,2.4 L-9.0,0.0 L-2.4,-2.4 Z" transform="scale(0.72)"/><circle class="ring" cx="0" cy="0" r="9"/></svg>Sonar decoy: star in a ring</li>
+        <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#cddcee"><circle cx="0" cy="0" r="6" fill="none"/><path d="M-9.5,0 L9.5,0"/></svg>Muffler: hollow ring with a dash</li>
+        <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#ec40ec"><circle cx="0" cy="0" r="3.6" fill="none"/><path class="arc" d="M-4.6,-6.2 A7.7,7.7 0 0 1 4.6,-6.2"/><path class="arc" d="M6.9,3.1 A7.7,7.7 0 0 1 2.4,7.3"/><path class="arc" d="M-2.4,7.3 A7.7,7.7 0 0 1 -6.9,3.1"/></svg>Singer: ring with three arcs</li>
         <li><svg class="glyph line" viewBox="-10 -10 20 20" style="--c:#ff8496"><circle cx="0" cy="0" r="7" fill="none"/></svg>Heartbeat: ring</li>
       </ul>
 
-      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. <span class="kb-only">Hold Shift to crouch</span><span class="touch-only">Hold CROUCH to crouch</span>: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Find the green resonance and get out.</p>
+      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. <span class="kb-only">Hold Shift to crouch</span><span class="touch-only">Hold CROUCH to crouch</span>: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Later, some things are never seen &mdash; listen for them &mdash; and something sings: if its song marks you, keep moving. Find the green resonance and get out.</p>
 
       <div class="modes" role="radiogroup" aria-label="Difficulty">
         <button type="button" class="mode" role="radio" data-mode="easy"><b>Easy</b><small data-best="easy"></small></button>

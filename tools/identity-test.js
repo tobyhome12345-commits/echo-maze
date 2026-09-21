@@ -15,6 +15,7 @@
  * (kind, position, state) and the level clock after every step. `draw` (default 3) also renders every Nth frame, so
  * the drawing code runs between steps; `artRandomCalls` counts Math.random calls made from art.js (it must be 0).
  * `noArt: true` swaps the art for no-ops, to show the game plays out the same with the art switched off.
+ * `chase: N` teleports the player next to the muffler / singer every N frames, so the two meet (`newStates` counts the frames each spent in each state).
  * `reveal: N` also, every N frames, stands the player beside a disguised mimic and pings it, so the mimic really does
  * turn into an echo monster during the run (`mimicRevealed` counts how often); `cues: true` runs with Visual cues on.
  */
@@ -87,6 +88,7 @@ window.IdentityTest = (() => {
       let mimicRevealed = 0; // how many times a disguised mimic turned into an echo monster during the run (the level restarts when you are caught)
       let heading = [0, 0];
       const stats = { pings: 0, crouches: 0, drops: 0 };
+      const newStates = {}; // frames the muffler / singer spent in each state (`chase: N` teleports the player next to it every N frames)
       for (let f = 0; f < frames; f++) {
         // scripted inputs: pick a new heading now and then, ping and crouch at random, drop the decoy sometimes
         if (f % 40 === 0) {
@@ -134,8 +136,29 @@ window.IdentityTest = (() => {
             }
           }
         }
+        if (o.chase && f % o.chase === 7) {
+          // stand the player a little way from the muffler / singer (in an open neighbouring tile), so they meet
+          const inf0 = E.info();
+          const nm = inf0.enemies.find((e) => e.kind === 'muffler' || e.kind === 'singer');
+          if (nm && inf0.state === 'play') {
+            const lv = inf0.level;
+            const open = (x, y) => {
+              const tx = Math.floor(x / 40);
+              const ty = Math.floor(y / 40);
+              return tx >= 0 && ty >= 0 && tx < lv.W && ty < lv.H && !lv.walls[ty * lv.W + tx];
+            };
+            const dd = 60 + pick() * 80;
+            for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+              if (open(nm.x + dx * dd, nm.y + dy * dd)) {
+                E.tp(nm.x + dx * dd, nm.y + dy * dd);
+                break;
+              }
+            }
+          }
+        }
         E.step(1 / 60);
         const inf = E.info();
+        for (const nm of E.newMonsters ? E.newMonsters() : []) newStates[nm.kind + ':' + nm.state] = (newStates[nm.kind + ':' + nm.state] || 0) + 1;
         if (inf.state !== 'play') {
           mix('|restart|' + inf.state);
           restarts++;
@@ -153,7 +176,7 @@ window.IdentityTest = (() => {
         echoNow = inf.enemies.filter((e) => e.kind === 'echo').length;
       }
       for (const c of [...keysDown]) set(c, false);
-      return { mode, level, seed, frames, hash: h.toString(16), restarts, artRandomCalls: artCalls, mimicsStart, mimicRevealed, echoMonstersAtEnd: echoNow, ...stats, artLoaded: !!ART, noArt };
+      return { mode, level, seed, frames, hash: h.toString(16), restarts, artRandomCalls: artCalls, mimicsStart, mimicRevealed, echoMonstersAtEnd: echoNow, ...stats, artLoaded: !!ART, noArt, newStates };
     } finally {
       Math.random = realRandom;
       if (noArt && ART) {

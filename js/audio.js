@@ -608,6 +608,8 @@ class SoundEngine {
   createEnemyVoice(pitch = 55, kind = 'echo') {
     if (!this.ctx) return null;
     if (kind === 'stalker') return this._stalkerVoice(pitch);
+    if (kind === 'muffler') return this._mufflerVoice(pitch);
+    if (kind === 'singer') return this._singerVoice(pitch);
     const c = this.ctx;
     const t = c.currentTime;
     const scent = kind === 'scent';
@@ -757,6 +759,136 @@ class SoundEngine {
     return { out, mf, mfg, pan, lp: bp, lfo, pitch, kind: 'stalker', oscs: [src, rat, lfo, lfo2] };
   }
 
+  /** Wire a finished voice (`out`) through the wall-muffling stage, a stereo pan and the reverb send; returns { mf, mfg, pan }. */
+  _voiceOut(out) {
+    const c = this.ctx;
+    const { mf, mfg } = this._muffleStage();
+    out.connect(mf);
+    let pan = null;
+    if (c.createStereoPanner) {
+      pan = c.createStereoPanner();
+      mfg.connect(pan);
+      pan.connect(this.master);
+    } else {
+      mfg.connect(this.master);
+    }
+    const send = c.createGain();
+    send.gain.value = 0.25;
+    (pan || mfg).connect(send);
+    send.connect(this.reverbIn);
+    return { mf, mfg, pan };
+  }
+
+  /**
+   * The muffler's voice: a deep, dampened hum - low sines and a soft triangle through a low-pass, swelling very slowly
+   * - as if it were heard through a thick wall even when it is not. Its slow thumps are one-shots (mufflerThump).
+   */
+  _mufflerVoice(pitch) {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0;
+    const swell = c.createGain();
+    swell.gain.value = 0.7;
+    const lp = this._filter('lowpass', 170, 1.1);
+    const mix = c.createGain();
+    mix.gain.value = 0.5;
+    const o1 = c.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.value = pitch;
+    const o2 = c.createOscillator();
+    o2.type = 'triangle';
+    o2.frequency.value = pitch * 2.99;
+    const o3 = c.createOscillator();
+    o3.type = 'sine';
+    o3.frequency.value = pitch * 2.01;
+    const g2 = c.createGain();
+    g2.gain.value = 0.35;
+    const g3 = c.createGain();
+    g3.gain.value = 0.6;
+    o1.connect(mix);
+    o2.connect(g2);
+    g2.connect(mix);
+    o3.connect(g3);
+    g3.connect(mix);
+    mix.connect(lp);
+    lp.connect(swell);
+    swell.connect(out);
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.2 + Math.random() * 0.1; // one slow swell every four seconds or so
+    const lfoDepth = c.createGain();
+    lfoDepth.gain.value = 0.3;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(swell.gain);
+    const { mf, mfg, pan } = this._voiceOut(out);
+    const oscs = [o1, o2, o3, lfo];
+    oscs.forEach((o) => o.start(t));
+    return { out, mf, mfg, pan, lp, o1, o2, o3, lfo, pitch, kind: 'muffler', oscs };
+  }
+
+  /**
+   * The singer's voice: an eerie, sustained hum - a sine with a soft octave and a ghostly fifth - whose pitch
+   * wavers (a quick vibrato on top of a slow wander), through a vowel-ish band-pass. Its song is a one-shot (singerSing).
+   */
+  _singerVoice(pitch) {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0;
+    const swell = c.createGain();
+    swell.gain.value = 0.75;
+    const formant = this._filter('bandpass', 820, 1.6);
+    const mix = c.createGain();
+    mix.gain.value = 0.45;
+    const o1 = c.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.value = pitch;
+    const o2 = c.createOscillator();
+    o2.type = 'triangle';
+    o2.frequency.value = pitch * 2.005;
+    const o3 = c.createOscillator();
+    o3.type = 'sine';
+    o3.frequency.value = pitch * 1.498;
+    const g2 = c.createGain();
+    g2.gain.value = 0.3;
+    const g3 = c.createGain();
+    g3.gain.value = 0.22;
+    o1.connect(mix);
+    o2.connect(g2);
+    g2.connect(mix);
+    o3.connect(g3);
+    g3.connect(mix);
+    mix.connect(formant);
+    formant.connect(swell);
+    swell.connect(out);
+    // the wavering: a quick vibrato (5 Hz) and a slow drift (0.17 Hz), both added to every oscillator's frequency
+    const vib = c.createOscillator();
+    vib.frequency.value = 5 + Math.random() * 0.6;
+    const vibDepth = c.createGain();
+    vibDepth.gain.value = pitch * 0.02;
+    const drift = c.createOscillator();
+    drift.frequency.value = 0.15 + Math.random() * 0.06;
+    const driftDepth = c.createGain();
+    driftDepth.gain.value = pitch * 0.05;
+    [vib, drift].forEach((l, i) => {
+      const d = i ? driftDepth : vibDepth;
+      l.connect(d);
+      d.connect(o1.frequency);
+      d.connect(o2.frequency);
+      d.connect(o3.frequency);
+    });
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.3 + Math.random() * 0.1;
+    const lfoDepth = c.createGain();
+    lfoDepth.gain.value = 0.25;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(swell.gain);
+    const { mf, mfg, pan } = this._voiceOut(out);
+    const oscs = [o1, o2, o3, vib, drift, lfo];
+    oscs.forEach((o) => o.start(t));
+    return { out, mf, mfg, pan, lp: formant, o1, o2, o3, lfo, vib, pitch, kind: 'singer', oscs };
+  }
+
   /**
    * Per-frame update of one monster's continuous voice.
    *   gain, pan, mood  as before
@@ -776,6 +908,28 @@ class SoundEngine {
       if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
       v.lp.frequency.setTargetAtTime((800 + mood * 600) * doppler, t, 0.12); // brighter, sharper breath when it is on your trail
       v.lfo.frequency.setTargetAtTime(0.36 + mood * 0.7, t, 0.4); // and quicker
+      return;
+    }
+    if (v.kind === 'muffler') {
+      v.out.gain.setTargetAtTime(gain * 1.15 * (this.calm ? 0.6 : 1), t, 0.1);
+      if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
+      v.lp.frequency.setTargetAtTime(140 + mood * 120, t, 0.15); // a little less dampened while it is on your trail
+      const pf = v.pitch * (1 + mood * 0.06) * doppler;
+      v.o1.frequency.setTargetAtTime(pf, t, 0.2);
+      v.o2.frequency.setTargetAtTime(pf * 2.99, t, 0.2);
+      v.o3.frequency.setTargetAtTime(pf * 2.01, t, 0.2);
+      v.lfo.frequency.setTargetAtTime(0.2 + mood * 0.35, t, 0.4);
+      return;
+    }
+    if (v.kind === 'singer') {
+      v.out.gain.setTargetAtTime(gain * (this.calm ? 0.6 : 1), t, 0.08);
+      if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
+      v.lp.frequency.setTargetAtTime(760 + mood * 500, t, 0.12);
+      const pf = v.pitch * (1 + mood * 0.06) * doppler;
+      v.o1.frequency.setTargetAtTime(pf, t, 0.15);
+      v.o2.frequency.setTargetAtTime(pf * 2.005, t, 0.15);
+      v.o3.frequency.setTargetAtTime(pf * 1.498, t, 0.15);
+      v.vib.frequency.setTargetAtTime(5 + mood * 3, t, 0.3); // the wavering quickens when it has you marked
       return;
     }
     const scent = v.kind === 'scent';
@@ -938,6 +1092,170 @@ class SoundEngine {
       const og = this._env(t + dt, 0.001, 0.3 * gain, 0.03);
       o.connect(og);
       this._route(og, pan, 0.4);
+    });
+  }
+
+  // ------------------------------------------------- muffler and singer
+  /** One slow, muffled thump of the muffler (the sound of it moving): a soft-attack low drop plus a dull thud of noise. */
+  mufflerThump(pan, gain, muffled = false) {
+    if (this.calm) gain *= 0.75;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 82, t, 0.34);
+    o.frequency.exponentialRampToValueAtTime(36, t + 0.22);
+    const g = this._env(t, 0.02, 0.6 * gain, 0.22); // a slow attack: it sounds dampened, like something heard through cloth
+    o.connect(g);
+    this._route(this._muffle(g, muffled), pan, 0.3);
+    this._track(o);
+    const n = this._noise(t, 0.2);
+    const lp = this._filter('lowpass', 190, 1);
+    const ng = this._env(t, 0.015, 0.28 * gain, 0.13);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(this._muffle(ng, muffled), pan, 0.25);
+  }
+
+  /** The muffler has heard you: one deep, heavy thud as it turns. */
+  mufflerAlert(pan, gain) {
+    if (this.calm) gain *= 0.5;
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 64, t, 0.6);
+    o.frequency.exponentialRampToValueAtTime(28, t + 0.4);
+    const g = this._env(t, 0.025, 0.85 * gain, 0.45);
+    o.connect(g);
+    this._route(g, pan, 0.4);
+    this._track(o);
+    const n = this._noise(t, 0.3);
+    const lp = this._filter('lowpass', 150, 1);
+    const ng = this._env(t, 0.02, 0.4 * gain, 0.2);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(ng, pan, 0.3);
+  }
+
+  /** The singer's song - the tone of one of its ripples, from where it stands: a long, airy sung note that swells and glides up. */
+  singerSing(pan, gain, muffled = false) {
+    if (this._busy(90) || gain < 0.008) return;
+    const t = this.ctx.currentTime;
+    const f = 330 + Math.random() * 30;
+    [[1, 0.5], [1.5, 0.22], [2.005, 0.16]].forEach(([m, k], i) => {
+      const o = this._osc(i === 2 ? 'triangle' : 'sine', f * m, t, 1.7);
+      o.frequency.linearRampToValueAtTime(f * m * 1.19, t + 0.9); // the note glides up
+      const vib = this.ctx.createOscillator(); // and wavers
+      vib.frequency.value = 5.4;
+      const vd = this.ctx.createGain();
+      vd.gain.value = f * m * 0.012;
+      vib.connect(vd);
+      vd.connect(o.frequency);
+      vib.start(t);
+      vib.stop(t + 1.7);
+      const g = this._env(t, 0.32, k * gain, 1.25);
+      o.connect(g);
+      this._route(this._muffle(g, muffled), pan, 0.65);
+      if (i === 0) this._track(o);
+    });
+    const n = this._noise(t, 1.3); // a breath of air under it
+    const bp = this._filter('bandpass', 2400, 1.2);
+    const ng = this._env(t, 0.3, 0.05 * gain, 0.9);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(this._muffle(ng, muffled), pan, 0.6);
+  }
+
+  /** The singer launches: a rising whoosh, about as long as its leap (0.6 s). Softer in calm mode. */
+  singerWhoosh(pan, gain) {
+    const k = this.calm ? 0.35 : 1;
+    if (!this.ctx || this._busy(110)) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.75);
+    const bp = this._filter('bandpass', 300, 2);
+    bp.frequency.setValueAtTime(300, t);
+    bp.frequency.exponentialRampToValueAtTime(4200, t + 0.6);
+    const g = this._env(t, 0.5, 0.75 * gain * k, 0.2);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, pan, 0.4);
+    this._track(n);
+    const o = this._osc('sawtooth', 180, t, 0.7);
+    o.frequency.exponentialRampToValueAtTime(1500, t + 0.6);
+    const lp = this._filter('lowpass', 1800, 1);
+    const og = this._env(t, 0.5, 0.22 * gain * k, 0.2);
+    o.connect(lp);
+    lp.connect(og);
+    this._route(og, pan, 0.4);
+  }
+
+  /** The singer lands: a heavy boom and a crash of noise. Much softer in calm mode. */
+  singerLand(pan, gain) {
+    const k = this.calm ? 0.3 : 1;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 120, t, 0.7);
+    o.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+    const g = this._env(t, 0.006, 0.9 * gain * k, 0.5);
+    o.connect(g);
+    this._route(g, pan, 0.4);
+    this._track(o);
+    const n = this._noise(t, 0.5);
+    const lp = this._filter('lowpass', 1100, 1);
+    lp.frequency.exponentialRampToValueAtTime(140, t + 0.4);
+    const ng = this._env(t, 0.004, 0.7 * gain * k, 0.3);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(ng, pan, 0.5);
+  }
+
+  /**
+   * "You are marked": a clear sting - two bright, dissonant bells and a high third - that cuts through everything. It
+   * is not spatial and NOT softened in calm mode (nor held back by the polyphony limit): it is gameplay information.
+   */
+  markSting() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [1046, 1109, 1568].forEach((f, i) => {
+      const o = this._osc(i === 2 ? 'triangle' : 'sine', f, t, 0.9);
+      const g = this._env(t, 0.008, i === 2 ? 0.16 : 0.34, 0.6);
+      o.connect(g);
+      this._route(g, 0, 0.3);
+    });
+    const o = this._osc('square', 220, t, 0.25);
+    const g = this._env(t, 0.004, 0.12, 0.12);
+    o.connect(g);
+    this._route(g, 0, 0.1);
+  }
+
+  /**
+   * One tick of the countdown. `prog` runs 0 (just marked) -> 1 (it leaps): the tick rises in pitch as time runs out (the
+   * game also shortens the gaps between ticks). Not spatial, NOT softened in calm mode, never dropped by the polyphony limit.
+   */
+  markTick(prog) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const f = 1300 + 1100 * prog;
+    const o = this._osc('sine', f, t, 0.08);
+    const g = this._env(t, 0.002, 0.42, 0.05);
+    o.connect(g);
+    this._route(g, 0, 0.08);
+    const n = this._noise(t, 0.04);
+    const bp = this._filter('bandpass', f * 1.6, 4);
+    const ng = this._env(t, 0.001, 0.18, 0.02);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, 0, 0.05);
+  }
+
+  /** The echo off a singer: a thin, ringing pair of glassy notes - nothing like the others' moans. */
+  echoSinger(pan, vol, dist) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const near = 1 - Math.min(dist / 650, 1);
+    [[0, 620], [0.11, 930]].forEach(([dt, f], i) => {
+      const o = this._osc('sine', f + near * 60, t + dt, 0.6);
+      const g = this._env(t + dt, 0.04, 0.3 * vol, 0.4);
+      o.connect(g);
+      this._route(g, pan, 0.55);
+      if (i === 0) this._track(o);
     });
   }
 

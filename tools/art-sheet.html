@@ -10,7 +10,7 @@
   h2 { font-weight: 500; font-size: 13px; margin: 14px 16px 4px; color: #6f8fa5; letter-spacing: .04em; text-transform: uppercase; }
   canvas { display: block; }
 </style>
-<canvas id="c" width="1500" height="1240"></canvas>
+<canvas id="c" width="1700" height="1240"></canvas>
 <script src="../js/art.js"></script>
 <script>
   const c = document.getElementById('c');
@@ -19,9 +19,9 @@
   const crop = /[?&]crop=([\d.]+),([\d.]+),([\d.]+),([\d.]+)/.exec(location.search); // ?crop=x,y,w,h: one part of the sheet, filling the window
   const KINDS = [
     ['wall', 'Wall'], ['boulder', 'Boulder'], ['pillar', 'Pillar'], ['echo', 'Echo monster'], ['scent', 'Scent monster'],
-    ['stalker', 'Stalker'], ['puddle', 'Puddle'], ['decoy', 'Sonar decoy'], ['exit', 'Exit'],
+    ['stalker', 'Stalker'], ['singer', 'Singer'], ['puddle', 'Puddle'], ['decoy', 'Sonar decoy'], ['exit', 'Exit'],
   ];
-  const TRUE = { wall: 16, boulder: 13, pillar: 13, echo: 14, scent: 14, stalker: 14, puddle: 14, decoy: 12, exit: 16 };
+  const TRUE = { wall: 16, boulder: 13, pillar: 13, echo: 14, scent: 14, stalker: 14, singer: 14, puddle: 14, decoy: 12, exit: 16 };
   function label(txt, x, y) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#6f8fa5';
