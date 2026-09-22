@@ -99,6 +99,68 @@ body {
   padding: 0 24px;
 }
 
+/* ------------------------------------------------- tutorial (level 0) */
+
+/* The teaching prompt: the banner's place and its fade, but brighter and backed, so it is readable over a lit
+   maze. One line at a time; js/tutorial.js decides what it says and when. */
+#tut-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 10%;
+  transform: translateX(-50%);
+  max-width: min(680px, calc(100vw - 32px));
+  padding: 12px 22px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: rgba(3, 8, 14, 0.78);
+  border: 1px solid rgba(var(--ui-rgb), 0.35);
+  border-radius: 10px;
+  box-shadow: 0 0 30px rgba(var(--ui-rgb), 0.14);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  z-index: 7;
+}
+
+#tut-hint.show {
+  opacity: 1;
+}
+
+/* On a touch device the bottom of the screen belongs to the joystick and the RIPPLE / CROUCH buttons, so the
+   prompt sits at the top instead, just under the Skip button and clear of the HUD and the pause button. */
+body.touch #tut-hint {
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  bottom: auto;
+  max-width: min(520px, calc(100vw - 170px));
+  font-size: 15px;
+  padding: 10px 16px;
+}
+
+/* Always on screen while the tutorial is running - top centre, clear of the HUD and of the touch controls. */
+#btn-tut-skip {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  min-height: 44px;
+  padding: 10px 20px;
+  font-size: 13px;
+  color: var(--dim);
+  background: rgba(3, 8, 14, 0.7);
+}
+
+#btn-tut-skip:hover,
+#btn-tut-skip:focus-visible {
+  color: var(--ink);
+}
+
+#btn-tut-skip:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
 /* -------------------------------------------------------------- cutscene */
 
 #cutscene {

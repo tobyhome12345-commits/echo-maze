@@ -10,6 +10,9 @@
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
   const CAMPAIGN_LEVELS = 12; // the game so far: clearing level 12 ends it ("you finished") - more levels may come later
+  // LEVEL 0 is the tutorial (js/tutorial.js). It is not part of the campaign: it counts for no progress, no
+  // Continue, no medals, no stats and no "levels cleared". Everywhere that would score something asks `scored()`.
+  const TUTORIAL_LEVEL = 0;
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
   const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer' };
   const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12 };
@@ -20,6 +23,7 @@
   const SEEN_KEY = 'echomaze.seen'; // { intro: 1, scent: 1 } cutscenes that have played, so they can be replayed
   const VISUALCUES_KEY = 'echomaze.visualcues'; // '1' = the Visual cues accessibility option is on
   const TOUCH_KEY = 'echomaze.touch'; // '1' = touch controls forced on, '0' = forced off, unset = automatic (touch devices)
+  const TUTORIAL_KEY = 'echomaze.tutorial'; // '1' = the tutorial has been finished or skipped (a save without it is simply "not yet")
   // Doppler (audio only): a monster's voice is shifted by how fast it is closing on you or moving away, at most about +/-6%
   const DOPPLER_MAX = 0.06; // fractional pitch shift at the largest closing speed
   const DOPPLER_FULL_SPEED = 180; // px/s of change in distance that gives the full shift (exaggerated so it is audible)
@@ -90,8 +94,8 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'settings', 'pause', 'caught', 'complete', 'victory'];
-  // states: title | cutscene | play | paused | caught | complete
+  const overlays = ['title', 'replay', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'victory'];
+  // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0)
 
   const audio = new SoundEngine();
   // the player's saved volumes, ready for when the AudioContext is created on the first click
@@ -105,6 +109,14 @@
   const music = EchoMusic.create(audio);
   // Visual sound cues (accessibility, js/cues.js): drawn only, never read back - they cannot affect the game
   const cues = EchoCues.create({ ctx, enabled: () => visualCues, calm: () => calm });
+  // The tutorial's teaching prompts (js/tutorial.js). It only ever writes a line of text on the screen.
+  const tutorial = EchoTutorial.create({
+    setHint(text) {
+      tutHint = text;
+      $('tut-hint').textContent = text || '';
+    },
+    touch: () => touchOn,
+  });
 
   // ---------------------------------------------------------------- storage
   // Everything is wrapped in try/catch: storage can be blocked or unavailable.
@@ -157,6 +169,9 @@
   let progress = loadProgress();
   let seen = loadSeen();
   let replaying = false; // a cutscene is being rewatched from the replay screen (it returns there, not to a level)
+  let tutorialDone = store.get(TUTORIAL_KEY) === '1'; // the tutorial has been finished or skipped (an old save just says "no")
+  let tutorialAfter = 'title'; // where the tutorial goes when it ends: 'intro' (on into the game) or 'title'
+  let tutHint = null; // the teaching prompt showing right now (level 0 only)
   audio.calm = calm;
   let state = 'title';
   let runSeed = 1;
@@ -207,6 +222,12 @@
    * An action with no key at all simply never fires.
    */
   const act = (action) => down.apply(null, EchoProfile.keysFor(action));
+  /**
+   * Does what is happening right now count? The tutorial (level 0) never does: no stats, no medals, no
+   * progress, no "levels cleared". Everything that writes to the save asks this first.
+   */
+  const scored = () => levelNum > TUTORIAL_LEVEL;
+  const inTutorial = () => levelNum === TUTORIAL_LEVEL;
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -1374,7 +1395,7 @@
     if (crouchHeld()) return; // you cannot send a ripple while crouching
     cooldown = cfg.cooldown;
     ripplesUsed++;
-    EchoProfile.bump('ripples');
+    if (scored()) EchoProfile.bump('ripples');
     glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
     audio.ping();
@@ -1397,7 +1418,7 @@
     ripples = ripples.filter((rp) => rp.singer);
     marks = marks.filter((m) => m.singer);
     glimmerOff = true;
-    EchoProfile.bump('crouches'); // stats: counted only, never read back by the game
+    if (scored()) EchoProfile.bump('crouches'); // stats: counted only, never read back by the game
   }
 
   /** Bring `player.crouching` in line with the key. Called every frame, and straight from the key press so the wipe is instant. */
@@ -1783,7 +1804,7 @@
   // ----------------------------------------------------------------- update
   function updatePlay(dt) {
     levelTime += dt;
-    EchoProfile.bump('playTime', dt); // stats: written out at the end of the level, not every frame
+    if (scored()) EchoProfile.bump('playTime', dt); // stats: written out at the end of the level, not every frame (never in the tutorial)
     cooldown = Math.max(0, cooldown - dt);
     player.bumpCd = Math.max(0, player.bumpCd - dt);
     flash = Math.max(0, flash - dt * 2.2);
@@ -1816,7 +1837,7 @@
       const step = Math.hypot(player.x - px, player.y - py);
       walked = step > 0.3;
       player.stepDist += step;
-      EchoProfile.bump('distance', step);
+      if (scored()) EchoProfile.bump('distance', step);
       if (player.stepDist >= 30) {
         player.stepDist = 0;
         if (!player.crouching) {
@@ -1890,6 +1911,10 @@
     cues.setMark(markLeft);
     cues.update(dt, player.x, player.y);
 
+    // the tutorial's teaching prompts: they read where you are and how many ripples you have sent, and write
+    // a line of text. Nothing above this point knows the tutorial exists.
+    if (inTutorial()) tutorial.update(dt, { x: player.x, y: player.y, ripples: ripplesUsed });
+
     // --- outcomes
     if (singerLanded) {
       singerLanded = false;
@@ -1899,7 +1924,10 @@
       // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
       if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind);
     }
-    if (Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) onLevelComplete();
+    if (Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) {
+      if (inTutorial()) onTutorialComplete();
+      else onLevelComplete();
+    }
   }
 
   // ----------------------------------------------------------------- render
@@ -2300,9 +2328,10 @@
   }
 
   function updateHud() {
-    $('hud-level').textContent = `Level ${levelNum} · ${MODES[mode].label}`;
+    // the tutorial is not a level and is the same in every mode, so it says neither
+    $('hud-level').textContent = inTutorial() ? 'Tutorial' : `Level ${levelNum} · ${MODES[mode].label}`;
     $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
-    $('hud-time').textContent = showTimer ? mmss(levelTime) : '';
+    $('hud-time').textContent = showTimer && scored() ? mmss(levelTime) : ''; // no clock on the tutorial: there is no hurry
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : '';
     $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
     $('hud-audio').textContent = [calm ? 'Calm' : '', visualCues ? 'Visual cues' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
@@ -2328,8 +2357,8 @@
     destroyVoices();
     if (!retrying) levelDeaths = 0;
     levelNum = n;
-    // Hardcore keeps a high score even for a run that dies on level 1.
-    if (MODES[mode].oneLife && !progress[mode]) {
+    // Hardcore keeps a high score even for a run that dies on level 1. (Never for the tutorial: it is not a level.)
+    if (scored() && MODES[mode].oneLife && !progress[mode]) {
       progress[mode] = 1;
       store.set(PROGRESS_KEY, JSON.stringify(progress));
     }
@@ -2376,17 +2405,80 @@
     showOverlay(null);
     $('hud').classList.remove('hidden');
     updateHud();
-    showBanner(n);
+    // The tutorial has prompts of its own instead of a level banner, and they start the moment you can move.
+    if (inTutorial()) {
+      clearTimeout(bannerTimer);
+      $('banner').classList.remove('show'); // never leave a level's banner hanging over a tutorial prompt
+      tutorial.start();
+    } else showBanner(n);
   }
 
-  /** Begin a run. A brand-new game plays the intro cutscene first; Continue skips it. */
+  // ----------------------------------------------------------- the tutorial
+  /**
+   * Level 0. `after` says where it goes when it is over: 'intro' (a brand-new player who pressed Begin - the
+   * intro cutscene and then level 1 follow) or 'title' (the Tutorial button on the title screen).
+   */
+  function startTutorial(after) {
+    tutorialAfter = after === 'intro' ? 'intro' : 'title';
+    audio.init();
+    $('title-notice').classList.add('hidden');
+    startLevel(TUTORIAL_LEVEL);
+  }
+
+  /** Finished or skipped, it counts as done and the game never puts it in front of you again by itself. */
+  function markTutorialDone() {
+    tutorialDone = true;
+    store.set(TUTORIAL_KEY, '1');
+  }
+
+  /** Where the tutorial hands over to: on into the game, or back to the title it was started from. */
+  function leaveTutorial() {
+    tutorial.stop();
+    if (tutorialAfter === 'intro') startCutscene('intro');
+    else toTitle();
+  }
+
+  function onTutorialComplete() {
+    if (state !== 'play') return;
+    state = 'tutdone';
+    touch.releaseAll();
+    tutorial.stop();
+    audio.stopAmbient();
+    music.stop();
+    cues.clear();
+    markTutorialDone();
+    audio.levelComplete();
+    // "Start the game" leads on into the game only when the tutorial was reached through Begin.
+    $('btn-tut-start').firstChild.textContent = tutorialAfter === 'intro' ? 'Start the game ' : 'Back to the title ';
+    setTimeout(() => state === 'tutdone' && showOverlay('tutorial'), 600);
+  }
+
+  /** The Skip tutorial button (on screen and in the pause menu). Skipping counts as done. */
+  function skipTutorial() {
+    if (!inTutorial() || (state !== 'play' && state !== 'paused')) return;
+    audio.uiClick();
+    audio.resume();
+    markTutorialDone();
+    leaveTutorial();
+  }
+
+  /**
+   * Is this a brand-new player? Only then does Begin put the tutorial in front of them: the tutorial has not
+   * been finished or skipped, AND there is nothing to suggest they have played before (no mode is past level 1
+   * and the intro has never run). Anyone with progress goes straight to the intro, exactly as they always did.
+   */
+  const newPlayer = () => !tutorialDone && furthestReached() <= 1 && !hasSeen('intro');
+
+  /** Begin a run. A brand-new game plays the tutorial and then the intro cutscene; Continue skips both. */
   function newRun(fromLevel, withIntro) {
     runSeed = (Math.random() * 0x7fffffff) | 0;
     $('title-notice').classList.add('hidden');
     audio.init();
     audio.uiClick();
     if (withIntro) {
-      startCutscene();
+      // first time here: the tutorial, then the intro, then level 1
+      if (newPlayer()) startTutorial('intro');
+      else startCutscene();
       return;
     }
     // Continue / a level picked from the list normally goes straight in - but if the story scene that leads
@@ -2445,6 +2537,7 @@
     destroyVoices();
     audio.stopAmbient();
     music.stop(); // a cutscene has its own sound; the score never plays over it
+    tutorial.stop(); // (coming straight out of the tutorial: nothing of it is left on screen)
     touch.setVisible(false); // no touch controls in a cutscene (a tap anywhere skips it - see below)
     state = 'cutscene';
     showOverlay(null);
@@ -2579,7 +2672,8 @@
     state = 'paused';
     touch.releaseAll(); // never carry a held finger across a screen change
     EchoProfile.flush(); // write the stats out now: the page may never come back
-    $('pause-mode').textContent = `${MODES[mode].label} · Level ${levelNum}`;
+    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : `${MODES[mode].label} · Level ${levelNum}`;
+    $('btn-pause-skip-tut').classList.toggle('hidden', !inTutorial()); // the way out of the tutorial, for anyone who is done with it
     refreshOptionUi();
     showOverlay('pause');
     audio.suspend();
@@ -2597,6 +2691,7 @@
     audio.stopAmbient();
     audio.resume();
     EchoProfile.flush();
+    tutorial.stop(); // the tutorial's prompt, if one was up
     state = 'title';
     level = null;
     music.start('title'); // the title has a mood of its own (nothing happens until there is an AudioContext)
@@ -2845,6 +2940,7 @@
     }
     touchOn = touchPref === '1' ? true : touchPref === '0' ? false : coarse || touchSeen;
     document.body.classList.toggle('touch', touchOn);
+    tutorial.refresh(); // a tutorial prompt switches between key names and touch wording with it
     if (!touchOn) touch.setVisible(false);
     if (level && state !== 'title' && state !== 'cutscene') updateHud();
     refreshOptionUi();
@@ -2913,6 +3009,7 @@
     },
     keysChanged() {
       settings.renderHowTo();
+      tutorial.refresh(); // a tutorial prompt on screen names the NEW key, not the old one
       releaseKeys(); // a key held while it was being rebound must never be left stuck down
     },
     setVolume(bus, v) {
@@ -2999,6 +3096,15 @@
         if (e.code === 'Enter') {
           e.preventDefault();
           if (!$('complete').classList.contains('hidden')) advanceLevel();
+        }
+        break;
+      case 'tutdone':
+        if (e.code === 'Enter') {
+          e.preventDefault();
+          if (!$('tutorial').classList.contains('hidden')) {
+            audio.uiClick();
+            leaveTutorial();
+          }
         }
         break;
     }
@@ -3110,6 +3216,23 @@
     toTitle();
   });
   $('btn-start').addEventListener('click', () => newRun(1, true));
+  // the tutorial: always on the title screen, always level 0, and it comes back here when it is done
+  $('btn-tutorial').addEventListener('click', () => {
+    if (state !== 'title') return;
+    audio.init();
+    audio.uiClick();
+    startTutorial('title');
+  });
+  $('btn-tut-skip').addEventListener('click', skipTutorial);
+  $('btn-pause-skip-tut').addEventListener('click', skipTutorial);
+  $('btn-tut-start').addEventListener('click', () => {
+    audio.uiClick();
+    leaveTutorial();
+  });
+  $('btn-tut-replay').addEventListener('click', () => {
+    audio.uiClick();
+    startTutorial(tutorialAfter); // the same way out again when it is finished the second time
+  });
   $('btn-continue').addEventListener('click', () => newRun(getBest()));
   $('btn-replay').addEventListener('click', openReplay);
   $('btn-replay-back').addEventListener('click', closeReplay);
@@ -3164,9 +3287,14 @@
       camY += (player.y - camY) * k;
       if (state === 'play') {
         $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
-        if (showTimer) $('hud-time').textContent = mmss(levelTime);
+        if (showTimer && scored()) $('hud-time').textContent = mmss(levelTime);
       }
     }
+
+    // the tutorial's prompt and its Skip button: only while level 0 is actually being played
+    const teaching = inTutorial() && state === 'play';
+    $('tut-hint').classList.toggle('show', teaching && !!tutHint);
+    $('btn-tut-skip').classList.toggle('hidden', !teaching);
 
     // touch controls: shown only while playing (and released the moment they are not)
     if (touchOn && state === 'play' && window.innerHeight > window.innerWidth) pause(); // portrait: the "rotate your device" note is up
@@ -3314,11 +3442,28 @@
       bindKey: (action, slot, code) => {
         EchoProfile.bindKey(action, slot, code);
         settings.renderHowTo();
+        tutorial.refresh();
         return EchoProfile.keysFor(action).slice();
       },
       resetKeys: () => {
         EchoProfile.resetKeys();
         settings.renderHowTo();
+        tutorial.refresh();
+      },
+      // v11.2: the tutorial (level 0). go(0) plays it; startTutorial('intro' | 'title') sets where it hands over to.
+      startTutorial,
+      skipTutorial,
+      leaveTutorial,
+      tutorialState: () => ({ ...tutorial.state(), after: tutorialAfter, hint: tutHint, done: tutorialDone }),
+      tutorialSteps: () => tutorial.stepIds(),
+      newPlayer: () => newPlayer(),
+      setTutorialDone: (on) => {
+        if (on) markTutorialDone();
+        else {
+          tutorialDone = false;
+          store.set(TUTORIAL_KEY, '0');
+        }
+        return tutorialDone;
       },
       profile: EchoProfile,
       medals: () => EchoProfile.allMedals(),
@@ -3328,7 +3473,9 @@
       musicState: () => music.state(),
       levelDeaths: () => levelDeaths,
       settings: () => ({
-        campaignLevels: CAMPAIGN_LEVELS, // 12
+        campaignLevels: CAMPAIGN_LEVELS, // 12 (the tutorial is level 0 and is not one of them)
+        // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
+        tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,
         showTimer,
         volumes: EchoProfile.volumes(),

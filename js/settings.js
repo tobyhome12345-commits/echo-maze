@@ -397,6 +397,7 @@ const EchoSettings = (() => {
         [...caps('crouch'), 'hold to crouch: silent, but no ripples'],
         [...caps('mute'), 'mute', ...caps('pause'), 'pause', ...caps('calm'), 'calm', ...caps('cues'), 'visual cues'],
         [...caps('item'), 'use an item you have found'],
+        ['New here? Tutorial below walks you through it in the dark.'],
       ]);
       build($('howto-pause'), [
         [...move, 'move'],

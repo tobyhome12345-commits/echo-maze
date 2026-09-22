@@ -4,7 +4,7 @@ A 2D browser game played in **pitch black**. You can't see the maze — you have
 
 Press **SPACE** to send out a sonar ripple. It expands from your position, bounces off invisible walls, obstacles and monsters, and reveals them for a moment as it echoes back — with a sound for every bounce. But the **echo monsters** are blind: the only way one learns where you are is if your ripple wave hits it — or if it touches you.
 
-No build step, no dependencies, no audio files. Open `index.html` in a browser (or serve the folder with any static server) and click **Begin**.
+No build step, no dependencies, no audio files. Open `index.html` in a browser (or serve the folder with any static server) and click **Begin**. New here? The first Begin walks you through a short **Tutorial** first, and there is a **Tutorial** button on the title screen whenever you want it again.
 
 ## Controls
 
@@ -43,6 +43,34 @@ Headphones recommended: echoes and monsters are stereo-panned, muffled by walls,
 | Green | The way out | a **portal**: concentric rings, a slowly rotating arc, a little doorway and a few soft sparkles |
 
 Colour is never the only clue: every thing has its own silhouette and texture (drawn by [`js/art.js`](js/art.js)), and the title screen's legend shows them. See **How things look** below. The colours above are the Default palette - **Settings -> Display** has three others, including two for colour blindness (see **Colour palettes**), and the legend always shows the one you are using.
+
+## The tutorial (level 0)
+
+A short, hand-drawn maze that teaches the basics in the dark. **Tutorial** is always on the title screen, and the very first time a new player presses **Begin** it plays first — then the intro cutscene, then level 1. Anyone with a save goes straight to the intro, exactly as before.
+
+It is **level 0**, and it is not part of the game:
+
+- **Nothing in it can kill you.** No monsters, no smell puddles, no sonar decoy — only walls, two obstacles and the way out.
+- **The same maze every time.** It is drawn by hand ([`js/tutorial.js`](js/tutorial.js)), not generated: 13 x 9 tiles, a start room, a corridor with a corner, a room with a boulder and a pillar in the middle of it, a small dead end to walk into, and the exit in the far corner. It draws no random numbers at all, so it cannot move anything on levels 1 to 12.
+- **The same in every difficulty.** Easy, Normal, Hard and Hardcore all get Normal's level-1 ripple range (362 px) and recharge (0.75 s). There is **no timer** in the HUD and nothing to hurry for; Hardcore's one life does not apply, because nothing can catch you.
+- **It counts for nothing.** No progress, no Continue, no medals, no stats (not a ripple, not a second, not a step) and nothing towards *levels cleared*. The campaign is still levels 1 to 12, and the HUD says **Tutorial** instead of a level and a mode.
+
+Six prompts appear one at a time along the bottom of the screen (at the top on a touch device, clear of the controls), and **each one waits for you to actually do the thing** rather than timing out:
+
+| | It says | It moves on when |
+| --- | --- | --- |
+| 1 | It is dark in here. Use *your movement keys* to move. | you have walked about 120 px |
+| 2 | Press *your ripple key* to send a ripple. Your echo shows what is around you. | you send your first ripple |
+| 3 | Blue lines are walls. The picture fades fast, so remember what you saw. | you walk on |
+| 4 | Ripples take a moment to recharge. Move, then ping again. | you send a second ripple |
+| 5 | Amber shapes are boulders and pillars. You cannot walk through them. | you get past the obstacle room (it only appears once you are in it) |
+| 6 | Listen for a chime. That is the exit. Get close and it glows green. | you reach the exit |
+
+The key names are **your own bindings** (Settings -> Controls) and change the instant you rebind one; on a touch device the prompts say *Drag on the left of the screen* and *Tap RIPPLE* instead. If you stop making progress for about 25 seconds the same lesson comes back, worded more gently. The exit's chime carries about 360 px, so you can hear it from the start long before it glimmers at 130 px.
+
+**Skip tutorial** is on screen the whole time and in the pause menu; skipping counts as done, exactly like finishing it. When you reach the exit a **Tutorial complete** panel offers **Start the game** (on into the intro and level 1, if you got here through Begin — otherwise **Back to the title**) and **Replay tutorial**. Calm mode, Visual cues, the colour palettes, mute and the touch controls all work in it as they do anywhere else.
+
+It is remembered in `localStorage` as `echomaze.tutorial`. A save from before it existed simply has no such key, which reads as "not done yet" and changes nothing else — and a player with progress is never shown it unless they ask for it.
 
 ## The intro
 
@@ -208,7 +236,7 @@ When a ripple's wave reaches something, it is drawn **as itself**, not just as a
 
 ## Levels
 
-There are **twelve levels**. Clearing level 12 ends the game with a *You finished the game* screen. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows (maze sizes run from 7 x 5 cells on level 1 to 18 x 14 on level 12). Level 1 has no monsters so you can learn the ropes. A maze for a given seed is the same in every mode.
+There are **twelve levels** (the tutorial is **level 0** and is not one of them — see above). Clearing level 12 ends the game with a *You finished the game* screen. Each level is a bigger, more loop-filled maze with more obstacles, while your ripple range shrinks and its cooldown grows (maze sizes run from 7 x 5 cells on level 1 to 18 x 14 on level 12). Level 1 has no monsters so you can learn the ropes. A maze for a given seed is the same in every mode.
 
 The monsters on each level are **exact** (the number never varies from run to run). **Levels 1 to 8 are the same in every mode. From level 9 on, Easy has one fewer monster** (the modes otherwise differ in speed, hearing, ripples and puddles, not in how many monsters there are). **Normal, Hard and Hardcore:**
 
@@ -386,13 +414,14 @@ On touch devices (a coarse pointer, or the first touch) the game shows on-screen
 ## Project layout
 
 ```
-index.html      page + overlay screens (title, replay, settings, pause, caught, level complete, victory) + the touch layer
+index.html      page + overlay screens (title, replay, settings, pause, tutorial complete, caught, level complete, victory) + the touch layer
 style.css       styling (everything for touch is under `body.touch`)
 js/profile.js   everything saved that is not progress: your keys, volumes, palette, medals and stats
 js/palette.js   the four colour palettes, and who they hand their colours to
 js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling, Doppler, the two buses)
 js/music.js     the procedural soundtrack: one mood per level, on the ambience bus
 js/level.js     level generation + difficulty curve (levelConfig)
+js/tutorial.js  level 0: the hand-drawn tutorial maze and its teaching prompts
 js/art.js       EchoArt - how everything a ripple lights up is drawn (shapes, textures, the exit portal, the mimic's tell)
 js/cutscene.js  the seven story cutscenes: lore cards + scripted scenes (timelines at the top)
 js/cues.js      Visual cues (accessibility): the glyphs on the ring around you
@@ -411,4 +440,4 @@ Difficulty is tuned in one place: the `MODES` table and `levelConfig()` in [`js/
 
 ## Debugging
 
-Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `showMuffler(on)` (draw the Muffler, which is never drawn in normal play, as a dim ring with a dash), `newMonsters()` (the Muffler's and Singer's state), `openSettings('title'|'pause')`, `setPalette(id)`, `palette()`, `keys()`, `bindKey(action, slot, code)`, `resetKeys()`, `medals()`, `stats()`, `pars(pathTiles)`, `musicState()`, `setShowTimer(on)`, `levelDeaths()`, `markBy(singer)` (force a mark), `audio`) for poking at the game from the console. `settings()` reports `campaignLevels` (12), `muffler` and `singer` (this mode's numbers from the MODES table, plus the level's speeds), `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress`, `seen`, and (v11.0) `palette`, `showTimer`, `volumes` (master / effects / ambience), `keyBindings`, `medalPar` (this level's medal thresholds) and `music` (the mood playing and its danger). `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.
+Open the page with `?debug` to expose `window.__echo` (`info()`, `tp(x, y)`, `go(level)`, `step(seconds)`, `intro()`, `freeze(on)`, `csTo(seconds)`, `ripples()`, `marks()`, `crouch()`, `decoys()`, `dropDecoy()`, `rippleRange()`, `cues()`, `features({ cues, touch, audioFx })`, `seed(n)`, `touch`, `soundBlocked(x0, y0, x1, y1)`, `artClock(t)` (hold the art's animation clock still; `null` lets it run), `zoom(v)` (magnify the picture), `snapCamera(x, y)`, `showMuffler(on)` (draw the Muffler, which is never drawn in normal play, as a dim ring with a dash), `newMonsters()` (the Muffler's and Singer's state), `openSettings('title'|'pause')`, `setPalette(id)`, `palette()`, `keys()`, `bindKey(action, slot, code)`, `resetKeys()`, `medals()`, `stats()`, `pars(pathTiles)`, `musicState()`, `setShowTimer(on)`, `levelDeaths()`, `markBy(singer)` (force a mark), and, for the tutorial, `go(0)` (play level 0), `startTutorial('intro'|'title')` (and where it hands over to when it ends), `skipTutorial()`, `leaveTutorial()`, `tutorialState()` (the step, the line on screen, how far you have walked), `tutorialSteps()`, `newPlayer()` (would Begin play the tutorial?) and `setTutorialDone(on)`, `audio`) for poking at the game from the console. `settings()` reports `campaignLevels` (12), `tutorial` (`done`, `after`, `newPlayer`, its `steps` and, while it is running, where it is `at`), `muffler` and `singer` (this mode's numbers from the MODES table, plus the level's speeds), `mode`, `calm`, `visualCues`, `touchControls` (`on`, and `saved`: `'1'` forced on, `'0'` forced off, `null` automatic), `audioFx` (wall muffling + Doppler; always `true` in real play), `progress`, `seen`, and (v11.0) `palette`, `showTimer`, `volumes` (master / effects / ambience), `keyBindings`, `medalPar` (this level's medal thresholds) and `music` (the mood playing and its danger). `features()` switches the accessibility / input features (and, for tests only, the audio effects) **without saving** them: with the same `seed()`, the same inputs and the same random numbers, a game plays out **identically** with everything off and everything on.

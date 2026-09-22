@@ -22,6 +22,10 @@
     </div>
   </div>
 
+  <!-- the tutorial's teaching prompts (level 0 only): the banner's look, one line, bottom of the screen -->
+  <div id="tut-hint" aria-live="polite"></div>
+  <button id="btn-tut-skip" class="hidden" type="button">Skip tutorial</button>
+
   <div id="banner">
     <div id="banner-title"></div>
     <div id="banner-text"></div>
@@ -106,6 +110,7 @@
         <button id="btn-continue" class="hidden">Continue</button>
       </div>
       <div class="buttons">
+        <button id="btn-tutorial" class="quiet">Tutorial</button>
         <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
         <button id="btn-settings" class="quiet">Settings</button>
       </div>
@@ -159,6 +164,8 @@
       <div class="buttons dock">
         <button id="btn-resume" class="primary">Resume</button>
         <button id="btn-pause-settings">Settings</button>
+        <!-- shown only during the tutorial (level 0) -->
+        <button id="btn-pause-skip-tut" class="hidden">Skip tutorial</button>
         <button id="btn-quit">Quit to title</button>
       </div>
     </div>
@@ -228,6 +235,18 @@
     </div>
   </section>
 
+  <!-- the end of the tutorial (level 0). It is not a level: nothing here is saved but "the tutorial is done". -->
+  <section id="tutorial" class="overlay hidden">
+    <div class="panel small">
+      <h2>Tutorial complete</h2>
+      <p id="tut-done-text">That is all of it: move, ripple, remember what you saw, and follow the chime. The maze gets darker from here.</p>
+      <div class="buttons dock">
+        <button id="btn-tut-start" class="primary">Start the game <span class="key">Enter</span></button>
+        <button id="btn-tut-replay">Replay tutorial</button>
+      </div>
+    </div>
+  </section>
+
   <section id="caught" class="overlay hidden danger">
     <div class="panel small">
       <h2 id="caught-title">Caught</h2>
@@ -285,6 +304,7 @@
   <script src="js/audio.js"></script>
   <script src="js/music.js"></script>
   <script src="js/level.js"></script>
+  <script src="js/tutorial.js"></script>
   <script src="js/art.js"></script>
   <script src="js/cutscene.js"></script>
   <script src="js/cues.js"></script>

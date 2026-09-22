@@ -171,8 +171,37 @@ const MODE_MONSTERS = {
   },
 };
 
+/**
+ * LEVEL 0 is the tutorial (js/tutorial.js): a hand-drawn maze with nothing alive in it. It is the same in every
+ * difficulty mode - it borrows NORMAL's level-1 ripple range and recharge, so the lesson is identical for
+ * everyone - and it has no monsters, no puddles and no decoy. The campaign is still levels 1-12; nothing below
+ * this point ever sees n = 0, so no other level's formula is touched.
+ */
+function tutorialConfig(modeId) {
+  const base = levelConfig(1, 'normal');
+  return {
+    ...base,
+    n: 0,
+    mode: modeId, // for the HUD and the debug hook only: nothing in the tutorial reads the mode
+    cw: 6,
+    ch: 4,
+    rooms: 2,
+    obstacles: 2,
+    enemies: 0,
+    scentMonsters: 0,
+    puddles: 0,
+    puddlesDrawn: 0,
+    mimics: 0,
+    decoy: false,
+    stalkers: 0,
+    mufflers: 0,
+    singers: 0,
+  };
+}
+
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal') {
+  if (n === 0) return tutorialConfig(modeId);
   const m = MODES[modeId] || MODES.normal;
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
@@ -272,6 +301,9 @@ function shuffle(arr, rand) {
  */
 function generateLevel(n, runSeed, modeId = 'normal') {
   const cfg = levelConfig(n, modeId);
+  // Level 0 is the tutorial: hand-drawn, the same every time, and it never reaches the generator below - so it
+  // draws no random numbers at all and cannot move anything on levels 1-12.
+  if (n === 0) return EchoTutorial.build(cfg);
   const rand = mulberry32((runSeed ^ Math.imul(n, 0x9e3779b1)) >>> 0);
   const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
 
