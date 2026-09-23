@@ -2178,3 +2178,68 @@ input[type='range']:focus-visible {
 #banner.show {
   transform: none;
 }
+
+/* ==========================================================================
+   FEEL (v11.6): the death tip and the "Progress saved" toast.
+   Both are feedback laid on top of the game; neither is ever read back.
+   ========================================================================== */
+
+/* the one line under "Caught" saying what really happened */
+#caught-tip {
+  margin: -6px 0 18px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  font-style: italic;
+  color: #ffc9d2;
+  background: rgba(var(--danger-rgb), 0.07);
+  border-left: 2px solid rgba(var(--danger-rgb), 0.45);
+  border-radius: 0 8px 8px 0;
+  text-align: left;
+}
+
+#caught-tip:empty {
+  display: none;
+}
+
+/* Bottom corner, in and out in about a second and a half. It uses --ui-fade, so calm mode (and reduce motion)
+   ease it more gently, like everything else. */
+#saved-toast {
+  position: fixed;
+  right: calc(env(safe-area-inset-right, 0px) + 22px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  z-index: 30;
+  padding: 10px 18px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #d8ffe9;
+  background: linear-gradient(180deg, rgba(8, 26, 19, 0.92), rgba(3, 10, 8, 0.94));
+  border: 1px solid rgba(var(--exit-rgb), 0.34);
+  border-radius: 10px;
+  box-shadow: 0 0 26px rgba(var(--exit-rgb), 0.18), inset 0 1px 0 rgba(var(--exit-rgb), 0.22);
+  text-shadow: 0 0 12px rgba(var(--exit-rgb), 0.5);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(var(--ui-lift));
+  transition: opacity var(--ui-fade) ease-in-out, transform var(--ui-fade) var(--ui-ease);
+}
+
+#saved-toast.show {
+  opacity: 1;
+  transform: none;
+}
+
+body.touch #saved-toast {
+  /* clear of the RIPPLE button, which owns the bottom right on a touch screen */
+  right: auto;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  transform: translate(-50%, var(--ui-lift));
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+body.touch #saved-toast.show {
+  transform: translate(-50%, 0);
+}

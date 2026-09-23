@@ -9,6 +9,11 @@
   const RIPPLE_SPEED = 520; // px/s - both the wave and its echo travel at this speed
   const RAYS = 640;
   const CATCH_DIST = ENEMY_R + PLAYER_R; // circles touching = you die
+  // A NEAR MISS (v11.6): a monster got inside this and then backed out again without touching you. It is a
+  // MOMENT, not a mechanic - nothing about hit detection, speed, hearing or AI knows this number exists.
+  const NEAR_MISS_DIST = CATCH_DIST * 1.5;
+  const NEAR_MISS_GAP = 2; // seconds before the same monster can give you another one
+  const NEAR_MISS_SECONDS = 0.42; // how long the beat lasts
   const CAMPAIGN_LEVELS = 12; // the game so far: clearing level 12 ends it ("you finished") - more levels may come later
   // LEVEL 0 is the tutorial (js/tutorial.js). It is not part of the campaign: it counts for no progress, no
   // Continue, no medals, no stats and no "levels cleared". Everywhere that would score something asks `scored()`.
@@ -136,11 +141,13 @@
         return null;
       }
     },
+    /** Returns whether it really got written: the "Progress saved" toast must never lie (js/game.js). */
     set(key, value) {
       try {
         localStorage.setItem(key, value);
+        return true;
       } catch (e) {
-        /* storage unavailable */
+        return false; /* storage unavailable */
       }
     },
   };
@@ -197,6 +204,11 @@
   let artT = 0; // seconds: the clock the art (js/art.js) animates by. Drawing only - it never touches the simulation
   let artHold = null; // ?debug only: hold the art's clock still, for screenshots
   let singerLanded = false; // a singer has just landed within landRadius of you: you are caught (checked with the outcomes of updatePlay)
+  // ---- feedback layers (v11.6). None of these is ever read by the simulation.
+  let deathTip = ''; // the line the Caught screen is showing (js/feedback.js)
+  let nearMiss = 0; // 0..1: a monster has just come within a hair of you and backed off - drawing and sound only
+  let artLag = 0; // seconds of ART time not yet advanced: the near-miss slows what is DRAWN, never what happens
+  let savedToastTimer = null;
   let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -251,10 +263,11 @@
     return Math.max(1, parseInt(progress[m], 10) || 1);
   }
 
+  /** Returns true only when a NEW best level was really written to storage (the toast asks). */
   function saveBest(n) {
-    if (n <= getBest()) return;
+    if (n <= getBest()) return false;
     progress[mode] = n;
-    store.set(PROGRESS_KEY, JSON.stringify(progress));
+    return store.set(PROGRESS_KEY, JSON.stringify(progress));
   }
 
   // ------------------------------------------------------------- geometry
@@ -641,6 +654,7 @@
     const wasHunting = e.state === 'hunt';
     if (!setPathTo(e, ox, oy)) return;
     e.state = 'hunt';
+    e.why = 'ripple'; // the Caught screen's tip only (js/feedback.js): written here, never read by the AI
     if (!wasHunting) screech(e);
   }
 
@@ -657,6 +671,7 @@
       if (e.state !== 'search') continue;
       if (Math.hypot(e.x - x, e.y - y) > cfg.footstepRadius) continue;
       e.state = 'track';
+      e.why = 'footsteps'; // tip only
       e.repath = 0;
       screech(e);
     }
@@ -717,7 +732,11 @@
       const heard = player.crouching
         ? walked && d <= cfg.mufflerCrouchRadius
         : d <= cfg.mufflerPresenceRadius || (walked && d <= cfg.mufflerFootstepRadius);
-      if (heard) mufflerHeard(e);
+      if (heard) {
+        // tip only, and only on the frame it first hears you (see stalkersListen above for why)
+        if (e.state !== 'hunt') e.why = !player.crouching && d <= cfg.mufflerPresenceRadius ? 'standing' : 'moving';
+        mufflerHeard(e);
+      }
     }
   }
 
@@ -944,7 +963,12 @@
       if (e.kind !== 'stalker') continue;
       if (e.state === 'lured' || e.state === 'trapped') continue; // a decoy has it: it hears nothing else until it is released
       const d = Math.hypot(e.x - player.x, e.y - player.y);
-      if (d <= cfg.presenceRadius || (walked && d <= cfg.footstepRadius)) stalkerHeard(e);
+      if (d <= cfg.presenceRadius || (walked && d <= cfg.footstepRadius)) {
+        // tip only (js/feedback.js), and only on the frame it FIRST hears you: by the time it reaches you, you
+        // are inside its presence radius whatever you are doing, so the last frame would always say "standing"
+        if (e.state !== 'hunt') e.why = d <= cfg.presenceRadius ? 'standing' : 'moving';
+        stalkerHeard(e);
+      }
     }
   }
 
@@ -1173,6 +1197,7 @@
       else for (let i = hit.seg + 1; i < tr.pts.length; i++) path.push({ x: tr.pts[i].x, y: tr.pts[i].y }); // farther end = the far tip
       if (!path.length) continue;
       e.state = 'follow';
+      e.why = 'trail'; // tip only (js/feedback.js)
       e.followTrail = tr;
       e.path = path;
       e.pi = 0;
@@ -1191,6 +1216,7 @@
     if (smelly) {
       if (e.state !== 'track') {
         e.state = 'track';
+        e.why = 'smell'; // tip only (js/feedback.js)
         e.repath = 0;
         e.followTrail = null;
         scentAlert(e);
@@ -1801,6 +1827,23 @@
   }
 
   /** A short message in the banner (the level hint uses the same spot). */
+  /**
+   * Something got within a hair of you and did not get you. A beat, made out of things the game already does:
+   * one heartbeat (with its Visual cue), a faint red pulse at the edge of the screen, and a short dip in the
+   * speed of the ART's clock - `artLag` holds back what is DRAWN, never what happens. The simulation has
+   * already finished this frame; `dt` is untouched and no monster is told anything.
+   *
+   * Calm mode softens it exactly as it softens the heartbeat and the red creep elsewhere: quieter, dimmer, and
+   * no time dilation at all - but the cue still fires, because Visual cues must not be weaker in calm mode.
+   */
+  function onNearMiss() {
+    if (scored()) EchoProfile.bump('nearMisses'); // counted; never read back, and nothing to do with medals
+    const soft = calm ? 0.45 : 1;
+    nearMiss = soft;
+    if (!calm) audio.heartbeat(1);
+    cues.heartbeat(0.9);
+  }
+
   function notify(title, text, ms = 6000) {
     $('banner-title').textContent = title;
     $('banner-text').textContent = text;
@@ -1923,14 +1966,32 @@
     // a line of text. Nothing above this point knows the tutorial exists.
     if (inTutorial()) tutorial.update(dt, { x: player.x, y: player.y, ripples: ripplesUsed });
 
+    // NEAR MISSES. Read-only, and last: every monster has already moved and the outcomes below decide the
+    // level. All this does is notice that something came within a hair of you and did not get you.
+    nearMiss = Math.max(0, nearMiss - dt / NEAR_MISS_SECONDS);
+    for (const e of enemies) {
+      if (e.kind === 'mimic') continue; // a disguised mimic gives nothing away, near miss or not
+      const d = Math.hypot(e.x - player.x, e.y - player.y);
+      e.nmCd = Math.max(0, (e.nmCd || 0) - dt);
+      if (d < NEAR_MISS_DIST) {
+        e.nmIn = true; // inside the margin: wait and see whether it gets you
+      } else if (e.nmIn) {
+        e.nmIn = false;
+        if (e.nmCd <= 0) {
+          e.nmCd = NEAR_MISS_GAP; // it cannot do this to you again for a couple of seconds
+          onNearMiss();
+        }
+      }
+    }
+
     // --- outcomes
     if (singerLanded) {
       singerLanded = false;
-      return onCaught('singer'); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
+      return onCaught('singer', 'marked'); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
     }
     for (const e of enemies) {
       // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
-      if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind);
+      if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind, deathWhy(e));
     }
     if (Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) {
       if (inTutorial()) onTutorialComplete();
@@ -2316,8 +2377,10 @@
     drawWorld();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // red creep at the edges when a monster is near, and a flash when caught
-    const dv = calm ? 0 : danger * (0.55 + 0.45 * beat); // calm mode: no red creep
+    // red creep at the edges when a monster is near, a flash when caught, and a faint pulse on a near miss
+    // (calm mode keeps the near miss, at about a third of the light, the way it keeps the heartbeat's cue)
+    const nm = nearMiss > 0 ? Math.sin(Math.PI * Math.min(1, nearMiss)) * (calm ? 0.3 : 0.75) : 0;
+    const dv = (calm ? 0 : danger * (0.55 + 0.45 * beat)) + nm * 0.5; // calm mode: no red creep of its own
     if (dv > 0.01 || flash > 0.01) {
       const cw = canvas.width;
       const ch = canvas.height;
@@ -2643,10 +2706,27 @@
     else startLevel(levelNum + 1);
   }
 
+  /**
+   * WHY it got you, for the Caught screen's tip (js/feedback.js). It reads the tag the monster left on itself
+   * when it noticed you, and whether it is actually chasing you right now - a monster that had lost you, or
+   * never found you, means you walked into it in the dark. Read-only: this runs after the death is decided and
+   * cannot change it.
+   */
+  function deathWhy(e) {
+    if (e.kind === 'mimic' || e.fromMimic) return 'any'; // a mimic is a mimic, disguised or not
+    // a singer that has marked you: whether it lands on you or its body reaches you on the way, the song is why
+    if (e.kind === 'singer' && (e.state === 'marked' || e.state === 'leap' || e.state === 'land')) return 'any';
+    const chasing = e.state === 'hunt' || e.state === 'track' || e.state === 'follow' || e.state === 'search';
+    return chasing && e.why ? e.why : 'blind';
+  }
+
   /** `cause` is what killed you ('echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer') - for the stats. */
-  function onCaught(cause) {
+  function onCaught(cause, why = 'blind') {
     if (state !== 'play') return;
     state = 'caught';
+    // one line saying what really happened, picked without touching the game's random numbers
+    deathTip = EchoFeedback.tipFor(cause, why, levelNum, Math.round(levelTime * 1000));
+    $('caught-tip').textContent = deathTip;
     levelDeaths++; // one death on this level means no Flawless medal for it, even if the retry goes perfectly
     EchoProfile.addDeath(mode, cause);
     EchoProfile.flush();
@@ -2671,10 +2751,11 @@
       if (MODES[mode].oneLife) {
         // One life: the run is over. Back to the title screen - there is nothing to resume.
         const died = levelNum;
+        const tip = deathTip;
         go(() => {
           toTitle();
           const note = $('title-notice');
-          note.textContent = `☠ You died on level ${died}. Hardcore gives you one life, so that run is over.`;
+          note.textContent = `☠ You died on level ${died}. ${tip} Hardcore gives you one life, so that run is over.`;
           note.classList.remove('hidden');
         });
         return;
@@ -2755,6 +2836,24 @@
     });
   }
 
+  /**
+   * A small "Progress saved" note in the corner, about a second and a half from start to gone. It is only ever
+   * called after a write that really happened (`store.set` reports it), so it can never claim something was
+   * kept when storage is off, full or blocked - in that case nothing appears at all, which is the honest thing.
+   */
+  function showSaved() {
+    const el = $('saved-toast');
+    if (!el) return;
+    clearTimeout(savedToastTimer);
+    el.classList.remove('hidden');
+    void el.offsetWidth; // lay it out before the fade, exactly as the overlays do
+    el.classList.add('show');
+    savedToastTimer = setTimeout(() => {
+      el.classList.remove('show');
+      savedToastTimer = setTimeout(() => el.classList.add('hidden'), fadeMs());
+    }, 900);
+  }
+
   function onLevelComplete() {
     if (state !== 'play') return;
     state = 'complete';
@@ -2763,7 +2862,7 @@
     music.stop();
     destroyVoices();
     cues.clear();
-    saveBest(levelNum + 1);
+    const newBest = saveBest(levelNum + 1);
     EchoProfile.addClear(mode);
     EchoProfile.flush();
     const res = EchoProfile.recordClear(mode, levelNum, {
@@ -2772,6 +2871,10 @@
       flawless: levelDeaths === 0,
       pathTiles: level.pathTiles,
     });
+    // "Progress saved", but only when something really was: a new best level, or a medal you did not have.
+    // Playing a cleared level again and doing no better writes nothing new, and says nothing.
+    const newMedal = !!res.saved && Object.keys(res.improved).some((k) => res.improved[k]);
+    if (newBest || newMedal) showSaved();
     const stats = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
     if (levelNum >= CAMPAIGN_LEVELS) {
       // The end of the game so far: there is no level after CAMPAIGN_LEVELS yet.
@@ -3416,7 +3519,11 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    artT = artHold === null ? now / 1000 : artHold;
+    // The art's clock. A near miss slows it for a moment - `artLag` is the art time we have chosen not to
+    // advance - so the maze seems to hold its breath. This is the DRAWING clock and nothing else: the
+    // simulation's own `dt` above is untouched, which is why the beat cannot change an outcome.
+    if (nearMiss > 0 && !calm) artLag += dt * 0.55 * Math.sin(Math.PI * Math.min(1, nearMiss));
+    artT = artHold === null ? now / 1000 - artLag : artHold;
 
     if (state === 'play') {
       updatePlay(dt);
@@ -3614,6 +3721,15 @@
         settings.renderHowTo();
         tutorial.refresh();
       },
+      // v11.6: death tips, near misses and the save toast - all feedback, none of it read by the simulation
+      feedback: EchoFeedback,
+      deathTip: () => deathTip,
+      tipFor: (cause, why, level = 1, atMs = 0) => EchoFeedback.tipFor(cause, why, level, atMs),
+      whyOf: () => enemies.map((e) => ({ kind: e.kind, state: e.state, why: e.why || null, would: deathWhy(e) })),
+      nearMiss: () => ({ level: +nearMiss.toFixed(3), artLag: +artLag.toFixed(3), dist: NEAR_MISS_DIST, gap: NEAR_MISS_GAP, count: EchoProfile.stats().nearMisses, perMonster: enemies.map((e) => ({ kind: e.kind, inside: !!e.nmIn, cooldown: +(e.nmCd || 0).toFixed(2) })) }),
+      forceNearMiss: () => onNearMiss(),
+      savedToast: () => ({ shown: !$('saved-toast').classList.contains('hidden'), lit: $('saved-toast').classList.contains('show') }),
+      showSaved,
       // v11.5: the interface's motion. `ui()` reports the timings; `go` is NOT used by any of these hooks, so
       // every one of them still changes the screen the instant it is called.
       ui: () => ({ fadeMs: fadeMs(), veilMs: veilMs(), stagger: calm || EchoWordmark.reduceMotion() ? 230 : 170, transitioning, calm, reduceMotion: EchoWordmark.reduceMotion(), veilOn: $('veil').classList.contains('on'), shown: overlays.filter((o) => !$(o).classList.contains('hidden')), lit: overlays.filter((o) => $(o).classList.contains('in')) }),

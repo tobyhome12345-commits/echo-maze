@@ -25,6 +25,9 @@
   <!-- the cross-fade between screens (js/game.js: transition()). Nothing ever waits on it to make a sound. -->
   <div id="veil" aria-hidden="true"></div>
 
+  <!-- shown for a moment after a clear that really wrote something to storage (js/game.js: showSaved) -->
+  <div id="saved-toast" class="hidden" role="status">Progress saved</div>
+
   <!-- the tutorial's teaching prompts (level 0 only): the banner's look, one line, bottom of the screen -->
   <div id="tut-hint" aria-live="polite"></div>
   <button id="btn-tut-skip" class="hidden" type="button">Skip tutorial</button>
@@ -256,6 +259,8 @@
     <div class="panel small">
       <h2 id="caught-title">Caught</h2>
       <p id="caught-text">The echo found you.</p>
+      <!-- one line saying what really happened, from the monster's own state (js/feedback.js) -->
+      <p id="caught-tip" class="tip"></p>
       <div class="buttons">
         <button id="btn-retry" class="primary"><span id="retry-label">Try again</span> <span class="key">Enter</span></button>
         <button id="btn-caught-title">Title</button>
@@ -311,6 +316,7 @@
   <script src="js/level.js"></script>
   <script src="js/tutorial.js"></script>
   <script src="js/wordmark.js"></script>
+  <script src="js/feedback.js"></script>
   <script src="js/art.js"></script>
   <script src="js/cutscene.js"></script>
   <script src="js/cues.js"></script>

@@ -275,6 +275,7 @@ const EchoSettings = (() => {
       statRow(box, 'Times crouched', s.crouches);
       statRow(box, 'Sonar decoys used', s.decoys);
       statRow(box, 'Times marked by the Singer', s.marked);
+      statRow(box, 'Near misses survived', s.nearMisses || 0);
       statRow(box, 'Time played', hhmmss(s.playTime));
       statRow(box, 'Distance walked', metres(s.distance));
 

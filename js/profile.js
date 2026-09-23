@@ -28,11 +28,13 @@ const EchoProfile = (() => {
         return null;
       }
     },
+    /** Returns whether it really got written: the "Progress saved" toast must never lie (js/game.js). */
     set(key, value) {
       try {
         localStorage.setItem(key, value);
+        return true;
       } catch (e) {
-        /* storage unavailable */
+        return false; /* storage unavailable */
       }
     },
     remove(key) {
@@ -319,11 +321,12 @@ const EchoProfile = (() => {
     };
     if (!medals[mode]) medals[mode] = {};
     medals[mode][level] = rec;
-    store.set(MEDALS_KEY, JSON.stringify(medals));
+    const saved = store.set(MEDALS_KEY, JSON.stringify(medals));
     return {
       earned: got,
       record: rec,
       pars: got.pars,
+      saved, // did the write actually happen? (the toast in js/game.js only appears when it did)
       improved: {
         time: got.time > (had.time || 0),
         ripples: got.ripples > (had.ripples || 0),
@@ -370,14 +373,14 @@ const EchoProfile = (() => {
     for (const k of DEATH_KINDS) byKind[k] = 0;
     const byMode = {};
     for (const m of MODE_IDS) byMode[m] = { cleared: 0, deaths: 0 };
-    return { cleared: 0, deaths: 0, deathsBy: byKind, byMode, ripples: 0, crouches: 0, decoys: 0, marked: 0, playTime: 0, distance: 0 };
+    return { cleared: 0, deaths: 0, deathsBy: byKind, byMode, ripples: 0, crouches: 0, decoys: 0, marked: 0, nearMisses: 0, playTime: 0, distance: 0 };
   }
 
   function loadStats() {
     const saved = store.json(STATS_KEY, null);
     const s = blankStats();
     if (!saved) return s;
-    for (const k of ['cleared', 'deaths', 'ripples', 'crouches', 'decoys', 'marked', 'playTime', 'distance']) {
+    for (const k of ['cleared', 'deaths', 'ripples', 'crouches', 'decoys', 'marked', 'nearMisses', 'playTime', 'distance']) {
       const v = +saved[k];
       if (isFinite(v) && v >= 0) s[k] = v;
     }
