@@ -2330,16 +2330,96 @@
   }
 
   // -------------------------------------------------------------- UI / flow
+  /**
+   * SCREEN CHANGES. Two things move: an overlay cross-fades in or out (`showOverlay`), and a screen change that
+   * swaps what the CANVAS is showing is run behind a black veil (`go`). The numbers here mirror --ui-fade in
+   * style.css, and calm mode (and "reduce motion") slow them down - the movement is softened, never removed.
+   */
+  const FADE_MS = 300;
+  const FADE_MS_CALM = 420;
+  const fadeMs = () => (calm || EchoWordmark.reduceMotion() ? FADE_MS_CALM : FADE_MS);
+  const veilMs = () => Math.round(fadeMs() * 0.55); // out and back again is one fade
+  let overlayHideTimer = null;
+  let transitioning = false;
+
   function showOverlay(id) {
-    overlays.forEach((o) => $(o).classList.toggle('hidden', o !== id));
+    clearTimeout(overlayHideTimer);
+    for (const o of overlays) {
+      const el = $(o);
+      if (o === id) {
+        el.classList.remove('hidden');
+        // Lay it out at opacity 0 FIRST, so the fade has a starting point. This is a forced reflow rather than
+        // a rAF because animation frames stop in a hidden or backgrounded tab - and a screen that only appears
+        // once a frame runs is a screen that can fail to appear at all.
+        void el.offsetWidth;
+        el.classList.add('in');
+      } else {
+        el.classList.remove('in');
+      }
+    }
+    // the ones on their way out keep their place until they have finished fading (they cannot be clicked: see
+    // `.overlay:not(.in)` in style.css)
+    overlayHideTimer = setTimeout(() => {
+      for (const o of overlays) if (o !== id) $(o).classList.add('hidden');
+    }, fadeMs());
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+
+  /**
+   * A screen change the player asked for: fade to black, do it, fade back. Only ever called from an input
+   * handler (or the end of a cutscene), never from inside the flow functions - so `startLevel`, `toTitle`,
+   * `advanceLevel` and the ?debug hooks all stay synchronous and the tests are unaffected.
+   *
+   * Anything that has to make or resume sound has ALREADY done it by the time this runs: the click handlers
+   * call `audio.init()` themselves, before this, so the AudioContext is created in the gesture that created it
+   * and nothing here can delay Begin. A second press while a fade is running is ignored rather than queued.
+   */
+  function go(fn) {
+    if (transitioning) return false;
+    const veil = $('veil');
+    if (!veil) {
+      fn();
+      return true;
+    }
+    transitioning = true;
+    veil.classList.add('on');
+    const half = veilMs();
+    setTimeout(() => {
+      try {
+        fn();
+      } finally {
+        veil.classList.remove('on');
+        setTimeout(() => {
+          transitioning = false;
+        }, half);
+      }
+    }, half);
+    return true;
+  }
+
+  /**
+   * A number in the HUD that has changed: write it and give it one quick tick (a 260 ms scale pulse), so it
+   * moves rather than snapping. Only called when the text really is different, so the ripple counter ticks
+   * once per ripple and the level number once per level - nothing here can repeat fast enough to flash.
+   */
+  const hudShown = Object.create(null);
+  function hudNumber(id, text, pulse = true) {
+    if (hudShown[id] === text) return;
+    const first = hudShown[id] === undefined;
+    hudShown[id] = text;
+    const el = $(id);
+    el.textContent = text;
+    if (!pulse || first) return;
+    el.classList.remove('tick');
+    void el.offsetWidth; // restart the animation from the top
+    el.classList.add('tick');
   }
 
   function updateHud() {
     // the tutorial is not a level and is the same in every mode, so it says neither
-    $('hud-level').textContent = inTutorial() ? 'Tutorial' : `Level ${levelNum} · ${MODES[mode].label}`;
-    $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
-    $('hud-time').textContent = showTimer && scored() ? mmss(levelTime) : ''; // no clock on the tutorial: there is no hurry
+    hudNumber('hud-level', inTutorial() ? 'Tutorial' : `Level ${levelNum} · ${MODES[mode].label}`);
+    hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
+    hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : '';
     $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
     $('hud-audio').textContent = [calm ? 'Calm' : '', visualCues ? 'Visual cues' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
@@ -2466,8 +2546,8 @@
     if (!inTutorial() || (state !== 'play' && state !== 'paused')) return;
     audio.uiClick();
     audio.resume();
-    markTutorialDone();
-    leaveTutorial();
+    markTutorialDone(); // saved at once: the fade must never sit between a decision and writing it down
+    go(() => leaveTutorial());
   }
 
   /**
@@ -2481,8 +2561,7 @@
   function newRun(fromLevel, withIntro) {
     runSeed = (Math.random() * 0x7fffffff) | 0;
     $('title-notice').classList.add('hidden');
-    audio.init();
-    audio.uiClick();
+    audio.init(); // (the click handler has already done this; it is idempotent, and this keeps ?debug honest)
     if (withIntro) {
       // first time here: the tutorial, then the intro, then level 1
       if (newPlayer()) startTutorial('intro');
@@ -2523,15 +2602,18 @@
     calm: () => calm,
     visualCues: () => visualCues, // the Visual cues option also adds short [sound captions] to the cutscenes
     finish(kind) {
-      if (replaying) {
-        // rewatched from the replay screen: go back there, no level starts
-        replaying = false;
-        toTitle();
-        showReplay();
-      } else {
-        // each scene leads into the level it introduces (see SCENE_LEADS_TO)
-        startLevel(SCENE_LEADS_TO[kind] || 1);
-      }
+      // the end of a scene is a screen change like any other, so it fades too
+      go(() => {
+        if (replaying) {
+          // rewatched from the replay screen: go back there, no level starts
+          replaying = false;
+          toTitle();
+          showReplay();
+        } else {
+          // each scene leads into the level it introduces (see SCENE_LEADS_TO)
+          startLevel(SCENE_LEADS_TO[kind] || 1);
+        }
+      });
     },
   });
 
@@ -2556,7 +2638,6 @@
 
   /** On from a cleared level. Going into level 6, 8, 9 or 10 plays that level's story cutscene first (SCENE_BEFORE_LEVEL). */
   function advanceLevel() {
-    audio.uiClick();
     const scene = SCENE_BEFORE_LEVEL[levelNum + 1];
     if (scene) startCutscene(scene);
     else startLevel(levelNum + 1);
@@ -2590,10 +2671,12 @@
       if (MODES[mode].oneLife) {
         // One life: the run is over. Back to the title screen - there is nothing to resume.
         const died = levelNum;
-        toTitle();
-        const note = $('title-notice');
-        note.textContent = `☠ You died on level ${died}. Hardcore gives you one life, so that run is over.`;
-        note.classList.remove('hidden');
+        go(() => {
+          toTitle();
+          const note = $('title-notice');
+          note.textContent = `☠ You died on level ${died}. Hardcore gives you one life, so that run is over.`;
+          note.classList.remove('hidden');
+        });
         return;
       }
       // Every other mode: just try the same level again.
@@ -2603,6 +2686,24 @@
   }
 
   const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+  /**
+   * Run a number up to where it belongs, easing out, and then write the real thing. Drawing only: it is a
+   * <b> on a screen that has already been worked out, and it never touches what was recorded.
+   */
+  function countTo(el, to, fmt, delayMs, durMs) {
+    const end = fmt(to);
+    setTimeout(() => {
+      const t0 = performance.now();
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / Math.max(1, durMs));
+        el.textContent = k >= 1 ? end : fmt(to * (1 - Math.pow(1 - k, 3)));
+        if (k < 1 && el.isConnected) requestAnimationFrame(step);
+        else el.textContent = end;
+      };
+      requestAnimationFrame(step);
+    }, delayMs);
+  }
 
   /**
    * The three medals for the level just cleared, drawn as a row of "what you got, what the next one needs".
@@ -2618,13 +2719,27 @@
       { kind: 'flawless', tier: res.record.flawless ? 1 : 0, got: levelDeaths === 0 ? 'no deaths' : `caught ${levelDeaths}×`, next: '', isNew: res.improved.flawless },
     ];
     const names = { time: 'Time', ripples: 'Ripples', flawless: 'Flawless' };
-    for (const r of rows) {
+    const stagger = calm || EchoWordmark.reduceMotion() ? 230 : 170; // matches --ui-stagger in style.css
+    rows.forEach((r, i) => {
       const row = document.createElement('div');
       row.className = `medal-item${r.tier ? '' : ' none'}`;
+      row.style.setProperty('--i', i); // style.css reveals the rows one at a time off this
       row.appendChild(settings.medalPip(r.kind, r.tier));
       const label = document.createElement('span');
-      const text = r.kind === 'flawless' ? (r.tier ? `Flawless — ${r.got}` : `Not flawless — ${r.got}`) : `${names[r.kind]} ${r.got} — ${r.tier ? EchoProfile.TIER_NAMES[r.tier] : 'no medal'}`;
-      label.append(document.createTextNode(text));
+      // The same sentence as ever - the number is only pulled out into its own element so it can count up to
+      // itself instead of simply being there. `countTo` writes the final text when it finishes, so what ends
+      // up on screen is exactly what it always was.
+      if (r.kind === 'flawless') {
+        label.append(document.createTextNode(r.tier ? `Flawless — ${r.got}` : `Not flawless — ${r.got}`));
+      } else {
+        const num = document.createElement('b');
+        num.className = 'num';
+        num.textContent = r.kind === 'time' ? mmss(0) : '0';
+        label.append(document.createTextNode(`${names[r.kind]} `), num, document.createTextNode(` — ${r.tier ? EchoProfile.TIER_NAMES[r.tier] : 'no medal'}`));
+        const to = r.kind === 'time' ? levelTime : ripplesUsed;
+        const fmt = r.kind === 'time' ? mmss : (v) => `${Math.round(v)}`;
+        countTo(num, to, fmt, stagger * i + stagger, stagger * 4);
+      }
       row.appendChild(label);
       if (r.isNew) {
         const nb = document.createElement('b');
@@ -2637,7 +2752,7 @@
         row.appendChild(nx);
       }
       el.appendChild(row);
-    }
+    });
   }
 
   function onLevelComplete() {
@@ -2886,7 +3001,9 @@
   /** Play a cleared level again: like Continue, no cutscene first, same mode rules. */
   function playLevel(n) {
     if (state !== 'title' || n < 1 || n > clearedLevels()) return;
-    newRun(n);
+    audio.init();
+    audio.uiClick();
+    go(() => newRun(n));
   }
 
   /** Rewatch a cutscene that has already played. When it ends (or is skipped) you land back on the replay screen. */
@@ -2895,7 +3012,7 @@
     audio.init();
     audio.uiClick();
     replaying = true;
-    startCutscene(kind);
+    go(() => startCutscene(kind));
   }
 
   function setMode(m) {
@@ -2910,6 +3027,8 @@
     calm = !!on;
     audio.calm = calm;
     store.set(CALM_KEY, calm ? '1' : '0');
+    // the whole interface's motion slows down and shortens with it (style.css: html[data-calm='1'])
+    document.documentElement.dataset.calm = calm ? '1' : '0';
     document.querySelectorAll('.calm-toggle').forEach((c) => {
       c.checked = calm;
     });
@@ -3089,7 +3208,9 @@
           // a focused button (tabbed to) handles its own Enter; otherwise Enter means Begin
           if (document.activeElement && document.activeElement.tagName === 'BUTTON') break;
           e.preventDefault();
-          newRun(1, true);
+          audio.init();
+          audio.uiClick();
+          go(() => newRun(1, true));
         }
         break;
       case 'cutscene':
@@ -3101,13 +3222,19 @@
       case 'caught':
         if (e.code === 'Enter' || e.code === 'KeyR') {
           e.preventDefault();
-          if (!$('caught').classList.contains('hidden')) retry();
+          if (!$('caught').classList.contains('hidden')) {
+            audio.uiClick();
+            go(() => retry());
+          }
         }
         break;
       case 'complete':
         if (e.code === 'Enter') {
           e.preventDefault();
-          if (!$('complete').classList.contains('hidden')) advanceLevel();
+          if (!$('complete').classList.contains('hidden')) {
+            audio.uiClick();
+            go(() => advanceLevel());
+          }
         }
         break;
       case 'tutdone':
@@ -3115,7 +3242,7 @@
           e.preventDefault();
           if (!$('tutorial').classList.contains('hidden')) {
             audio.uiClick();
-            leaveTutorial();
+            go(() => leaveTutorial());
           }
         }
         break;
@@ -3151,7 +3278,6 @@
 
   /** Try again: back to the start of the level you were caught on (same maze). */
   function retry() {
-    audio.uiClick();
     startLevel(levelNum, true); // a retry, so the death still counts against the Flawless medal
   }
 
@@ -3224,28 +3350,39 @@
     { passive: false }
   );
   $('btn-caught-title').addEventListener('click', () => {
-    audio.uiClick();
-    toTitle();
+    click();
+    go(() => toTitle());
   });
-  $('btn-start').addEventListener('click', () => newRun(1, true));
+  // Every one of these makes its sound FIRST and only then asks for the fade, so the click that creates or
+  // resumes the AudioContext is never waiting on an animation.
+  const click = () => {
+    audio.init();
+    audio.uiClick();
+  };
+  $('btn-start').addEventListener('click', () => {
+    click();
+    go(() => newRun(1, true));
+  });
   // the tutorial: always on the title screen, always level 0, and it comes back here when it is done
   $('btn-tutorial').addEventListener('click', () => {
     if (state !== 'title') return;
-    audio.init();
-    audio.uiClick();
-    startTutorial('title');
+    click();
+    go(() => startTutorial('title'));
   });
   $('btn-tut-skip').addEventListener('click', skipTutorial);
   $('btn-pause-skip-tut').addEventListener('click', skipTutorial);
   $('btn-tut-start').addEventListener('click', () => {
-    audio.uiClick();
-    leaveTutorial();
+    click();
+    go(() => leaveTutorial());
   });
   $('btn-tut-replay').addEventListener('click', () => {
-    audio.uiClick();
-    startTutorial(tutorialAfter); // the same way out again when it is finished the second time
+    click();
+    go(() => startTutorial(tutorialAfter)); // the same way out again when it is finished the second time
   });
-  $('btn-continue').addEventListener('click', () => newRun(getBest()));
+  $('btn-continue').addEventListener('click', () => {
+    click();
+    go(() => newRun(getBest()));
+  });
   $('btn-replay').addEventListener('click', openReplay);
   $('btn-replay-back').addEventListener('click', closeReplay);
   $('btn-settings').addEventListener('click', () => openSettings('title'));
@@ -3255,14 +3392,20 @@
     unpause();
   });
   $('btn-quit').addEventListener('click', () => {
-    audio.uiClick();
-    toTitle();
+    click();
+    go(() => toTitle());
   });
-  $('btn-retry').addEventListener('click', retry);
-  $('btn-next').addEventListener('click', advanceLevel);
+  $('btn-retry').addEventListener('click', () => {
+    click();
+    go(() => retry());
+  });
+  $('btn-next').addEventListener('click', () => {
+    click();
+    go(() => advanceLevel());
+  });
   $('btn-victory-title').addEventListener('click', () => {
-    audio.uiClick();
-    toTitle();
+    click();
+    go(() => toTitle());
   });
 
   // (the volume sliders live in Settings -> Audio now; js/settings.js owns them)
@@ -3300,8 +3443,8 @@
       camX += (player.x - camX) * k;
       camY += (player.y - camY) * k;
       if (state === 'play') {
-        $('hud-ripples').textContent = `Ripples ${ripplesUsed}`;
-        if (showTimer && scored()) $('hud-time').textContent = mmss(levelTime);
+        hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
+        if (showTimer && scored()) hudNumber('hud-time', mmss(levelTime), false);
       }
     }
 
@@ -3360,6 +3503,8 @@
   settings.renderHowTo(); // the title / pause how-to, written with the player's own keys
   refreshTouchMode();
   refreshTitle();
+  document.documentElement.dataset.calm = calm ? '1' : '0'; // the interface's motion, before anything is toggled
+  showOverlay('title'); // ... and the title fades up rather than simply being there
   wordmark.reveal(false); // the first title of the session: there is no AudioContext yet, so it is silent
   requestAnimationFrame(frame);
 
@@ -3469,6 +3614,10 @@
         settings.renderHowTo();
         tutorial.refresh();
       },
+      // v11.5: the interface's motion. `ui()` reports the timings; `go` is NOT used by any of these hooks, so
+      // every one of them still changes the screen the instant it is called.
+      ui: () => ({ fadeMs: fadeMs(), veilMs: veilMs(), stagger: calm || EchoWordmark.reduceMotion() ? 230 : 170, transitioning, calm, reduceMotion: EchoWordmark.reduceMotion(), veilOn: $('veil').classList.contains('on'), shown: overlays.filter((o) => !$(o).classList.contains('hidden')), lit: overlays.filter((o) => $(o).classList.contains('in')) }),
+      transition: (fn) => go(fn),
       // v11.3: the title wordmark. `wordmarkTick(secs)` drives its clock by hand, for a screenshot of a sweep.
       wordmark,
       wordmarkState: () => wordmark.state(),

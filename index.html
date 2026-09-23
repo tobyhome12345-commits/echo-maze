@@ -22,6 +22,9 @@
     </div>
   </div>
 
+  <!-- the cross-fade between screens (js/game.js: transition()). Nothing ever waits on it to make a sound. -->
+  <div id="veil" aria-hidden="true"></div>
+
   <!-- the tutorial's teaching prompts (level 0 only): the banner's look, one line, bottom of the screen -->
   <div id="tut-hint" aria-live="polite"></div>
   <button id="btn-tut-skip" class="hidden" type="button">Skip tutorial</button>

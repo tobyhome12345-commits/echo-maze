@@ -1825,3 +1825,356 @@ kbd {
     padding-top: 8px;
   }
 }
+
+/* ==========================================================================
+   ONE PRODUCT (v11.5)
+
+   The title screen's language - the game's own light, additive glow, pressed
+   chips, panels grouped with hairlines - applied to every other screen, plus
+   the motion that ties them together.
+
+   Three numbers drive all of it, and calm mode (js/game.js setCalm) changes
+   them on <html> rather than every rule having its own calm variant:
+     --ui-fade     how long a screen takes to cross-fade
+     --ui-lift     how far a panel rises as it arrives
+     --ui-stagger  the gap between two medals revealing
+   Nothing here is on a loop, so nothing here can flash: each of these plays
+   once, when a screen changes or a number moves.
+   ========================================================================== */
+
+:root {
+  --ui-fade: 300ms;
+  --ui-lift: 10px;
+  --ui-stagger: 170ms;
+  --ui-ease: cubic-bezier(0.33, 0.9, 0.35, 1);
+}
+
+/* calm mode: everything the same, just slower and smaller (never switched off) */
+html[data-calm='1'] {
+  --ui-fade: 420ms;
+  --ui-lift: 5px;
+  --ui-stagger: 230ms;
+}
+
+/* the same, for anyone whose system asks for less movement */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ui-fade: 420ms;
+    --ui-lift: 0px;
+    --ui-stagger: 230ms;
+  }
+}
+
+/* -- the cross-fade between screens -------------------------------------- */
+/* A black veil over everything but the "turn your device" card. It is only ever raised by transition(), which
+   runs the screen change at its darkest point; the sound for a click has already been made by then. */
+#veil {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ui-fade) ease-in-out;
+}
+
+#veil.on {
+  opacity: 1;
+}
+
+/* -- overlays arrive and leave, never cut -------------------------------- */
+.overlay {
+  opacity: 0;
+  transition: opacity var(--ui-fade) ease-in-out;
+}
+
+.overlay.in {
+  opacity: 1;
+}
+
+/* an overlay on its way out is still on screen for a moment: it must not catch the click meant for the new one */
+.overlay:not(.in) {
+  pointer-events: none;
+}
+
+.overlay .panel {
+  transform: translateY(var(--ui-lift)) scale(0.99);
+  transition: transform var(--ui-fade) var(--ui-ease);
+}
+
+.overlay.in .panel {
+  transform: none;
+}
+
+/* -- every button, on every screen --------------------------------------- */
+button:hover,
+button:focus-visible {
+  box-shadow: 0 0 24px rgba(var(--ui-rgb), 0.28), inset 0 0 20px rgba(var(--ui-rgb), 0.07);
+}
+
+button.primary {
+  box-shadow: 0 0 30px rgba(var(--ui-rgb), 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+button.primary:hover,
+button.primary:focus-visible {
+  box-shadow: 0 0 46px rgba(var(--ui-rgb), 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* the caught screen is red, so its light is red too */
+.danger button.primary {
+  box-shadow: 0 0 30px rgba(var(--danger-rgb), 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.danger button.primary:hover,
+.danger button.primary:focus-visible {
+  box-shadow: 0 0 46px rgba(var(--danger-rgb), 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.danger button:hover,
+.danger button:focus-visible {
+  box-shadow: 0 0 24px rgba(var(--danger-rgb), 0.3), inset 0 0 20px rgba(var(--danger-rgb), 0.08);
+}
+
+/* pressed: the light dips with the button */
+button:active {
+  box-shadow: 0 0 12px rgba(var(--ui-rgb), 0.2), inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* -- the settings tabs, the level grid and the cutscene list -------------- */
+.tab {
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, rgba(var(--ui-rgb), 0.06), rgba(var(--ui-rgb), 0.01));
+  transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.tab.on {
+  box-shadow: 0 0 22px rgba(var(--ui-rgb), 0.22), inset 0 1px 0 rgba(var(--ui-rgb), 0.3);
+}
+
+.lvl,
+.scene,
+.keycap,
+.keyclear {
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.lvl:hover:not(:disabled),
+.lvl:focus-visible:not(:disabled),
+.scene:hover:not(:disabled),
+.scene:focus-visible:not(:disabled) {
+  border-color: rgba(var(--ui-rgb), 0.5);
+  box-shadow: 0 0 22px rgba(var(--ui-rgb), 0.22), inset 0 0 18px rgba(var(--ui-rgb), 0.06);
+}
+
+.lvl:disabled,
+.scene:disabled {
+  box-shadow: none;
+}
+
+/* a key being rebound is the one lit thing on the row */
+.keycap {
+  background: linear-gradient(180deg, rgba(var(--ui-rgb), 0.16), rgba(var(--ui-rgb), 0.04));
+  box-shadow: inset 0 1px 0 rgba(var(--ui-rgb), 0.3), inset 0 -3px 6px rgba(0, 0, 0, 0.4);
+}
+
+.keycap:hover,
+.keycap:focus-visible {
+  box-shadow: 0 0 20px rgba(var(--ui-rgb), 0.3), inset 0 1px 0 rgba(var(--ui-rgb), 0.45);
+}
+
+/* -- checkboxes and sliders ---------------------------------------------- */
+input[type='checkbox'] {
+  accent-color: rgb(var(--exit-rgb));
+  border-radius: 4px;
+  transition: box-shadow 0.15s;
+}
+
+input[type='checkbox']:hover,
+input[type='checkbox']:focus-visible {
+  box-shadow: 0 0 14px rgba(var(--exit-rgb), 0.45);
+  outline: none;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+  border-radius: 999px;
+  transition: box-shadow 0.15s;
+}
+
+input[type='range']:hover,
+input[type='range']:focus-visible {
+  box-shadow: 0 0 16px rgba(var(--ui-rgb), 0.3);
+  outline: none;
+}
+
+/* -- the pause menu: the title's panel, arriving rather than appearing ---- */
+#pause .panel {
+  background: linear-gradient(180deg, rgba(10, 20, 30, 0.88), rgba(3, 7, 13, 0.94));
+  border-color: rgba(var(--ui-rgb), 0.22);
+  box-shadow: 0 0 70px rgba(var(--ui-rgb), 0.08), inset 0 1px 0 rgba(var(--ui-rgb), 0.12), inset 0 0 44px rgba(0, 0, 0, 0.55);
+}
+
+#pause .panel h2 {
+  color: var(--ink);
+  text-shadow: 0 0 20px rgba(var(--ui-rgb), 0.4);
+}
+
+#pause .controls,
+#complete .medal-list,
+#victory .medal-list {
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--ui-rgb), 0.14);
+  border-radius: 12px;
+  background: rgba(var(--ui-rgb), 0.028);
+  box-shadow: inset 0 0 30px rgba(var(--ui-rgb), 0.04);
+}
+
+#pause .controls {
+  gap: 9px 0;
+}
+
+#pause .controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+}
+
+#pause .pause-toggles {
+  margin-top: 12px;
+}
+
+/* the option rows get the title screen's bar treatment here too */
+#pause .calm {
+  max-width: none;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(var(--ui-rgb), 0.12);
+  border-radius: 10px;
+  background: rgba(var(--ui-rgb), 0.025);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+#pause .calm:hover {
+  border-color: rgba(var(--ui-rgb), 0.28);
+  background: rgba(var(--ui-rgb), 0.05);
+}
+
+#pause .calm + .calm {
+  margin-bottom: 14px;
+}
+
+/* -- the caught screen: the same panel, lit red -------------------------- */
+#caught .panel {
+  background: linear-gradient(180deg, rgba(30, 8, 14, 0.9), rgba(8, 3, 6, 0.94));
+  box-shadow: 0 0 70px rgba(var(--danger-rgb), 0.14), inset 0 1px 0 rgba(var(--danger-rgb), 0.16), inset 0 0 44px rgba(0, 0, 0, 0.55);
+}
+
+#caught h2 {
+  text-shadow: 0 0 26px rgba(var(--danger-rgb), 0.55);
+}
+
+/* -- level complete and victory: lit by the way out ---------------------- */
+#complete .panel,
+#victory .panel {
+  background: linear-gradient(180deg, rgba(8, 24, 18, 0.88), rgba(3, 9, 8, 0.94));
+  border-color: rgba(var(--exit-rgb), 0.2);
+  box-shadow: 0 0 70px rgba(var(--exit-rgb), 0.08), inset 0 1px 0 rgba(var(--exit-rgb), 0.12), inset 0 0 44px rgba(0, 0, 0, 0.55);
+}
+
+#complete h2,
+#victory h2 {
+  color: #dffff0;
+  text-shadow: 0 0 26px rgba(var(--exit-rgb), 0.5);
+}
+
+/* -- medals: one at a time, each with a small pop ------------------------ */
+.medal-list .medal-item {
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(var(--exit-rgb), 0.03);
+  opacity: 0;
+  animation: medal-in var(--ui-fade) var(--ui-ease) forwards;
+  animation-delay: calc(var(--i, 0) * var(--ui-stagger));
+}
+
+.medal-list .medal-item.none {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@keyframes medal-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--ui-lift) * 0.8)) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* the pip that comes with a medal gets its own little flare, on the same beat */
+.medal-list .medal-item .pip,
+.medal-list .medal-item svg {
+  animation: pip-flare calc(var(--ui-fade) * 1.6) ease-out forwards;
+  animation-delay: calc(var(--i, 0) * var(--ui-stagger));
+}
+
+@keyframes pip-flare {
+  0% {
+    filter: none;
+  }
+  35% {
+    filter: drop-shadow(0 0 10px rgba(var(--exit-rgb), 0.9));
+  }
+  100% {
+    filter: none;
+  }
+}
+
+/* "New best!" arrives just after its row */
+.medal-list .new-best {
+  opacity: 0;
+  animation: medal-in var(--ui-fade) var(--ui-ease) forwards;
+  animation-delay: calc(var(--i, 0) * var(--ui-stagger) + var(--ui-fade) * 0.5);
+}
+
+/* -- the HUD: numbers move, they do not jump ----------------------------- */
+#hud-level,
+#hud-ripples,
+#hud-time {
+  display: inline-block;
+  transition: color 0.2s;
+}
+
+#hud-ripples.tick,
+#hud-level.tick,
+#hud-time.tick {
+  animation: hud-tick 260ms var(--ui-ease);
+}
+
+@keyframes hud-tick {
+  40% {
+    transform: scale(1.16);
+    color: rgba(205, 232, 245, 0.95);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* -- the level banner eases in and out, and rises a little --------------- */
+#banner {
+  transform: translateY(8px);
+  transition: opacity 0.9s ease, transform 0.9s var(--ui-ease);
+}
+
+#banner.show {
+  transform: none;
+}
