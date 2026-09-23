@@ -47,7 +47,9 @@
 
   <section id="title" class="overlay">
     <div class="panel">
-      <h1>ECHO MAZE</h1>
+      <!-- the wordmark is drawn (js/wordmark.js); the text inside stays for screen readers, and shows instead
+           if a canvas cannot be had (h1.no-canvas in style.css) -->
+      <h1><canvas id="wordmark" aria-hidden="true"></canvas><span class="wordmark-text">ECHO MAZE</span></h1>
       <p class="tagline">You can't see. Neither can they &mdash; until your echo touches them.</p>
       <p id="title-notice" class="notice hidden"></p>
 
@@ -305,6 +307,7 @@
   <script src="js/music.js"></script>
   <script src="js/level.js"></script>
   <script src="js/tutorial.js"></script>
+  <script src="js/wordmark.js"></script>
   <script src="js/art.js"></script>
   <script src="js/cutscene.js"></script>
   <script src="js/cues.js"></script>

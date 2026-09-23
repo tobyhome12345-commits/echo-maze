@@ -1375,6 +1375,41 @@ class SoundEngine {
     this._arpeggio([392, 523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093], 0.13, 0.2);
   }
 
+  /**
+   * The title wordmark's one-off reveal (js/wordmark.js): a soft wash of air sweeping outwards and a low, open
+   * two-note shimmer under it - the exit's chime, taken down and slowed, so the title sounds like the game.
+   * Silent until there is an AudioContext, so the very first title screen (before anything has been clicked)
+   * makes no sound at all and nothing here can hold up the Begin button. Calm mode takes it down further.
+   */
+  titleReveal() {
+    if (!this.ctx) return;
+    const k = this.calm ? 0.45 : 1;
+    const t = this.ctx.currentTime;
+    // the sweep: noise through a band that opens and closes again
+    const n = this._noise(t, 1.5);
+    const bp = this._filter('bandpass', 220, 1.1);
+    bp.frequency.setValueAtTime(180, t);
+    bp.frequency.exponentialRampToValueAtTime(2600, t + 0.55);
+    bp.frequency.exponentialRampToValueAtTime(400, t + 1.3);
+    const g = this._env(t, 0.35, 0.13 * k, 0.9);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.55);
+    this._track(n);
+    // ... and the shimmer it carries, a fifth and an octave above the drone
+    const partials = [
+      [220, 1.0, 1.5],
+      [330, 0.55, 1.3],
+      [440, 0.3, 1.1],
+    ];
+    for (const [f, a, d] of partials) {
+      const o = this._osc('sine', f, t, d + 0.2);
+      const og = this._env(t, 0.25, 0.1 * a * k, d);
+      o.connect(og);
+      this._route(og, 0, 0.6);
+    }
+  }
+
   uiClick() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;

@@ -109,6 +109,12 @@
   const music = EchoMusic.create(audio);
   // Visual sound cues (accessibility, js/cues.js): drawn only, never read back - they cannot affect the game
   const cues = EchoCues.create({ ctx, enabled: () => visualCues, calm: () => calm });
+  // The title wordmark (js/wordmark.js): title-screen dressing, drawn on its own little canvas. It runs only
+  // while the title is actually on show, and nothing reads anything back from it.
+  const wordmark = EchoWordmark.create({
+    calm: () => calm,
+    sound: () => audio.titleReveal(),
+  });
   // The tutorial's teaching prompts (js/tutorial.js). It only ever writes a line of text on the screen.
   const tutorial = EchoTutorial.create({
     setHint(text) {
@@ -2700,6 +2706,7 @@
     $('banner').classList.remove('show');
     refreshTitle();
     showOverlay('title');
+    wordmark.reveal(true); // back out of the maze: the logo ripples once, with its whoosh
   }
 
   const MODE_INFO = {
@@ -2871,6 +2878,7 @@
     audio.uiClick();
     refreshTitle();
     showOverlay('title');
+    wordmark.reveal(false); // the title is back: sweep once, but this is not an arrival - no sound
   }
 
   /** Play a cleared level again: like Continue, no cutscene first, same mode rules. */
@@ -2905,6 +2913,7 @@
     });
     if (state === 'caught' || !$('caught').classList.contains('hidden')) $('caught').classList.toggle('danger', !calm);
     if (level && state !== 'title' && state !== 'cutscene') updateHud();
+    wordmark.invalidate(); // calm mode dims the wordmark's glow, so it has to be painted again
     refreshOptionUi();
   }
 
@@ -3005,6 +3014,7 @@
       } else {
         refreshTitle();
         showOverlay('title');
+        wordmark.reveal(false);
       }
     },
     keysChanged() {
@@ -3279,6 +3289,8 @@
       }
       for (const r of titleRipples) r.t += dt;
       titleRipples = titleRipples.filter((r) => r.t < 6);
+      // the wordmark's echo, but only while the title panel is really on screen (not behind Settings or Replay)
+      if (!$('title').classList.contains('hidden')) wordmark.update(dt);
     }
 
     if (player && level && state !== 'title' && state !== 'cutscene') {
@@ -3342,6 +3354,7 @@
   settings.renderHowTo(); // the title / pause how-to, written with the player's own keys
   refreshTouchMode();
   refreshTitle();
+  wordmark.reveal(false); // the first title of the session: there is no AudioContext yet, so it is silent
   requestAnimationFrame(frame);
 
   // Test hook: only exposed when the page is opened with ?debug
@@ -3449,6 +3462,14 @@
         EchoProfile.resetKeys();
         settings.renderHowTo();
         tutorial.refresh();
+      },
+      // v11.3: the title wordmark. `wordmarkTick(secs)` drives its clock by hand, for a screenshot of a sweep.
+      wordmark,
+      wordmarkState: () => wordmark.state(),
+      wordmarkReveal: (sound = false) => wordmark.reveal(sound),
+      wordmarkTick: (secs, stepSecs = 1 / 60) => {
+        for (let s = 0; s < secs; s += stepSecs) wordmark.update(stepSecs);
+        return wordmark.state();
       },
       // v11.2: the tutorial (level 0). go(0) plays it; startTutorial('intro' | 'title') sets where it hands over to.
       startTutorial,
