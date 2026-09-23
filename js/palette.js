@@ -25,7 +25,10 @@ const EchoPalette = (() => {
   /** Everything a colour is needed for. The first nine are what a ripple can light up. */
   const RIPPLE_ROLES = ['wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer'];
   const CUE_ROLES = ['echo', 'scent', 'stalker', 'exit', 'decoy', 'muffler', 'singer', 'heart'];
-  const ROLES = RIPPLE_ROLES.concat(['muffler', 'heart']);
+  // 'warden' is the level-13 warden (js/warden.js). It is deliberately NOT one of the RIPPLE_ROLES the
+  // colour-blind checker compares nine ways: level 13 holds nothing else a ripple can light up, so it only
+  // ever has to be told apart from the wall and the door - which is checked on its own (see CLAUDE.md).
+  const ROLES = RIPPLE_ROLES.concat(['muffler', 'heart', 'warden']);
 
   const PALETTES = {
     default: {
@@ -43,6 +46,7 @@ const EchoPalette = (() => {
         singer: '236,64,236',
         muffler: '205,220,238',
         heart: '255,132,150',
+        warden: '255,232,224',
       },
       // named so the default look is exactly what it was (elsewhere these are derived - see coreOf)
       core: {
@@ -55,6 +59,7 @@ const EchoPalette = (() => {
         decoy: '255,182,236',
         stalker: '255,186,116',
         singer: '255,176,255',
+        warden: '252,248,240',
       },
     },
     // Worst pair, CIEDE2000: 16.9 (checked under normal vision, protanopia AND deuteranopia at once).
@@ -75,6 +80,7 @@ const EchoPalette = (() => {
         singer: '154,106,146',
         muffler: '168,153,118',
         heart: '242,198,88',
+        warden: '196,150,120',
       },
     },
     // Worst pair: 13.6 (under normal vision and tritanopia). Terrain is cool and green, monsters are warm -
@@ -95,6 +101,7 @@ const EchoPalette = (() => {
         singer: '202,186,198',
         muffler: '201,208,187',
         heart: '220,179,165',
+        warden: '206,142,150',
       },
     },
     // Worst pair: 17.0 under normal vision, where the Default palette manages 11.9 - the same colour language
@@ -115,6 +122,7 @@ const EchoPalette = (() => {
         singer: '250,58,255',
         muffler: '226,241,255',
         heart: '255,127,144',
+        warden: '255,232,224',
       },
     },
   };

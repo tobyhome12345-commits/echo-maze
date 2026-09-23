@@ -2021,8 +2021,7 @@ input[type='range']:focus-visible {
 }
 
 #pause .controls,
-#complete .medal-list,
-#victory .medal-list {
+#complete .medal-list {
   padding: 14px 16px;
   border: 1px solid rgba(var(--ui-rgb), 0.14);
   border-radius: 12px;
@@ -2076,16 +2075,14 @@ input[type='range']:focus-visible {
   text-shadow: 0 0 26px rgba(var(--danger-rgb), 0.55);
 }
 
-/* -- level complete and victory: lit by the way out ---------------------- */
-#complete .panel,
-#victory .panel {
+/* -- level complete: lit by the way out ---------------------------------- */
+#complete .panel {
   background: linear-gradient(180deg, rgba(8, 24, 18, 0.88), rgba(3, 9, 8, 0.94));
   border-color: rgba(var(--exit-rgb), 0.2);
   box-shadow: 0 0 70px rgba(var(--exit-rgb), 0.08), inset 0 1px 0 rgba(var(--exit-rgb), 0.12), inset 0 0 44px rgba(0, 0, 0, 0.55);
 }
 
-#complete h2,
-#victory h2 {
+#complete h2 {
   color: #dffff0;
   text-shadow: 0 0 26px rgba(var(--exit-rgb), 0.5);
 }
@@ -2242,4 +2239,58 @@ body.touch #saved-toast {
 
 body.touch #saved-toast.show {
   transform: translate(-50%, 0);
+}
+
+/* ========================================================================
+   v12.0 - LEVEL 13: THE PLACEHOLDER ENDING
+   The one screen in the game that is deliberately unlit: no exit green, no
+   danger red, no glow to speak of. Everything else here has been built to
+   feel like one product; this is built to feel like the product stopping.
+   STUB - replace it together with onCaptured() when the next area exists.
+   ======================================================================== */
+
+#ending .panel {
+  background: linear-gradient(180deg, rgba(10, 11, 14, 0.94), rgba(3, 4, 6, 0.96));
+  border-color: rgba(190, 205, 225, 0.12);
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(190, 205, 225, 0.07), inset 0 0 44px rgba(0, 0, 0, 0.6);
+}
+
+/* the "..." - big, dim, and given room to sit in */
+#ending h2.hush {
+  margin: 2px 0 14px;
+  font-size: 40px;
+  line-height: 0.7;
+  letter-spacing: 0.32em;
+  color: rgba(214, 226, 242, 0.66);
+  text-shadow: 0 0 34px rgba(190, 205, 225, 0.2);
+}
+
+#ending #ending-text {
+  font-size: 16px;
+  letter-spacing: 0.03em;
+  color: rgba(228, 238, 250, 0.94);
+}
+
+/* said plainly, and out of the fiction: this screen is not the real ending */
+#ending .stub {
+  margin: 14px auto 2px;
+  max-width: 30em;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: rgba(190, 205, 225, 0.6);
+}
+
+/* the only button on it stays as quiet as the rest */
+#ending .buttons button.primary {
+  color: rgba(226, 236, 248, 0.9);
+  background: linear-gradient(180deg, rgba(24, 27, 33, 0.92), rgba(9, 11, 14, 0.94));
+  border-color: rgba(190, 205, 225, 0.2);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(190, 205, 225, 0.1);
+  text-shadow: none;
+}
+
+#ending .buttons button.primary:hover,
+#ending .buttons button.primary:focus-visible {
+  border-color: rgba(190, 205, 225, 0.36);
+  box-shadow: 0 0 30px rgba(190, 205, 225, 0.1), inset 0 1px 0 rgba(190, 205, 225, 0.16);
 }

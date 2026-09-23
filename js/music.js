@@ -45,10 +45,14 @@ const EchoMusic = (() => {
     muffler: { root: 46.25, scale: PHRYGIAN, step: 2.4, density: 0.16, cut: 240, voices: [1, 1.5, 2.004], detune: 0.09, swell: 1.1, octaves: [1, 2], gain: 0.6 },
     // level 12: the Singer's own key. Whole tones: no home note, nothing to settle on
     singer: { root: 51.91, scale: WHOLE_TONE, step: 1.7, density: 0.34, cut: 520, voices: [1, 1.414, 2.01], detune: 0.26, swell: 1.2, octaves: [3, 4], gain: 0.5 },
+    // level 13: nothing hunts you here, so there is nothing for the score to swell at. It sits an octave lower
+    // than anything else, on a tritone, and almost never plays a note - the drone of the room does the rest.
+    warden: { root: 43.65, scale: PHRYGIAN, step: 3.4, density: 0.07, cut: 190, voices: [1, 1.414, 2.003], detune: 0.05, swell: 0, octaves: [1, 2], gain: 0.62 },
   };
 
   /** Which mood a level plays in. */
   function moodFor(level) {
+    if (level >= 13) return 'warden';
     if (level >= 12) return 'singer';
     if (level >= 11) return 'muffler';
     if (level >= 9) return 'deep';

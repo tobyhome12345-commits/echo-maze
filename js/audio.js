@@ -44,6 +44,7 @@ class SoundEngine {
     this.fxVolume = 1; // Settings -> Audio -> Sound effects
     this.ambVolume = 1; // Settings -> Audio -> Ambience
     this.muted = false;
+    this.wardenDrone = null; // level 13's dread drone (js/warden.js), while that level is being played
     this.active = 0; // live one-shot voices, used to cap polyphony
     // Calm mode: no heartbeat, and the startling sounds (screeches, growls,
     // the "caught" crash, the intro's lunge) are much quieter.
@@ -1534,6 +1535,236 @@ class SoundEngine {
     });
   }
 
+  /** An involuntary breath in, and the ripple it carries with it (level 13's safety net). */
+  gasp() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const gain = this.calm ? 0.55 : 1;
+    const n = this._noise(t, 0.38);
+    const bp = this._filter('bandpass', 700, 1.1);
+    bp.frequency.linearRampToValueAtTime(1500, t + 0.22);
+    const g = this._env(t, 0.13, 0.16 * gain, 0.2);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.3);
+    this.ping(0.55 * gain);
+  }
+
+  /** The echo off the warden: a wall that came back soft, low and far too long (level 13, after the reveal). */
+  echoWarden(pan, vol, d) {
+    if (!this.ctx || this._busy(120)) return;
+    const t = this.ctx.currentTime;
+    const gain = vol * (this.calm ? 0.7 : 1);
+    const o = this._osc('sine', 58, t, 1.1);
+    o.frequency.exponentialRampToValueAtTime(31, t + 0.7);
+    const g = this._env(t, 0.03, 0.5 * gain, 0.9);
+    o.connect(g);
+    this._route(g, pan, 0.7);
+    this._track(o);
+    const n = this._noise(t, 0.5);
+    const lp = this._filter('lowpass', 240, 0.8);
+    const ng = this._env(t, 0.04, 0.2 * gain, 0.42);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(ng, pan, 0.6);
+  }
+
+  // ------------------------------------------------------- the warden (13)
+  /**
+   * LEVEL 13's dread. One long drone on the ambience bus, started when the level starts and driven by
+   * `setWardenDread(0..1)` from how much path is left to the great room (js/warden.js). Everything it does is
+   * a function of that one number: a low tritone that rises and opens up, a bed of noise that is gradually
+   * pushed through a waveshaper until it is grinding rather than breathing, and - through `_dreadBend` below -
+   * a slow warping of the cave's own ambience. It is audio only; nothing reads it back.
+   */
+  startWardenDrone() {
+    if (!this.ctx || this.wardenDrone) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0;
+    out.connect(this.amb);
+    const send = c.createGain(); // it lives in a big stone room, so it goes to the reverb too
+    send.gain.value = 0.55;
+    out.connect(send);
+    send.connect(this.reverbIn);
+
+    const lp = this._filter('lowpass', 90, 2.2);
+    lp.connect(out);
+    // a tritone, three octaves down: two notes that never resolve into one
+    const o1 = c.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.value = 27.5;
+    const o2 = c.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.value = 38.9; // 27.5 * sqrt(2)
+    const g2 = c.createGain();
+    g2.gain.value = 0.55;
+    const o3 = c.createOscillator();
+    o3.type = 'triangle';
+    o3.frequency.value = 55.1;
+    const g3 = c.createGain();
+    g3.gain.value = 0.22;
+    o1.connect(lp);
+    o2.connect(g2);
+    g2.connect(lp);
+    o3.connect(g3);
+    g3.connect(lp);
+
+    // the grind: noise through a waveshaper whose drive comes up with the dread
+    const noise = c.createBufferSource();
+    noise.buffer = this.noiseBuf;
+    noise.loop = true;
+    const drive = c.createGain();
+    drive.gain.value = 1;
+    const shaper = c.createWaveShaper();
+    const curve = new Float32Array(257);
+    for (let i = 0; i < 257; i++) {
+      const x = (i / 128) - 1;
+      curve[i] = Math.tanh(x * 3.2);
+    }
+    shaper.curve = curve;
+    const nlp = this._filter('lowpass', 220, 0.9);
+    const ng = c.createGain();
+    ng.gain.value = 0.05;
+    noise.connect(drive);
+    drive.connect(shaper);
+    shaper.connect(nlp);
+    nlp.connect(ng);
+    ng.connect(out);
+
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.11; // one swell every nine seconds: nowhere near anything that could flash
+    const lfoDepth = c.createGain();
+    lfoDepth.gain.value = 0.18;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(out.gain);
+
+    [o1, o2, o3, lfo].forEach((o) => o.start(t));
+    noise.start(t);
+    this.wardenDrone = { out, lp, o1, o2, o3, drive, nlp, ng, stoppers: [o1, o2, o3, lfo, noise] };
+    this.setWardenDread(0, false);
+  }
+
+  /** `v` 0..1 (already softened for calm mode by the caller); `peak` is the capture itself. */
+  setWardenDread(v, peak = false) {
+    const d = this.wardenDrone;
+    if (!d || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const x = Math.max(0, Math.min(1, v));
+    const k = peak ? 1 : x;
+    d.out.gain.setTargetAtTime(0.1 + 0.85 * k, t, 0.5);
+    d.lp.frequency.setTargetAtTime(75 + 260 * k, t, 0.6);
+    d.o1.frequency.setTargetAtTime(27.5 + 5 * k, t, 1.2); // it rises, very slowly
+    d.o2.frequency.setTargetAtTime(38.9 + 8.4 * k, t, 1.2);
+    d.drive.gain.setTargetAtTime(1 + 22 * k * k, t, 0.7);
+    d.nlp.frequency.setTargetAtTime(220 + 1500 * k, t, 0.7);
+    d.ng.gain.setTargetAtTime(0.03 + 0.1 * k, t, 0.7);
+    this._dreadBend(k);
+  }
+
+  /** The cave's own ambience, warped: the two drone notes pull apart and the wind is shut down to a rumble. */
+  _dreadBend(k) {
+    const a = this.ambient;
+    if (!a || !a.o2 || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    a.o2.frequency.setTargetAtTime(a.base * 1.5 + 0.35 - 7 * k, t, 1.2);
+    a.lp.frequency.setTargetAtTime(170 - 120 * k, t, 1.0);
+  }
+
+  stopWardenDrone() {
+    const d = this.wardenDrone;
+    if (!d || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.wardenDrone = null;
+    this._dreadBend(0);
+    d.out.gain.setTargetAtTime(0, t, 0.4);
+    d.stoppers.forEach((s) => {
+      try {
+        s.stop(t + 2);
+      } catch (e) {
+        /* already stopped */
+      }
+    });
+  }
+
+  /** The wave arrives and the wall answers: a sub that lurches upward, a crack of stone and a long metal ring. */
+  wardenReveal() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const gain = this.calm ? 0.45 : 1;
+    const o = this._osc('sine', 26, t, 1.3);
+    o.frequency.exponentialRampToValueAtTime(74, t + 0.5);
+    const g = this._env(t, 0.015, 0.95 * gain, 1.1);
+    o.connect(g);
+    this._route(g, 0, 0.55);
+    const n = this._noise(t, 0.7);
+    const bp = this._filter('bandpass', 320, 0.8);
+    const ng = this._env(t, 0.006, 0.4 * gain, 0.6);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, 0, 0.6);
+    [131, 185.4, 247].forEach((f, i) => {
+      const r = this._osc(i === 1 ? 'triangle' : 'sine', f, t + 0.04 * i, 2.2);
+      const rg = this._env(t + 0.04 * i, 0.02, (0.16 - i * 0.04) * gain, 2);
+      r.connect(rg);
+      this._route(rg, 0, 0.7);
+    });
+  }
+
+  /**
+   * It takes you. The Muffler's absorbing hum has a bigger sibling: the same dampened low sines and soft
+   * triangle, an octave and a half further down, opened up into a whole room of reverb and swelled over two
+   * seconds instead of hidden. `short` is the brief version, for a level 13 that has been played before.
+   */
+  wardenTake(short = false) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const gain = this.calm ? 0.5 : 1;
+    const len = short ? 2.2 : 4.4;
+    const out = c.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.95 * gain, t + len * 0.62);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    const lp = this._filter('lowpass', 120, 1.6);
+    lp.frequency.setValueAtTime(120, t);
+    lp.frequency.linearRampToValueAtTime(520, t + len * 0.62);
+    lp.frequency.linearRampToValueAtTime(90, t + len);
+    lp.connect(out);
+    this._route(out, 0, 0.85);
+    const base = 30.9; // the muffler's hum sits around 46-54 Hz; this is the same shape, far below it
+    const parts = [
+      { type: 'sine', m: 1, g: 1 },
+      { type: 'sine', m: 2.01, g: 0.5 },
+      { type: 'triangle', m: 2.99, g: 0.3 },
+      { type: 'sine', m: 4.02, g: 0.16 },
+    ];
+    for (const p of parts) {
+      const o = c.createOscillator();
+      o.type = p.type;
+      o.frequency.setValueAtTime(base * p.m, t);
+      o.frequency.linearRampToValueAtTime(base * p.m * 0.82, t + len); // it sags as it closes
+      const g = c.createGain();
+      g.gain.value = p.g * 0.45;
+      o.connect(g);
+      g.connect(lp);
+      o.start(t);
+      o.stop(t + len + 0.4);
+      this._track(o);
+    }
+    // the room itself, moving: a long wash of low noise under it
+    const n = this._noise(t, len);
+    const nlp = this._filter('lowpass', 260, 0.8);
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.3 * gain, t + len * 0.62);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    n.connect(nlp);
+    nlp.connect(ng);
+    this._route(ng, 0, 0.7);
+  }
+
   // ----------------------------------------------------------------- ambient
 
   /** A quiet, low drone with a little wind. Pitch rises slightly per level. */
@@ -1579,7 +1810,8 @@ class SoundEngine {
 
     [o1, o2, lfo].forEach((o) => o.start(t));
     noise.start(t);
-    this.ambient = { out, stoppers: [o1, o2, lfo, noise] };
+    // (o2, lp and base are kept so level 13's dread can bend the cave itself - see _dreadBend)
+    this.ambient = { out, base, o1, o2, lp, stoppers: [o1, o2, lfo, noise] };
   }
 
   stopAmbient() {

@@ -14,7 +14,12 @@
   const NEAR_MISS_DIST = CATCH_DIST * 1.5;
   const NEAR_MISS_GAP = 2; // seconds before the same monster can give you another one
   const NEAR_MISS_SECONDS = 0.42; // how long the beat lasts
-  const CAMPAIGN_LEVELS = 12; // the game so far: clearing level 12 ends it ("you finished") - more levels may come later
+  const CAMPAIGN_LEVELS = 13; // levels 1-13. Level 13 is the capture (js/warden.js) and the end of the game so far
+  // Medals are for levels 1-12 only. Level 13 is hand-drawn, always the same, and has no "Level cleared"
+  // screen to show medals on - and a Time medal would ask the player to hurry through the one part of the
+  // game that is built to be walked slowly. It still counts for progress, for "levels cleared" and for the
+  // level select; it just is not raced. (WARDEN_LEVEL is 13 and lives in js/level.js, beside its config.)
+  const MEDAL_LEVELS = 12;
   // LEVEL 0 is the tutorial (js/tutorial.js). It is not part of the campaign: it counts for no progress, no
   // Continue, no medals, no stats and no "levels cleared". Everywhere that would score something asks `scored()`.
   const TUTORIAL_LEVEL = 0;
@@ -43,11 +48,12 @@
   const T_DECOY = 7; // sonar decoy (pink) - lies flat like a puddle, shows up in a ripple but never blocks it
   const T_STALKER = 8; // stalker (orange) - a ripple can show it, but it learns nothing from it
   const T_SINGER = 9; // singer (magenta) - a ripple can show it, but it is deaf to yours. (The muffler has NO type: it absorbs the ray, so nothing is ever lit.)
+  const T_WARDEN = 10; // the warden (level 13 only) - and ONLY once a ripple has revealed it. Until then its rays come back as T_WALL.
   // The ripple's hit colours, by type. They are filled in from js/palette.js and refilled whenever the player
   // picks another palette (Settings -> Display); the array itself is never replaced, so everything that reads
   // COLORS[T_...] keeps working, and a palette can never reach anything but the drawing.
-  const COLORS = [null, null, null, null, null, null, null, null, null, null];
-  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer'];
+  const COLORS = [null, null, null, null, null, null, null, null, null, null, null];
+  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden'];
   // which palette colour each swatch on the title legend belongs to (drawing only: it tints the chip around it)
   const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit' };
   const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
@@ -56,8 +62,8 @@
   });
   // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
   // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
-  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5];
-  const NRAYTYPES = 10; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker) and 9 (singer); 0 = nothing (also where the muffler ate the ray). 6 and 7 are flat marks (puddle, decoy), never rays
+  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2];
+  const NRAYTYPES = 11; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer) and 10 (the level-13 warden, once revealed); 0 = nothing (also where the muffler ate the ray). 6 and 7 are flat marks (puddle, decoy), never rays
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
@@ -84,6 +90,7 @@
     10: 'The stalker ignores ripples and decoys. It only listens: your footsteps, and even you standing close. Hold {crouch} to crouch - you make no sound, but you cannot send a ripple.',
     11: 'If your ripple leaves a hole in the echo, something is standing in it. You cannot see it or smell it - only hear it. It listens harder than the stalker, and crouching helps a lot, but it is not a guarantee.',
     12: 'Something sings. Its song lights the maze, and if a wave of it reaches you, you are marked: a countdown ticks, then it leaps to where the song found you. Keep moving.',
+    13: 'Nothing down here can kill you. That is not the same as nothing being here.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -101,8 +108,9 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'victory'];
-  // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0)
+  const overlays = ['title', 'replay', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending'];
+  // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
+  //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after it)
 
   const audio = new SoundEngine();
   // the player's saved volumes, ready for when the AudioContext is created on the first click
@@ -129,6 +137,31 @@
       $('tut-hint').textContent = text || '';
     },
     touch: () => touchOn,
+  });
+
+  /**
+   * LEVEL 13 (js/warden.js): the dread on the way to the great room, the room's own light, and the capture.
+   * It reads where the player is and writes to the screen and the speakers - and it takes the controls at
+   * exactly one moment, the reveal, which is the whole point of the level.
+   */
+  const warden = EchoWarden.create({
+    player: () => player,
+    audio,
+    cues,
+    calm: () => calm,
+    los: (x0, y0, x1, y1) => hasLOS(x0, y0, x1, y1),
+    rippleSpeed: RIPPLE_SPEED,
+    litBy: (rp) => litByWarden(rp),
+    gasp: () => wardenGasp(),
+    freeze: () => {
+      if (state === 'play') {
+        state = 'capture'; // the one moment in the game where the controls are taken away
+        touch.releaseAll();
+        touch.setVisible(false);
+      }
+    },
+    enteredRoom: () => onWardenCleared(),
+    taken: (short) => onCaptured(short),
   });
 
   // ---------------------------------------------------------------- storage
@@ -209,6 +242,9 @@
   let nearMiss = 0; // 0..1: a monster has just come within a hair of you and backed off - drawing and sound only
   let artLag = 0; // seconds of ART time not yet advanced: the near-miss slows what is DRAWN, never what happens
   let savedToastTimer = null;
+  // ---- level 13 (js/warden.js)
+  let wardenCleared = false; // the great room has been entered on this attempt: progress is written down once
+  let wardenSaved = false; // ...and a new best really reached storage, so the ending may say "Progress saved"
   let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -405,6 +441,21 @@
         e.y += (ddy / d) * pen;
         pushed = true;
         contact = { x: ob.x + (ddx / d) * ob.r, y: ob.y + (ddy / d) * ob.r };
+      }
+      // LEVEL 13 only: the warden is solid, exactly as the room's far wall would be. It is not a monster, it
+      // is not in `enemies`, and touching it does nothing at all - it is simply in the way (js/warden.js).
+      if (level.warden) {
+        for (const c of level.warden.circles) {
+          const ddx = e.x - c.x;
+          const ddy = e.y - c.y;
+          const d = Math.hypot(ddx, ddy);
+          if (d >= e.r + c.r || d < 1e-6) continue;
+          const pen = e.r + c.r - d;
+          e.x += (ddx / d) * pen;
+          e.y += (ddy / d) * pen;
+          pushed = true;
+          contact = { x: c.x + (ddx / d) * c.r, y: c.y + (ddy / d) * c.r };
+        }
       }
       if (!pushed) break;
     }
@@ -1433,6 +1484,37 @@
     glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
     audio.ping();
+    // LEVEL 13: this is the press the capture has been waiting for. The ripple itself is untouched - the
+    // warden only watches for it, and only once the player is already inside the room (js/warden.js).
+    if (level.warden) warden.onRipple(ripples[ripples.length - 1], false);
+  }
+
+  /**
+   * LEVEL 13's safety net. Nobody has rippled since walking into the great room, so one is sent for them:
+   * a flinch, not a decision. It ignores the recharge and a held crouch, because it is not something the
+   * player did - and for the same reason it is not counted as one of their ripples.
+   */
+  function wardenGasp() {
+    if (state !== 'play' || !level || !level.warden) return;
+    glimmerOff = false;
+    castRipple(player.x, player.y, rippleRange());
+    audio.gasp();
+    cues.caption('[you flinch]');
+    warden.onRipple(ripples[ripples.length - 1], true);
+  }
+
+  /**
+   * The wave has reached the warden. Every ray of THIS ripple that came back as stone is the warden's colour
+   * from this instant - the same trick the mimic's reveal plays (revealMimic), and for the same reason: what
+   * lit up was always there, and only the reading of it has changed.
+   */
+  function litByWarden(rp) {
+    for (let j = 0; j < RAYS; j++) {
+      const id = rp.hitId[j];
+      if (id >= 0 && rp.circles[id].warden) rp.type[j] = T_WARDEN;
+    }
+    for (const c of rp.circles) if (c.warden) c.type = T_WARDEN;
+    for (let i = rp.ei; i < rp.echoes.length; i++) if (rp.echoes[i].warden) rp.echoes[i].type = T_WARDEN;
   }
 
   // ---------------------------------------------------------------- crouching
@@ -1500,6 +1582,15 @@
     if (opts && opts.absorbers) {
       for (const a of opts.absorbers) if (Math.hypot(a.x - ox, a.y - oy) < R + a.r) circles.push({ x: a.x, y: a.y, r: a.r, type: 0, absorb: true });
     }
+    // LEVEL 13: the warden. Until a ripple has revealed it, every ray that reaches it comes back as STONE - the
+    // wall's colour, the wall's stone texture and the wall's echo - so there is nothing whatever to tell it
+    // apart from the room's own far wall. After the reveal the very same rays become its own (litByWarden).
+    if (level.warden) {
+      const wt = level.warden.revealed ? T_WARDEN : T_WALL;
+      for (const c of level.warden.circles) {
+        if (Math.hypot(c.x - ox, c.y - oy) < R + c.r) circles.push({ x: c.x, y: c.y, r: c.r, type: wt, warden: true });
+      }
+    }
     const ex = level.exit;
     if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push({ x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
 
@@ -1560,7 +1651,7 @@
         if (!bin) wallBins.set(key, (bin = { type: T_WALL, n: 0, sd: 0, sx: 0 }));
       } else {
         bin = objBins.get(hitId[i]);
-        if (!bin) objBins.set(hitId[i], (bin = { type: type[i], n: 0, sd: 0, sx: 0, enemy: circles[hitId[i]].enemy }));
+        if (!bin) objBins.set(hitId[i], (bin = { type: type[i], n: 0, sd: 0, sx: 0, enemy: circles[hitId[i]].enemy, warden: circles[hitId[i]].warden }));
       }
       bin.n++;
       bin.sd += d;
@@ -1576,6 +1667,7 @@
         pan: clamp((b.sx / b.n) * 0.9, -1, 1),
         w: b.type === T_WALL ? Math.min(1, 0.3 + b.n / 12) : 1,
         enemy: b.enemy, // which monster this echo is off (so a mimic's echo can turn into a monster's, see revealMimic)
+        warden: b.warden, // level 13: so a "wall" echo still on its way back can turn into the warden's (litByWarden)
       });
     }
     // Puddles lie flat on the floor, so the wave passes over them (they never block a ripple).
@@ -1721,6 +1813,7 @@
       case T_DECOY: audio.echoDecoy(ev.pan, vol, ev.d); break;
       case T_STALKER: audio.echoStalker(ev.pan, vol, ev.d); break;
       case T_SINGER: audio.echoSinger(ev.pan, vol, ev.d); break;
+      case T_WARDEN: audio.echoWarden(ev.pan, vol, ev.d); break; // level 13: the wall that came back wrong
     }
   }
 
@@ -1966,6 +2059,11 @@
     // a line of text. Nothing above this point knows the tutorial exists.
     if (inTutorial()) tutorial.update(dt, { x: player.x, y: player.y, ripples: ripplesUsed });
 
+    // LEVEL 13: the dread on the way to the great room, the room's own light, and the capture (js/warden.js).
+    // Like the tutorial's prompts it reads where you are and writes to the screen and the speakers. The one
+    // thing it ever takes is the controls, and only at the reveal - which is what the level is for.
+    if (level.warden) warden.update(dt);
+
     // NEAR MISSES. Read-only, and last: every monster has already moved and the outcomes below decide the
     // level. All this does is notice that something came within a hair of you and did not get you.
     nearMiss = Math.max(0, nearMiss - dt / NEAR_MISS_SECONDS);
@@ -1993,7 +2091,9 @@
       // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
       if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind, deathWhy(e));
     }
-    if (Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) {
+    // The way out. Level 13 has no way out: its door chimes and lights up like any other, and the warden is
+    // in front of it - walking into the great room is what ends that level, not touching the door.
+    if (!level.warden && Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) {
       if (inTutorial()) onTutorialComplete();
       else onLevelComplete();
     }
@@ -2205,6 +2305,12 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    // LEVEL 13 ONLY, and the one exception in the whole game to "you never see anything you have not pinged":
+    // the great room glows on its own. It is clipped to the room, and - while you are still outside - to the
+    // wedge you could really see through the one gap in its wall, so it never shows a tile you could not have
+    // seen. See js/warden.js and the note in CLAUDE.md.
+    if (level.warden) warden.draw(ctx, artT);
+
     // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically.
     // (Crouching wipes it - for the mimic too, or the difference would give it away - until your next ripple.)
     // The glow is drawn by one function for both; so is the portal art on top of it (EchoArt 'exit'). The ONLY thing
@@ -2283,6 +2389,9 @@
     drawTrails();
     drawRippleLayer();
     ctx.globalCompositeOperation = 'lighter';
+
+    // ...and once a ripple has found the warden, it is simply there, over everything (js/warden.js)
+    if (level.warden) warden.drawAwake(ctx, artT);
 
     // ?debug only (__echo.showMuffler): the muffler is NEVER drawn in normal play - here it is, dimly, for testing
     if (debugShowMuffler) {
@@ -2371,8 +2480,10 @@
     if (!level) return;
 
     const s = viewScale * DPR;
-    const sx = (Math.random() - 0.5) * shake * DPR;
-    const sy = (Math.random() - 0.5) * shake * DPR;
+    // level 13 adds its own tremor on top of the game's (and none at all in calm mode - see js/warden.js)
+    const sh = shake + (level.warden ? warden.shake() : 0);
+    const sx = (Math.random() - 0.5) * sh * DPR;
+    const sy = (Math.random() - 0.5) * sh * DPR;
     ctx.setTransform(s, 0, 0, s, canvas.width / 2 - camX * s + sx, canvas.height / 2 - camY * s + sy);
     drawWorld();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -2390,6 +2501,8 @@
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, cw, ch);
     }
+    // level 13: the dread vignette tightening, the reveal's flash, and the fade to black at the end of it
+    if (level.warden) warden.veil(ctx, canvas.width, canvas.height);
   }
 
   // -------------------------------------------------------------- UI / flow
@@ -2506,6 +2619,9 @@
   /** `retrying` = the same level again after being caught, which is what costs you the Flawless medal. */
   function startLevel(n, retrying = false) {
     destroyVoices();
+    warden.stop(); // level 13's drone, if the last level was it
+    wardenCleared = false;
+    wardenSaved = false;
     if (!retrying) levelDeaths = 0;
     levelNum = n;
     // Hardcore keeps a high score even for a run that dies on level 1. (Never for the tutorial: it is not a level.)
@@ -2562,6 +2678,9 @@
       $('banner').classList.remove('show'); // never leave a level's banner hanging over a tutorial prompt
       tutorial.start();
     } else showBanner(n);
+    // Level 13: the dread starts with the level. `hasSeen('capture')` decides whether the set piece plays in
+    // full - a cutscene only happens the first time, here as everywhere else.
+    if (level.warden) warden.start(level, hasSeen('capture'));
   }
 
   // ----------------------------------------------------------- the tutorial
@@ -2875,22 +2994,53 @@
     // Playing a cleared level again and doing no better writes nothing new, and says nothing.
     const newMedal = !!res.saved && Object.keys(res.improved).some((k) => res.improved[k]);
     if (newBest || newMedal) showSaved();
-    const stats = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
-    if (levelNum >= CAMPAIGN_LEVELS) {
-      // The end of the game so far: there is no level after CAMPAIGN_LEVELS yet.
-      $('victory-text').textContent = MODES[mode].oneLife
-        ? 'You cleared every level on a single life. The echoes fade behind you… More levels are coming.'
-        : `You cleared every level on ${MODES[mode].label}. The echoes fade behind you… More levels are coming.`;
-      renderMedals($('victory-medals'), res);
-      audio.victory();
-      setTimeout(() => state === 'complete' && showOverlay('victory'), 700);
-    } else {
-      audio.levelComplete();
-      $('complete-title').textContent = `Level ${levelNum} cleared`;
-      $('complete-stats').textContent = stats;
-      renderMedals($('complete-medals'), res);
-      setTimeout(() => state === 'complete' && showOverlay('complete'), 700);
+    // There is no "you finished the game" screen any more: clearing level 12 leads on to level 13 like any
+    // other level, and level 13 does not end in a victory (see onWardenCleared / onCaptured).
+    audio.levelComplete();
+    $('complete-title').textContent = `Level ${levelNum} cleared`;
+    $('complete-stats').textContent = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
+    renderMedals($('complete-medals'), res);
+    setTimeout(() => state === 'complete' && showOverlay('complete'), 700);
+  }
+
+  // ------------------------------------------------ level 13: the capture
+  /**
+   * The player is fully inside the great room. This is what "clearing" level 13 means, and it is written down
+   * here exactly as any other clear is: the best level and the lifetime "levels cleared". What it does NOT do
+   * is show the "Level cleared" screen - there is nothing to be pleased about - and it takes no medals, because
+   * level 13 has none (see MEDAL_LEVELS). The toast waits for the ending: a note in the corner has no business
+   * in the middle of this.
+   */
+  function onWardenCleared() {
+    if (wardenCleared) return;
+    wardenCleared = true;
+    wardenSaved = saveBest(levelNum + 1);
+    EchoProfile.addClear(mode);
+    EchoProfile.flush();
+  }
+
+  /**
+   * The capture is over. STUB: the area it takes you to has not been built yet, so the game ends on a short,
+   * deliberately temporary screen and goes back to the title. Replace all of this - the `#ending` overlay in
+   * index.html included - when the next area exists.
+   */
+  function onCaptured(short) {
+    state = 'ending';
+    if (!short) {
+      // a cutscene plays once: a second visit to level 13 gets the brief version (see startLevel)
+      seen.capture = 1;
+      store.set(SEEN_KEY, JSON.stringify(seen));
     }
+    touch.releaseAll();
+    touch.setVisible(false);
+    audio.stopAmbient();
+    music.stop();
+    destroyVoices();
+    cues.clear();
+    $('hud').classList.add('hidden');
+    $('banner').classList.remove('show');
+    showOverlay('ending');
+    if (wardenSaved) showSaved(); // something really was written down back at the door; now is when it can be said
   }
 
   function pause() {
@@ -2918,6 +3068,7 @@
     audio.resume();
     EchoProfile.flush();
     tutorial.stop(); // the tutorial's prompt, if one was up
+    warden.stop(); // ...and level 13's drone
     state = 'title';
     level = null;
     music.start('title'); // the title has a mood of its own (nothing happens until there is an AudioContext)
@@ -2970,7 +3121,7 @@
     });
     $('btn-replay').classList.toggle('hidden', !replayAvailable());
     // a small medal line for the mode that is picked (Settings -> Stats & Medals has the whole board)
-    const sum = EchoProfile.medalSummary(mode, CAMPAIGN_LEVELS);
+    const sum = EchoProfile.medalSummary(mode, MEDAL_LEVELS); // (level 13 has no medals - see MEDAL_LEVELS)
     const line = $('title-medals');
     line.classList.toggle('hidden', sum.won === 0);
     if (sum.won) line.textContent = `Medals on ${MODES[mode].label}: ${sum.won} of ${sum.total} · ${sum.gold} gold, ${sum.silver} silver, ${sum.bronze} bronze, ${sum.flawless} flawless`;
@@ -3044,8 +3195,9 @@
         const num = document.createElement('span');
         num.textContent = n;
         b.appendChild(num);
-        // the medals won on this level, in this mode (three little pips: time, ripples, flawless)
-        const rec = EchoProfile.medalsFor(mode, n);
+        // the medals won on this level, in this mode (three little pips: time, ripples, flawless). Level 13
+        // is not raced and takes none, so its button simply has no pips (see MEDAL_LEVELS).
+        const rec = n <= MEDAL_LEVELS ? EchoProfile.medalsFor(mode, n) : null;
         if (rec) {
           const pips = document.createElement('span');
           pips.className = 'pips';
@@ -3278,7 +3430,7 @@
       return;
     }
     const a = EchoProfile.actionFor(e.code); // which ACTION this key runs, if any (Settings -> Controls)
-    if (GAME_KEYS.includes(e.code) || (state === 'play' && a)) e.preventDefault();
+    if (GAME_KEYS.includes(e.code) || ((state === 'play' || state === 'capture') && a)) e.preventDefault();
     keys[e.code] = true;
     if (e.repeat) return;
 
@@ -3349,6 +3501,16 @@
           }
         }
         break;
+      case 'ending':
+        if (e.code === 'Enter') {
+          e.preventDefault();
+          if (!$('ending').classList.contains('hidden')) {
+            audio.uiClick();
+            go(() => toTitle());
+          }
+        }
+        break;
+      // 'capture' is not here on purpose: that is the one moment the controls are gone (js/warden.js)
     }
   });
 
@@ -3506,7 +3668,7 @@
     click();
     go(() => advanceLevel());
   });
-  $('btn-victory-title').addEventListener('click', () => {
+  $('btn-ending-title').addEventListener('click', () => {
     click();
     go(() => toTitle());
   });
@@ -3532,6 +3694,11 @@
     } else if (state === 'caught' || state === 'complete') {
       flash = Math.max(0, flash - dt * 1.2);
       shake = Math.max(0, shake - dt * 20);
+      updateRipples(dt);
+    } else if (state === 'capture') {
+      // level 13: the controls are gone, but the ripple that found it is still travelling and the warden is
+      // still moving. Nothing simulates: `updatePlay` is not running, so nothing can happen to the player.
+      warden.update(dt);
       updateRipples(dt);
     } else if (state === 'title') {
       titleTimer -= dt;
@@ -3761,6 +3928,85 @@
         }
         return tutorialDone;
       },
+      // v12.0: level 13, the capture (js/warden.js). go(13) plays it; the hooks below drive and inspect it.
+      warden,
+      wardenState: () => warden.state(),
+      wardenDread: (x, y) => warden.dreadAt(x === undefined ? player.x : x, y === undefined ? player.y : y),
+      // the involuntary ripple the safety net sends, on demand
+      gasp: () => wardenGasp(),
+      // step the capture on by hand once the controls are gone (updatePlay is not running then)
+      captureStep: (secs) => {
+        for (let t = 0; t < secs && (state === 'capture' || state === 'play'); t += 1 / 60) {
+          if (state === 'play') updatePlay(1 / 60);
+          else warden.update(1 / 60);
+        }
+        return warden.state();
+      },
+      // whether the capture has played before: `false` gives a fresh player the full set piece again
+      setCaptureSeen: (on) => {
+        if (on) seen.capture = 1;
+        else delete seen.capture;
+        store.set(SEEN_KEY, JSON.stringify(seen));
+        return !!seen.capture;
+      },
+      /** Everything worth checking about the hand-drawn level 13: shape, reachability, the seal and the ramp. */
+      wardenCheck: () => {
+        if (!level || !level.warden) return null;
+        const W = level.W;
+        const H = level.H;
+        const w = level.warden;
+        const open = (i) => !level.walls[i];
+        let floors = 0;
+        let deadEnds = 0;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = y * W + x;
+            if (!open(i)) continue;
+            floors++;
+            let n = 0;
+            if (x > 0 && open(i - 1)) n++;
+            if (x < W - 1 && open(i + 1)) n++;
+            if (y > 0 && open(i - W)) n++;
+            if (y < H - 1 && open(i + W)) n++;
+            if (n === 1) deadEnds++;
+          }
+        }
+        // how many ways there are into the great room (it must be exactly one)
+        const R = EchoWarden.ROOM_T;
+        let mouths = 0;
+        for (let y = R.y0; y <= R.y1; y++) {
+          if (open(y * W + R.x0 - 1)) mouths++;
+          if (open(y * W + R.x1 + 1)) mouths++;
+        }
+        for (let x = R.x0; x <= R.x1; x++) {
+          if (open((R.y0 - 1) * W + x)) mouths++;
+          if (open((R.y1 + 1) * W + x)) mouths++;
+        }
+        const sTile = Math.floor(level.start.y / TILE) * W + Math.floor(level.start.x / TILE);
+        const eTile = EchoWarden.ENTRY_T.y * W + EchoWarden.ENTRY_T.x;
+        const dS = bfsDist(level.blocked, W, H, sTile);
+        // can anything walk round the warden to the door's wall? (the tiles beside it must be unreachable)
+        const doorSide = (DOOR_T => (DOOR_T.y * W + DOOR_T.x - 1))(EchoWarden.DOOR_T);
+        return {
+          size: `${W}x${H}`,
+          floors,
+          deadEnds,
+          mouths, // 1: the room has exactly one way in
+          roomTiles: level.roomTiles.length,
+          startToRoom: dS[eTile], // tiles of walking from the start to the room's threshold
+          pathTiles: level.pathTiles,
+          doorTileReachable: dS[doorSide] >= 0, // false: the warden seals the door off
+          circles: w.circles.length,
+          ripple: Math.round(cfg.rippleRadius),
+          cooldown: +cfg.cooldown.toFixed(3),
+          monsters: enemies.length,
+          dreadAt: {
+            start: +warden.dreadAt(level.start.x, level.start.y).toFixed(3),
+            mouth: +warden.dreadAt((EchoWarden.MOUTH_T.x + 0.5) * TILE, (EchoWarden.MOUTH_T.y + 0.5) * TILE).toFixed(3),
+            inside: +warden.dreadAt(w.insideX + 20, (R.y1 + 0.5) * TILE).toFixed(3),
+          },
+        };
+      },
       profile: EchoProfile,
       medals: () => EchoProfile.allMedals(),
       stats: () => EchoProfile.stats(),
@@ -3769,7 +4015,10 @@
       musicState: () => music.state(),
       levelDeaths: () => levelDeaths,
       settings: () => ({
-        campaignLevels: CAMPAIGN_LEVELS, // 12 (the tutorial is level 0 and is not one of them)
+        campaignLevels: CAMPAIGN_LEVELS, // 13 (the tutorial is level 0 and is not one of them)
+        medalLevels: MEDAL_LEVELS, // 12: level 13 is hand-drawn, has no cleared screen and takes no medals
+        // level 13 (js/warden.js): the fixed level, the one room that glows, and the capture
+        warden: { level: WARDEN_LEVEL, seen: !!seen.capture, autoRippleSeconds: EchoWarden.AUTO_SECONDS, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,

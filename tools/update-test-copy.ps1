@@ -80,6 +80,9 @@ $scenes = @([regex]::Matches($Matches[1], '(\w+)\s*:') | ForEach-Object { $_.Gro
 $block = [regex]::Match($gameJs, 'const SCENES = \[(.*?)\n  \];', 'Singleline')
 if (-not $block.Success) { Fail 'could not read the SCENES list from game.js' }
 $scenes += @([regex]::Matches($block.Groups[1].Value, "kind: '(\w+)'") | ForEach-Object { $_.Groups[1].Value })
+# ...and anything the game marks seen BY NAME rather than through the tables above. Level 13's capture does
+# that: it is a cutscene that only ever happens inside its level, so it is in neither list.
+$scenes += @([regex]::Matches($gameJs, '(?m)^\s*seen\.(\w+)\s*=\s*1;') | ForEach-Object { $_.Groups[1].Value })
 $scenes = @($scenes | Select-Object -Unique)
 if ($scenes.Count -lt 4) { Fail "only found $($scenes.Count) cutscenes ($($scenes -join ', ')); expected at least the four that exist" }
 $seenJs = '{ ' + (($scenes | ForEach-Object { "$_`: 1" }) -join ', ') + ' }'

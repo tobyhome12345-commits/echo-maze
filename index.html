@@ -279,13 +279,19 @@
     </div>
   </section>
 
-  <section id="victory" class="overlay hidden">
-    <div class="panel small">
-      <h2>You finished the game</h2>
-      <p id="victory-text">You cleared every level. The echoes fade behind you&hellip; More levels are coming.</p>
-      <div id="victory-medals" class="medal-list"></div>
+  <!--
+    STUB. What comes after level 13's capture has not been built yet, so the game stops here instead of
+    pretending otherwise. This whole overlay - and onCaptured() in js/game.js - is to be replaced when the
+    next area exists. (It took the place of the old "You finished the game" screen, which no longer plays:
+    clearing level 12 leads on to level 13, and a capture is not a finish.)
+  -->
+  <section id="ending" class="overlay hidden">
+    <div class="panel small quiet">
+      <h2 class="hush">&hellip;</h2>
+      <p id="ending-text">Not killed. Taken.</p>
+      <p class="stub">This is as far as the maze goes for now. The next area is still being built.</p>
       <div class="buttons">
-        <button id="btn-victory-title" class="primary">Back to title</button>
+        <button id="btn-ending-title" class="primary">Back to title <span class="key">Enter</span></button>
       </div>
     </div>
   </section>
@@ -315,6 +321,7 @@
   <script src="js/music.js"></script>
   <script src="js/level.js"></script>
   <script src="js/tutorial.js"></script>
+  <script src="js/warden.js"></script>
   <script src="js/wordmark.js"></script>
   <script src="js/feedback.js"></script>
   <script src="js/art.js"></script>

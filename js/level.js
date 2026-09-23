@@ -153,7 +153,8 @@ const PUDDLE_CAP = { 9: 6 }; // level 9 has two scent monsters (Normal, Hard, Ha
  * Muffler with one familiar echo monster; level 12 pairs the new Singer with one. One new threat per level, at most
  * three monsters at a time (levels 8 and 9 are the peak; the mimic counts as one). The decoy and the smell puddles are
  * terrain, not monsters: they are on every level that had them, whatever the mode's monster mix.
- * Levels past 12 do not exist; the fallback formula below only keeps them generating sensibly for debug / testing.
+ * Level 13 is the capture (js/warden.js): hand-drawn, and empty of everything above - see wardenConfig.
+ * Levels past 13 do not exist; the fallback formula below only keeps them generating sensibly for debug / testing.
  */
 const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0, 11: 1, 12: 1 };
 const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 2, 10: 1 };
@@ -199,9 +200,38 @@ function tutorialConfig(modeId) {
   };
 }
 
+/**
+ * LEVEL 13 is the capture (js/warden.js): a hand-drawn maze, the same every time, in every difficulty mode,
+ * with nothing in it that can kill you. It keeps the ORDINARY curve's numbers for level 13 - the ripple range
+ * and the recharge simply carry on from level 12 (243 px instead of 252 before the mode multiplier, and the
+ * same 1.5 s recharge, which the curve has already capped) - and then zeroes every monster, puddle and decoy.
+ * Nothing below this point ever sees n = 13 with monsters, so no other level's formula is touched.
+ */
+const WARDEN_LEVEL = 13;
+function wardenConfig(modeId) {
+  const base = levelConfig(WARDEN_LEVEL, modeId, true); // `true`: the plain curve, before this exception
+  return {
+    ...base,
+    cw: 13, // the hand-drawn map is 27 x 21 tiles (2 * cw + 1, 2 * ch + 1), like the tutorial's
+    ch: 10,
+    rooms: 1, // the one great room
+    obstacles: 0,
+    enemies: 0,
+    scentMonsters: 0,
+    puddles: 0,
+    puddlesDrawn: 0,
+    mimics: 0,
+    decoy: false,
+    stalkers: 0,
+    mufflers: 0,
+    singers: 0,
+  };
+}
+
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
-function levelConfig(n, modeId = 'normal') {
+function levelConfig(n, modeId = 'normal', raw = false) {
   if (n === 0) return tutorialConfig(modeId);
+  if (n === WARDEN_LEVEL && !raw) return wardenConfig(modeId); // (`raw` is wardenConfig asking for the plain curve)
   const m = MODES[modeId] || MODES.normal;
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
@@ -304,6 +334,8 @@ function generateLevel(n, runSeed, modeId = 'normal') {
   // Level 0 is the tutorial: hand-drawn, the same every time, and it never reaches the generator below - so it
   // draws no random numbers at all and cannot move anything on levels 1-12.
   if (n === 0) return EchoTutorial.build(cfg);
+  // Level 13 is the capture, hand-drawn in the same way and for the same reason (js/warden.js).
+  if (n === WARDEN_LEVEL) return EchoWarden.build(cfg);
   const rand = mulberry32((runSeed ^ Math.imul(n, 0x9e3779b1)) >>> 0);
   const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
 
