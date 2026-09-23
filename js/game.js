@@ -43,6 +43,8 @@
   // COLORS[T_...] keeps working, and a palette can never reach anything but the drawing.
   const COLORS = [null, null, null, null, null, null, null, null, null, null];
   const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer'];
+  // which palette colour each swatch on the title legend belongs to (drawing only: it tints the chip around it)
+  const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit' };
   const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
   EchoPalette.onChange((rgb) => {
     for (let i = 1; i < COLOR_ROLE.length; i++) COLORS[i] = rgb[COLOR_ROLE[i]];
@@ -3345,6 +3347,10 @@
       const kind = cv.dataset.art;
       const r = (kind === 'wall' ? 0.4 * w : 0.33 * h) * dpr;
       EchoArt.draw(g, kind, cv.width / 2, cv.height * (kind === 'wall' ? 0.36 : 0.5), r, { t: 0.9, h: -0.6, seed: EchoArt.seedOf(kind.length * 31, 7) });
+      // Hand the legend row this thing's own colour, so the chip around it glows the way the thing does in a
+      // ripple (style.css: #title .legend li). Drawing only - it follows the palette like everything else.
+      const li = cv.closest('li');
+      if (li) li.style.setProperty('--glow', EchoPalette.rgb(LEGEND_ROLE[kind] || 'wall'));
     });
   }
 
@@ -3471,6 +3477,10 @@
         for (let s = 0; s < secs; s += stepSecs) wordmark.update(stepSecs);
         return wordmark.state();
       },
+      // hold the sweep at exactly this point (0..1) and paint it: the same instant can then be photographed
+      // with calm mode off and on, which is the only honest way to show what calm mode does to it
+      wordmarkSeek: (u, isReveal = false) => wordmark.seek(u, isReveal),
+      wordmarkRelease: () => wordmark.release(),
       // v11.2: the tutorial (level 0). go(0) plays it; startTutorial('intro' | 'title') sets where it hands over to.
       startTutorial,
       skipTutorial,

@@ -1537,3 +1537,291 @@ body.touch .keycap {
 body.touch .keyclear {
   min-height: 44px;
 }
+
+/* ==========================================================================
+   THE TITLE SCREEN (v11.4)
+
+   One designed system, built out of the game's own light. Two colours carry
+   meaning and nothing else is allowed to: BLUE (--ui-rgb, the colour a ripple
+   paints a wall) is you and your interface - keys, chips, borders, buttons -
+   and GREEN (--exit-rgb) is the way out, which is why the wordmark is green
+   and the exit's legend chip is the only other thing that is.
+
+   Everything here is presentation. No text, no binding and no button's job
+   changes; the rules are scoped to #title so the pause, replay and settings
+   screens keep the look they already had, except for the key chips, which are
+   shared on purpose so a key looks like a key everywhere.
+   ========================================================================== */
+
+/* -- the panel: a little wider, with light falling on it from above ------- */
+#title .panel {
+  width: min(600px, calc(100vw - 32px));
+  padding: 30px 34px 26px;
+  background: linear-gradient(180deg, rgba(10, 20, 30, 0.86), rgba(3, 7, 13, 0.92));
+  border-color: rgba(var(--ui-rgb), 0.22);
+  box-shadow: 0 0 80px rgba(var(--ui-rgb), 0.07), 0 0 140px rgba(var(--exit-rgb), 0.04), inset 0 1px 0 rgba(var(--ui-rgb), 0.12), inset 0 0 50px rgba(0, 0, 0, 0.55);
+}
+
+/* a hairline under the wordmark and its line, so the head of the screen is a unit */
+#title .tagline {
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(var(--ui-rgb), 0.12);
+}
+
+/* -- key chips: pressed metal, lit from the top edge ---------------------- */
+kbd {
+  min-width: 27px;
+  padding: 5px 8px;
+  color: #dcf3ff;
+  background: linear-gradient(180deg, rgba(var(--ui-rgb), 0.2), rgba(var(--ui-rgb), 0.05) 60%, rgba(var(--ui-rgb), 0.02));
+  border: 1px solid rgba(var(--ui-rgb), 0.42);
+  border-radius: 6px;
+  box-shadow: 0 0 12px rgba(var(--ui-rgb), 0.16), inset 0 1px 0 rgba(var(--ui-rgb), 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 0 9px rgba(var(--ui-rgb), 0.55);
+}
+
+/* -- the controls: one bordered block, not a stack of loose lines --------- */
+#title .controls {
+  gap: 9px 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(var(--ui-rgb), 0.14);
+  border-radius: 12px;
+  background: rgba(var(--ui-rgb), 0.028);
+  box-shadow: inset 0 0 30px rgba(var(--ui-rgb), 0.04);
+  font-size: 13.5px;
+}
+
+#title .controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+}
+
+#title .controls > div > span {
+  margin-right: 6px;
+  color: #93aab8;
+}
+
+/* the tutorial line at the end of the how-to: its own quiet note */
+#title #howto-title > div:last-child:not(:first-child) {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--ui-rgb), 0.1);
+  color: rgba(var(--exit-rgb), 0.72);
+  font-style: italic;
+}
+
+/* -- the legend: every row a chip, lit in the colour of the thing it names  */
+#title .legend {
+  gap: 7px 8px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(var(--ui-rgb), 0.12);
+}
+
+#title .legend li {
+  --glow: var(--ui-rgb); /* js/game.js drawLegend() replaces this with the thing's own colour */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 13px 5px 7px;
+  border: 1px solid rgba(var(--glow), 0.26);
+  border-radius: 999px;
+  background: radial-gradient(120% 160% at 14% 50%, rgba(var(--glow), 0.13), rgba(var(--glow), 0.02) 62%, transparent);
+  box-shadow: inset 0 0 16px rgba(var(--glow), 0.06);
+  color: #a8bfcc;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#title .legend li:hover {
+  border-color: rgba(var(--glow), 0.5);
+  box-shadow: inset 0 0 22px rgba(var(--glow), 0.12), 0 0 18px rgba(var(--glow), 0.14);
+}
+
+/* the art in a chip already draws its own additive glow; this spreads it a little further */
+#title .legend canvas.swatch {
+  filter: drop-shadow(0 0 5px rgba(var(--glow), 0.5));
+}
+
+/* the one row with no art, because the Muffler is never seen: a dashed chip, lit by nothing */
+#title .legend li.text-only {
+  --glow: var(--muffler-rgb);
+  gap: 6px; /* it is two flex items, not one string: the space between them has to be put back */
+  padding-left: 13px;
+  border-style: dashed;
+  background: none;
+}
+
+#title .cue-legend {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The cue chips are about SHAPE, not colour (each glyph keeps its own `--c`), so the chip itself stays the
+   interface blue rather than trying to read `--c`, which lives on the SVG inside and never reaches the row. */
+#title .cue-legend li {
+  --glow: var(--ui-rgb);
+  gap: 0;
+  padding-left: 11px;
+}
+
+/* -- the long paragraph: set apart, with a rule down its inside edge ------ */
+#title .note {
+  margin: 20px 0 22px;
+  padding: 14px 18px;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: #9db6c4;
+  background: rgba(var(--ui-rgb), 0.022);
+  border-left: 2px solid rgba(var(--exit-rgb), 0.3);
+  border-radius: 0 10px 10px 0;
+}
+
+/* -- difficulty: four lit tiles ------------------------------------------ */
+#title .modes {
+  gap: 10px;
+  margin-top: 2px;
+}
+
+#title button.mode {
+  padding: 11px 6px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(var(--ui-rgb), 0.05), rgba(var(--ui-rgb), 0.01));
+  box-shadow: inset 0 1px 0 rgba(var(--ui-rgb), 0.1);
+}
+
+#title button.mode:hover,
+#title button.mode:focus-visible {
+  box-shadow: 0 0 20px rgba(var(--ui-rgb), 0.2), inset 0 1px 0 rgba(var(--ui-rgb), 0.22);
+}
+
+#title button.mode.active {
+  background: var(--accent);
+  box-shadow: 0 0 26px rgba(var(--ui-rgb), 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+#title button.mode[data-mode='hardcore'].active {
+  box-shadow: 0 0 26px rgba(var(--danger-rgb), 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+#title .mode-desc {
+  margin: 12px 0 10px;
+}
+
+/* -- the two option rows: a pair of matching bars ------------------------- */
+#title .calm {
+  max-width: none;
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(var(--ui-rgb), 0.12);
+  border-radius: 10px;
+  background: rgba(var(--ui-rgb), 0.025);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+#title .calm:hover {
+  border-color: rgba(var(--ui-rgb), 0.28);
+  background: rgba(var(--ui-rgb), 0.05);
+}
+
+#title .calm:last-of-type {
+  margin-bottom: 20px;
+}
+
+/* -- buttons: the same light, turned up when they are reached for --------- */
+#title .buttons {
+  gap: 12px;
+}
+
+#title .buttons.dock {
+  margin-top: 4px;
+}
+
+#title button:hover,
+#title button:focus-visible {
+  box-shadow: 0 0 24px rgba(var(--ui-rgb), 0.28), inset 0 0 20px rgba(var(--ui-rgb), 0.07);
+}
+
+#title button.primary {
+  padding: 14px 40px;
+  box-shadow: 0 0 30px rgba(var(--ui-rgb), 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+#title button.primary:hover,
+#title button.primary:focus-visible {
+  box-shadow: 0 0 46px rgba(var(--ui-rgb), 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+#title button.quiet {
+  padding: 10px 20px;
+  font-size: 13px;
+}
+
+#title .medal-summary {
+  margin-top: 16px;
+}
+
+/* the headphones line closes the screen: quiet, and set off by a hairline */
+#title .fine {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(var(--ui-rgb), 0.1);
+}
+
+/* -- touch: the same system, with room for fingers ----------------------- */
+@media (pointer: coarse), (max-width: 760px) {
+  body.touch #title .panel {
+    padding: 14px 16px 12px;
+  }
+
+  body.touch #title .controls {
+    padding: 10px 12px;
+  }
+
+  /* two columns on a touch screen: the chip stays on the left of its cell and the words wrap beside it,
+     instead of the label dropping onto a line of its own */
+  body.touch #title .controls > div {
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  body.touch #title .controls > div > kbd {
+    flex: none;
+  }
+
+  body.touch #title .note {
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  body.touch #title .legend {
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  body.touch #title .legend li {
+    padding: 3px 10px 3px 5px;
+  }
+
+  body.touch #title .calm {
+    padding: 8px 10px;
+  }
+
+  body.touch #title .tagline {
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+
+  body.touch #title .fine {
+    margin-top: 10px;
+    padding-top: 8px;
+  }
+}
