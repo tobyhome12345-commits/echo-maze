@@ -62,7 +62,8 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v11.5 | 3c7109f | MINOR, visual + audio only: the title screen's language applied to every other screen - the same panels, chips, buttons and glow on pause / caught / complete / victory / replay / settings - plus cross-fades between all of them (`showOverlay` + `go`, ~300 ms, never blocking the AudioContext click), HUD numbers that tick instead of snapping, medals that reveal one at a time with their numbers counting up, and three CSS variables that calm mode and reduce-motion soften in one place |
 | v11.6 | db2ecd2 | MINOR, feedback only: the Caught screen says what really got you (`js/feedback.js`, from a `why` each monster tags itself with when it first notices you, picked by a hash - never `Math.random`); a near miss (inside 1.5x the kill radius and out again) gives one heartbeat, a red pulse and a dip in the ART clock only, counted in the stats and read by nothing; and "Progress saved" appears only when a new best or a new medal really reached localStorage |
 | v12.0 | aba0209 | MAJOR: LEVEL 13, the capture. A hand-drawn 27x21 maze (`js/warden.js`) with nothing in it that can kill you; a dread ramp over the last 28 tiles of the route (drone, warped ambience, tremor, red vignette - all cosmetic, softened and slowed in calm mode); a great room that GLOWS ON ITS OWN, the game's one deliberate exception to "you never see without a ripple", clipped to what you could really see; a WARDEN filling half of it that a ripple reads as stone until the player's own next ripple press reveals it (a 7 s flinch as a safety net); then the controls are taken for the first and only time and it takes you. Level 12 now leads on to 13, the victory screen is retired, and the game ends on a labelled STUB until the next area is built. Level 13 takes no medals |
-| v12.1 | bd365c0 | MINOR: the level 13 capture now plays IN FULL every time the level is finished, not only the first time. The brief second-visit version is removed outright rather than bypassed - the warden is hidden again at the start of every attempt, and nothing is written to `echomaze.seen` for it, because there is no longer a version to choose (latest) |
+| v12.1 | bd365c0 | MINOR: the level 13 capture now plays IN FULL every time the level is finished, not only the first time. The brief second-visit version is removed outright rather than bypassed - the warden is hidden again at the start of every attempt, and nothing is written to `echomaze.seen` for it, because there is no longer a version to choose |
+| v12.2 | (pending) | MINOR, level 13 only: the great room's glow now respects WALLS as well as ripples - `mouthSight()` asks the game's own line-of-sight test for seven points across the room's one gap and the glow is scaled by the fraction it can see, which closed the four tiles that leaked (the corridor under the room, and the dead end beside it through a tile corner). And the warden is redrawn: a jagged faceted crest cut from the union of its own circles, masonry courses, chips, forked cracks and one sealed seam instead of a smooth blob; the grab is three filled, tapered, jagged limbs that extend AND thicken, the middle one opening into claws, instead of five straight lines; and the sequence gains a held beat, a 0.3 s IMPACT (one flash, a 36 px floor kick, a new `wardenGrab` sound) and a shorter fade the sound carries on under - 2.92 s of picture, was 4.2. Its collision circles, and therefore the level, are untouched (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -81,7 +82,7 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - **No audio files.** All sound is synthesised in `js/audio.js` with the Web Audio API. The `AudioContext` must only be created from a user click (the Begin button) — keep it that way.
 - Difficulty lives in `levelConfig()` in `js/level.js`.
 - **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 13: levels 1-13). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
-- **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **one deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section.
+- **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **one deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
 
 ## Ripple range (owner's request; tools will build on it later)
 
@@ -522,7 +523,7 @@ It drives: `audio.startWardenDrone` / `setWardenDread` (a low tritone that rises
 
 The great room glows on its own: a pool of light on its floor, its four walls, the door, and the warden punched out of the light as a silhouette. **This is the only place in the game where geometry is visible without the player pinging it**, and it is written down here as an exception on purpose, beside the mimic's per-mode `mimicTell` (the only other one).
 
-It is kept honest by **two clips**: to the room, and - while the player is still outside it - to the wedge they could really see through the one gap in its wall (a cone from the player through that gap's two corners, plus a line-of-sight test to the gap itself, so a wall between them shows nothing). `drawAwake` is clipped to the room too, so the glow round a thing buried in the far wall never makes it look bigger than the space it is in.
+It is kept honest by **two clips**: to the room, and - while the player is still outside it - to the wedge they could really see through the one gap in its wall (a cone from the player through that gap's two corners, plus a line-of-sight test to the gap itself, so a wall between them shows nothing). **That line-of-sight test was not enough, and leaked on four tiles - see the v12.2 section, which is where it is actually enforced.** `drawAwake` is clipped to the room too, so the glow round a thing buried in the far wall never makes it look bigger than the space it is in.
 
 **The door's light comes ROUND the warden.** The door is drawn, then the warden's black fill hides it, then a wide soft halo is drawn on top - so the shape of the door is occluded (and a ripple's rays stop dead on the warden) while the way out still glows behind the thing standing in front of it. The warden is backlit by the exit. That is the picture the level is for.
 
@@ -595,6 +596,149 @@ It is still **unskippable** - the controls are gone from the reveal onwards, whi
 - Levels 1-12 untouched: the 2,400-maze generator fingerprint `21bbeabe` and the five scripted games unchanged.
 - **Soak re-run**: 41,600 frames over 4 modes x 2 calm settings x 2 cue settings, 54 captures, 0 deaths, 0 exceptions - and **every capture measured 5.43 s**, one value, no second version anywhere in it.
 
+## v12.2: the glow stops at walls, and the warden is redesigned (owner's brief, MINOR)
+
+Owner, two specific problems with what v12.0 built:
+
+> **1.** You can see the large room's glow through walls before reaching it. It must still respect normal
+> line-of-sight/occlusion like everything else - a wall between the player and the room must fully block it,
+> exactly like walls block ripple echoes.
+> **2.** The monster and its grab are just plain lines. [...] give it real shape and texture, matching the
+> design language already used for every other monster [...] jagged, asymmetrical, with a rough stone-like or
+> cracked texture that visually rhymes with the room's own walls [...] replace the straight lines entirely
+> [with] shaped limbs - filled, tapered polygons [...] that visibly extend and thicken as they reach.
+
+Both were fair, and the first one was measurable: **4 floor tiles of level 13 leaked**.
+
+### 1. Occlusion
+
+The exception the room's glow makes is to the RIPPLE, never to the WALLS. v12.0 only half enforced that:
+
+- `outside` was `p.x < room.x0` - true of the corridor beside the room, false of **the corridor that runs
+  underneath it** and the whole right-hand loop, which are at a greater x but behind a solid wall. On those
+  tiles the wedge clip was skipped altogether and the entire room was drawn.
+- The one line-of-sight test aimed at the **centre of the mouth TILE**, which sits on a tile corner from the
+  dead end at (15, 8). A DDA aimed exactly at the corner of a wall tile slips diagonally between two of them,
+  so that tile saw a bright wedge of room through a metre of stone.
+
+Now (`js/warden.js`):
+
+- **`insideRoom(p)`** is a real rect test on the room, not a test on x alone.
+- **`mouthSight(p)`** returns 0..1: 1 inside the room, otherwise the fraction of `MOUTH_SAMPLES` = 7 points
+  spread across the mouth's **room-side face** (`mouth.x + 2`, never the boundary itself) that `env.los` -
+  the game's own walls-only DDA, `hasLOS`, the same one the visual sound cues use - can reach.
+- `sight` smooths that: it eases UP at 9/s, so the light arrives as you come round into view, and **drops
+  straight to the new value** when it falls, so stone really does block all of it with nothing trailing.
+- Everything the room draws is multiplied by `glow * sight`, and the wedge clip through the mouth stays on
+  top of that. `draw()` returns immediately when `glow * sight <= 0.004`.
+
+**Measured, by sweeping every one of the 195 floor tiles on both builds** with the same independent oracle (a
+2 px march over the tile grid to any of the room's 81 floor tiles - nothing to do with `hasLOS`), teleporting
+to each tile, letting the glow settle and then summing blue-over-red across the whole canvas:
+
+| | tiles the room is drawn on | tiles that leak |
+| --- | --- | --- |
+| v12.1 | 91 | **4** - (15, 8), (17, 11), (18, 11), (17, 12) |
+| v12.2 | 87 | **0** |
+
+91 - 4 = 87, so nothing legitimate was lost with them: the room still lights for the 81 tiles inside it and
+the six corridor tiles (11, 9)-(16, 9) that look straight down the corridor at the opening, and nowhere else.
+(`wardenState()` now reports `sight` and `lit` so this is checkable at a glance.)
+
+### 2. The warden
+
+**The circles did not change.** `BODY` is still the 24 circles a ripple hits and `moveCircle` stops you on -
+so the level's collision, its `blocked` tiles and its ripple are all exactly what they were. What changed is
+everything drawn on top of them, and it is all precomputed ONCE at load into fixed tables by a local xorshift
+(`rng`, the same trick `js/art.js` uses). **It never calls `Math.random`** and it is never run again: the same
+stone, in the same places, in every run of every mode.
+
+- **`OUTLINE` - the crest.** The union of the circles is walked at 288 angles from `MID`, then resampled into
+  ~40 facets of 24-58 px each, every one pulled INWARDS (by up to 4.5%, or 8.5-14% for the one in six that is
+  a deeper cleft). Pulling inwards is not a detail: the drawn stone can then never claim a millimetre of room
+  the solid body has not got, and the black punch-out still uses the true union so nothing shows through and a
+  ripple's rays still end where the solid thing really is.
+- **`COURSES`** - layers across it every 16-27 px, each **broken into blocks with gaps**, like the masonry of
+  the room it is standing in. **`PITS`** - 130 small two-stroke chips. **`CRACKS`** - 10 forked runs of 5-8
+  short kinks each (long straight ones read as scratches; that was the first cut). **`JOINTS`** - ticks cut
+  back into the crest at the same two-in-five the game's own walls have (`EchoArt.wallTexture`).
+- **`SEAM`** - one closed cleft in the upper third, well off the middle, drawn as a jagged lens that opens by
+  a few px only while it is reaching. It is the one thing on the whole surface that is not stonework. **There
+  are no eyes on it**, and it is not a mouth either - it is sealed.
+- `rim()` was turned round: **black fill first** (the true union), then the crest on top with a faint fill,
+  a glow stroke, a core stroke and its joints. v12.0 had to stroke every circle first and punch the union out
+  over it; with one polygon that is no longer necessary.
+
+**The grab.** `drawReach` drew five `quadraticCurveTo` strokes. It now draws **three limbs as filled, tapered,
+jagged polygons** (`limbShape`: down one side of a quadratic spine and back up the other, the half-width
+tapering as `(1-u)^0.75` and every step nicked by a fixed jag row), painted in the same three passes
+everything else in the game uses - faint fill, wide dim stroke, thin core stroke. Two things make them read as
+limbs rather than lumps:
+
+- they are **rooted deep inside the mass** (`c.x + 1.6r`) and the reach is measured from the SURFACE
+  (`u0 = 2.6r / distance`), so at 0 the tip is level with the crest and the limb is still a sliver inside the
+  stone, and at 1 it is on the player;
+- `thick` runs 0.16 -> 1.0 -> 1.26 across reach and hit, so they **extend and thicken** together.
+
+Each arrives at its own side of the player rather than all three on one point, and the middle one opens into
+**three short tapered claws** that splay as they come and shut on the hit. Nothing in the sequence is a line.
+
+### 3. The pacing
+
+| beat | was (v12.0/12.1) | now | what it is |
+| --- | --- | --- | --- |
+| reveal | 0.6 s | **0.5 s** | it lights up and NOTHING moves - a beat to look at it |
+| reach | 1.9 s | **1.3 s** | the limbs come out, thickening; shake 3 -> 18 px; `wardenTake` swells |
+| impact | - | **0.3 s** (new) | one hard flash, the room's light warps, 36 px floor kick, `wardenGrab` |
+| black | 1.7 s | **0.8 s** | out - with the sound still going under it |
+| dark | 1.2 s | **1.0 s** | black, and quiet |
+
+**2.92 s** of picture from the reveal to full black (the owner asked for "roughly 2-3 seconds"), 3.92 s to the
+ending screen. Sound: `wardenTake(reach, tail)` now takes the picture's own timings, so it peaks exactly on
+contact and trails for 0.6 s past the end of the fade instead of being cut off by it; `wardenGrab()` is new -
+a sub that drops from 96 to 23 Hz with a band of stone-coloured noise sliding 900 -> 180 Hz over it. The
+room's own glow gains a 1.4 Hz, 20% warp from the reach onwards (2.2 Hz halved in calm mode).
+
+**Flashing:** the hit is ONE pulse, full in a frame and gone in a third of a second, and there is no second
+one anywhere - so the game's three-a-second limit is not approached. **Calm mode** keeps it (the rule is
+softer, never removed): no floor kick at all, `dreadFx` capped at 0.45, and the flash at a fifth - measured as
+**3.6x dimmer on screen** (mean pixel 31.1 vs 111.3 at the same instant). The reveal's flare, which v12.0
+removed entirely in calm mode, is now scaled to 0.3 instead, for the same reason.
+
+Visual cues gained the third beat: `[the wall moves]` -> `[it reaches]` -> **`[it has you]`**, plus a big
+pulse at the player on the hit.
+
+### Tests
+
+- **Levels 1-12 are untouched.** The generator fingerprint over 12 levels x 4 modes x 50 seeds = **2,400
+  mazes** (walls, blocked, obstacles, puddles, decoy, every monster incl. pitch, start, exit, `pathTiles`,
+  `roomTiles`, the whole `cfg`) is **`c327ce51` on both builds, all 48 rows identical**, with `Math.random`
+  stubbed to throw. The five scripted `tools/identity-test.js` games are identical too - `3504165c` /
+  `feb0ec5b` / `23907df1` / `4e29d087` / `4e847fae`, 900 frames each, `artRandomCalls` 0 - and give the same
+  hashes on a fresh page and on a page that has already staged level 13, so the harness is not carrying state.
+- **The occlusion sweep** above: 195 tiles, 4 leaks -> 0.
+- **The level itself is unchanged** (`wardenCheck`): 27x21, 195 floors, 7 dead ends, 1 way into the room, 81
+  room tiles, start-to-room 74, door unreachable, 24 circles, 0 monsters.
+- **Soak**: **41,528 frames** over 4 modes x 2 calm settings x 2 cue settings, 79 captures, 72 of them all the
+  way to the ending, **0 deaths, 0 exceptions** - and every completed one measured **3.92 s, a single value**.
+  `echomaze.seen` was still empty afterwards (v12.1's rule holds).
+- **Cost**: level 13 walking **0.092 ms/frame**, the capture at its heaviest (limbs and claws fully out)
+  **0.21 ms/frame** median of six runs, against level 12's **0.104 ms/frame** on the same machine at the same
+  moment. Two of the six capture runs came back at ~78 ms - that is the browser pane stalling, not the game;
+  the other four cluster at 0.18-0.22.
+- Every new and changed sound constructed on a live (muted) AudioContext with no exceptions, and a full
+  capture played through unmuted. Console clean apart from the title wordmark's 0x0-canvas `drawImage` error,
+  which happens on v12.1 identically and only when the page loads with the browser pane hidden.
+
+### Lesson
+
+An occlusion test that aims at **one** point, and at the centre of a tile, is two bugs waiting to happen: the
+single sample cannot express "you can see a bit of it", and a ray aimed at a tile centre from a diagonal
+neighbour passes exactly through the corner where four tiles meet, which a DDA may let through. Sample a
+short row of points on the far side of the opening instead, and let the fraction that get through be the
+answer. The second half of it is not to describe a region by one coordinate: `p.x < room.x0` was a true
+statement about the corridor beside the room and a false one about the corridor underneath it.
+
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
 Owner's brief: level 8 has 1 mimic, 1 echo, 1 scent. The mimic "mimics the end": same green glow, same sound as being near an exit, and "the second your echo touches it, it turns into an echo monster". The sonar decoy (first built on level 8 in v6.0; the owner then moved it to the NEW level 9 in v7.0, `DECOY_FROM_LEVEL` = 9, so level 8 has no decoy): one per level from level 9; collect it, drop it with E (never more than one carried), and 5 seconds after dropping it attracts ALL monsters in a fairly large radius (one time use), including a mimic that has not turned yet; attracted monsters pathfind to it and are trapped there for 5 seconds after they ARRIVE before returning to normal.
@@ -633,7 +777,7 @@ Owner's brief: level 8 has 1 mimic, 1 echo, 1 scent. The mimic "mimics the end":
 
 ## Cutscenes
 
-(Level 13's capture is an eighth, and is NOT here: it is not a reenactment, it only ever happens inside its own level, and unlike these it plays every time - see the v12.0 and v12.1 sections.) `js/cutscene.js` (`EchoCutscene.create(env)`) holds **seven scenes** (v10.0 added `'muffler'` before level 11 and `'singer'` before level 12 - see the v10.0 section), chosen by `start(kind)`; which one plays before which level is `SCENE_BEFORE_LEVEL` / `SCENE_LEADS_TO` in `js/game.js` (`advanceLevel()` looks it up, so adding a scene is one row there plus a builder in cutscene.js, an entry in `SCENES` for the replay screen, and rows in `SCENE_START` / `SCENE_PAL` / `SCENE_AMBIENT`):
+(Level 13's capture is an eighth, and is NOT here: it is not a reenactment, it only ever happens inside its own level, and unlike these it plays every time - see the v12.0, v12.1 and v12.2 sections.) `js/cutscene.js` (`EchoCutscene.create(env)`) holds **seven scenes** (v10.0 added `'muffler'` before level 11 and `'singer'` before level 12 - see the v10.0 section), chosen by `start(kind)`; which one plays before which level is `SCENE_BEFORE_LEVEL` / `SCENE_LEADS_TO` in `js/game.js` (`advanceLevel()` looks it up, so adding a scene is one row there plus a builder in cutscene.js, an entry in `SCENES` for the replay screen, and rows in `SCENE_START` / `SCENE_PAL` / `SCENE_AMBIENT`):
 - `'intro'` (before level 1, played by "Begin": lore cards, then a lost explorer taken by an echo monster; "Now it is your turn.").
 - `'scent'` (owner's request: after clearing level 5, before level 6 - another explorer steps in a puddle, leaves a trail, and a scent monster touches the trail and follows it to them; ends on "It can't hear you. It follows what you leave behind.").
 - `'mimic'` (owner's request: after clearing level 7, before level 8 - "includes the mimic and a person dying to that"; card "Not everything that glows is a way out.", Day 33, a coral lamp: the explorer follows the exit chime to a green glow, pings first, the wave touches it (`MM_TOUCH_T`, computed from the distance so it matches the game), it turns, and runs to the spot the ripple was sent from where the explorer still stands; blackout, the device clatters; ends on "It looks like the way out. / Until your echo touches it.").

@@ -1717,19 +1717,25 @@ class SoundEngine {
    * triangle, an octave and a half further down, opened up into a whole room of reverb and swelled over two
    * seconds instead of hidden.
    */
-  wardenTake() {
+  /**
+   * IT REACHES. The Muffler's absorbing hum has a bigger sibling: the same shape an octave and a half below
+   * it, on the scale of a whole room. `reach` and `tail` are the picture's own timings (js/warden.js), so it
+   * peaks exactly on the moment of contact and then trails away UNDER the fade to black instead of being cut
+   * off by it - the screen goes before the sound does.
+   */
+  wardenTake(reach = 1.3, tail = 1.7) {
     if (!this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
     const gain = this.calm ? 0.5 : 1;
-    const len = 4.4;
+    const len = reach + tail;
     const out = c.createGain();
     out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.95 * gain, t + len * 0.62);
+    out.gain.exponentialRampToValueAtTime(0.95 * gain, t + reach);
     out.gain.exponentialRampToValueAtTime(0.0001, t + len);
     const lp = this._filter('lowpass', 120, 1.6);
     lp.frequency.setValueAtTime(120, t);
-    lp.frequency.linearRampToValueAtTime(520, t + len * 0.62);
+    lp.frequency.linearRampToValueAtTime(520, t + reach);
     lp.frequency.linearRampToValueAtTime(90, t + len);
     lp.connect(out);
     this._route(out, 0, 0.85);
@@ -1758,11 +1764,34 @@ class SoundEngine {
     const nlp = this._filter('lowpass', 260, 0.8);
     const ng = c.createGain();
     ng.gain.setValueAtTime(0.0001, t);
-    ng.gain.exponentialRampToValueAtTime(0.3 * gain, t + len * 0.62);
+    ng.gain.exponentialRampToValueAtTime(0.3 * gain, t + reach);
     ng.gain.exponentialRampToValueAtTime(0.0001, t + len);
     n.connect(nlp);
     nlp.connect(ng);
     this._route(ng, 0, 0.7);
+  }
+
+  /**
+   * THE MOMENT OF CONTACT. Not another swell - a hit: a sub that drops through the floor with a crack of
+   * stone over the top of it, on the frame the limbs close. It is short, and there is only ever one.
+   */
+  wardenGrab() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const gain = this.calm ? 0.5 : 1;
+    const o = this._osc('sine', 96, t, 0.75);
+    o.frequency.exponentialRampToValueAtTime(23, t + 0.42);
+    const g = this._env(t, 0.004, 1 * gain, 0.66);
+    o.connect(g);
+    this._route(g, 0, 0.95);
+    const n = this._noise(t, 0.34);
+    const bp = this._filter('bandpass', 900, 1.1);
+    bp.frequency.setValueAtTime(900, t);
+    bp.frequency.exponentialRampToValueAtTime(180, t + 0.26); // stone, giving way
+    const ng = this._env(t, 0.003, 0.5 * gain, 0.32);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, 0, 0.8);
   }
 
   // ----------------------------------------------------------------- ambient

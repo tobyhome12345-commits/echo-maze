@@ -36,6 +36,7 @@ const EchoWarden = (() => {
   const TAU = Math.PI * 2;
   const LEVEL = 13; // (js/level.js decides which level number comes here; this is only for the warning below)
   const BG = '#010206'; // the page's own black: what the warden's silhouette is punched out with
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
   /**
    * The maze, one character per 40 px tile. 27 x 21 tiles = 1080 x 840 px.
@@ -103,20 +104,232 @@ const EchoWarden = (() => {
     return out;
   })();
 
+  // ------------------------------------------------------- what it looks like
+  /**
+   * A small xorshift of its own, run ONCE while this file loads, to cut the warden's outline and scatter its
+   * cracks. It is not the game's randomness and not the level generator's (mulberry32): it never touches
+   * Math.random, it is never run again, and every table below it is therefore a fixed table - the same stone,
+   * in the same place, in every run of every mode.
+   */
+  function rng(seed) {
+    let s = seed >>> 0 || 0x9e3779b9;
+    return () => {
+      s ^= s << 13;
+      s ^= s >>> 17;
+      s ^= s << 5;
+      return (s >>> 0) / 4294967296;
+    };
+  }
+
+  const MID = { x: 948, y: 220 }; // the middle of the mass: what its outline is cut around
+
+  /** How wide the body is at this height: [left, right] in px, or null above or below all of it. */
+  function spanAt(y) {
+    let L = Infinity;
+    let R = -Infinity;
+    for (const c of BODY) {
+      const dy = y - c.y;
+      if (Math.abs(dy) >= c.r) continue;
+      const w = Math.sqrt(c.r * c.r - dy * dy);
+      if (c.x - w < L) L = c.x - w;
+      if (c.x + w > R) R = c.x + w;
+    }
+    return L <= R ? [L, R] : null;
+  }
+
+  /**
+   * THE CREST - what you see. The circles above are what a ripple hits and what stops you; they are a smooth
+   * blob, and a smooth blob is not what this is. So the union's boundary is walked once here and cut into a
+   * few dozen long, uneven facets, every one of them pulled INWARDS (so the drawn stone can never claim a
+   * millimetre of room the solid body has not got) and roughly one in six of them bitten back into a deeper
+   * cleft. Nothing about it is regular and nothing about it is symmetrical: it is worked stone, not an animal.
+   */
+  const OUTLINE = (() => {
+    const N = 288;
+    const raw = [];
+    for (let i = 0; i < N; i++) {
+      const th = (i / N) * TAU;
+      const dx = Math.cos(th);
+      const dy = Math.sin(th);
+      let far = 0;
+      for (const c of BODY) {
+        const mx = MID.x - c.x;
+        const my = MID.y - c.y;
+        const b = mx * dx + my * dy;
+        const disc = b * b - (mx * mx + my * my - c.r * c.r);
+        if (disc < 0) continue;
+        const d = -b + Math.sqrt(disc);
+        if (d > far) far = d; // the far side of the outermost circle along this ray IS the union's edge
+      }
+      raw.push({ th, d: far, x: MID.x + dx * far, y: MID.y + dy * far });
+    }
+    const R = rng(0x57a9e1);
+    const out = [];
+    let acc = 1e9;
+    let want = 0;
+    for (let i = 0; i < N; i++) {
+      const p = raw[i];
+      const q = raw[(i + N - 1) % N];
+      acc += Math.hypot(p.x - q.x, p.y - q.y);
+      if (acc < want) continue; // a facet every 24-58 px of edge, so no two are the same length
+      acc = 0;
+      want = 24 + R() * 34;
+      const cleft = R() < 0.17;
+      const bite = cleft ? 0.085 + R() * 0.055 : R() * 0.045;
+      const d = p.d * (1 - bite);
+      out.push({ x: MID.x + Math.cos(p.th) * d, y: MID.y + Math.sin(p.th) * d, th: p.th });
+    }
+    return out;
+  })();
+
+  /** Joints cut into the crest, at the same two-in-five the game's own walls have (js/art.js, wallTexture). */
+  const JOINTS = (() => {
+    const R = rng(0x1b4c07);
+    const out = [];
+    for (const p of OUTLINE) {
+      if (R() > 0.42) continue;
+      const len = 5 + R() * 8;
+      out.push([p.x, p.y, p.x - Math.cos(p.th) * len, p.y - Math.sin(p.th) * len]);
+    }
+    return out;
+  })();
+
+  /**
+   * Courses: the layers the stone lies in, and - like the masonry of the room it is standing in - broken
+   * along each one into blocks with gaps between them, rather than running the whole width as a single line.
+   */
+  const COURSES = (() => {
+    const R = rng(0x2c6f11);
+    const out = [];
+    for (let y = -6; y < 456; y += 16 + R() * 11) {
+      const sp = spanAt(y);
+      if (!sp || sp[1] - sp[0] < 70) continue;
+      let x = sp[0] + 8 + R() * 16;
+      while (x < sp[1] - 24) {
+        const end = Math.min(x + 32 + R() * 94, sp[1] - 9);
+        const line = [];
+        for (let i = 0; i <= 4; i++) {
+          const u = i / 4;
+          line.push([x + (end - x) * u, y + Math.sin(u * 4.1 + y * 0.09) * 2.4 + (R() - 0.5) * 2.4]);
+        }
+        out.push(line);
+        x = end + 9 + R() * 24; // the gap to the next block along the course
+      }
+    }
+    return out;
+  })();
+
+  /** And the cracks across them: jagged, forked - what gives away how long it has been standing here. */
+  const CRACKS = (() => {
+    const R = rng(0x3ff20d);
+    const out = [];
+    const walk = (x, y, dx, dy, n) => {
+      const line = [];
+      for (let i = 0; i <= n; i++) {
+        const sp = spanAt(y);
+        if (!sp || sp[1] - sp[0] < 30) break;
+        line.push([clamp(x, sp[0] + 8, sp[1] - 8), y]);
+        x += dx * (0.7 + R() * 0.6);
+        y += dy * (0.7 + R() * 0.6) + (R() - 0.5) * 13;
+      }
+      return line.length > 1 ? line : null;
+    };
+    // Short steps and plenty of them: a crack is a jagged run of small kinks, not a long straight scratch.
+    for (let k = 0; k < 10; k++) {
+      const y0 = 8 + k * 42 + R() * 20;
+      const sp = spanAt(y0);
+      if (!sp) continue;
+      const main = walk(sp[0] + 10 + R() * 50, y0, 9 + R() * 7, (R() - 0.5) * 13, 5 + ((R() * 4) | 0));
+      if (!main) continue;
+      out.push(main);
+      const j = main[Math.min(2, main.length - 1)];
+      const fork = walk(j[0], j[1], 8, R() < 0.5 ? 12 : -12, 3); // and where it forks
+      if (fork) out.push(fork);
+    }
+    return out;
+  })();
+
+  /** Pitting: the small angular chips a surface picks up over a very long time standing perfectly still. */
+  const PITS = (() => {
+    const R = rng(0x6a10bd);
+    const out = [];
+    for (let i = 0; i < 130; i++) {
+      const y = -6 + R() * 458;
+      const sp = spanAt(y);
+      if (!sp || sp[1] - sp[0] < 44) continue;
+      const x = sp[0] + 9 + R() * (sp[1] - sp[0] - 18);
+      const th = R() * TAU;
+      const len = 2 + R() * 4;
+      const bend = th + 1.6 + R() * 1.2; // two short strokes meeting at an angle: a chip, not a stick
+      out.push([
+        [x + Math.cos(th) * len, y + Math.sin(th) * len],
+        [x, y],
+        [x + Math.cos(bend) * len, y + Math.sin(bend) * len],
+      ]);
+    }
+    return out;
+  })();
+
+  /**
+   * The seam. NOT an eye - nothing down here has eyes - and not a mouth it eats with either: one closed line
+   * across the upper third of it, well off the middle, that is the only thing on the whole surface which is
+   * not masonry. It opens by a hair, and only while it is reaching.
+   */
+  const SEAM = (() => {
+    const y = 198;
+    const sp = spanAt(y);
+    const len = (sp[1] - sp[0]) * 0.32;
+    const R = rng(0x4d3c21);
+    const lip = [];
+    const N = 10;
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      // closed at both ends (sin), and no two bites of it the same depth
+      lip.push([-len / 2 + len * u, Math.sin(Math.PI * u) * (0.55 + R() * 0.65)]);
+    }
+    return { x: sp[0] + (sp[1] - sp[0]) * 0.44, y, len, tilt: 0.14, lip };
+  })();
+
+  /**
+   * THE LIMBS. Three of them, rooted at three circles down its front edge, each with its own curl and its own
+   * thickness - and each drawn as a filled, tapering polygon with the same nicked edge the crest has, never
+   * as a line. `jag` is a fixed row of half-width multipliers, so a limb is knobbly in the same places every
+   * time it comes out.
+   */
+  const LIMBS = [
+    { i: 3, curl: -1.0, w0: 14, w1: 3, off: -1, claws: 0 },
+    { i: 9, curl: 0.25, w0: 17, w1: 4, off: 0.15, claws: 3 }, // the middle one is the hand
+    { i: 15, curl: 1.05, w0: 12, w1: 2.6, off: 1, claws: 0 },
+  ];
+  const LIMB_JAG = (() => {
+    const R = rng(0x77b1c5);
+    const out = [];
+    for (let k = 0; k < LIMBS.length; k++) {
+      const row = [];
+      for (let i = 0; i < 29; i++) row.push(0.86 + R() * 0.3);
+      out.push(row);
+    }
+    return out;
+  })();
+
   // ---------------------------------------------------------------- numbers
   const DREAD_TILES = 28; // the ramp: how many tiles of REMAINING PATH the dread builds over
   const INSIDE_PX = 760; // px: the player counts as "fully inside" the room past this x (two tiles in)
   const AUTO_SECONDS = 7; // no ripple this long after entering -> an involuntary one (the safety net)
   const GASP_REVEAL = 0.4; // s: an involuntary ripple sent from somewhere the wave cannot reach still reveals it
-  const REVEAL_SECONDS = 0.6; // it lights up; nothing moves yet
-  const REACH_SECONDS = 1.9; // it reaches for you; the shake and the hum grow
-  const BLACK_SECONDS = 1.7; // to black
-  const DARK_SECONDS = 1.2; // black, and quiet
+  const MOUTH_SAMPLES = 7; // how finely the one gap in the room's wall is tested for line of sight
+  // THE CAPTURE, BEAT BY BEAT. Under three seconds of picture, and it is meant to be: a held breath, a reach,
+  // a hit, and then nothing. The sound is handed the first two of these numbers so it peaks on the hit and is
+  // still going after the screen has gone (js/audio.js, wardenTake).
+  const REVEAL_SECONDS = 0.5; // it lights up, and NOTHING moves: a beat to look at what has been looking at you
+  const REACH_SECONDS = 1.3; // the limbs come out of it, thickening as they go; the shake and the hum swell
+  const IMPACT_SECONDS = 0.3; // and close: one hard flash, the room's light warps, the floor kicks under you
+  const BLACK_SECONDS = 0.8; // out - and the sound carries on past the end of the picture rather than stopping
+  const DARK_SECONDS = 1.0; // black, and quiet, before the screen that follows
   // The capture plays IN FULL every time level 13 is finished (owner's instruction). It is the one cutscene
   // in the game that is not once-only: the other seven are things that happened to somebody else and are
   // remembered, and this one is what happens to you, every time you walk into that room.
 
-  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
   // The colours, refilled in place whenever the palette changes (js/palette.js) - exactly as everything else
   // that holds its own copy does, so a palette can never reach anything but the drawing.
@@ -238,17 +451,51 @@ const EchoWarden = (() => {
    */
   function create(env) {
     let lv = null; // the warden level being played, or null
-    let phase = 'off'; // off | approach | armed | reveal | reach | black | dark | done
+    let phase = 'off'; // off | approach | armed | reveal | reach | impact | black | dark | done
     let t = 0; // seconds in the current phase
     let dread = 0; // 0..1, smoothed: how close the room is, by remaining path
     let glow = 0; // 0..1, smoothed: how much of the room's own light is up
+    let sight = 0; // 0..1, smoothed UP only: how much of that light can actually reach the player
     let waitT = 0; // seconds since the room was entered, for the safety net
     let pending = null; // a ripple on its way to the warden: { rp, at } seconds until it arrives
     let armLen = 0; // 0..1 how far it has reached
+    let grab = 0; // 0..1 the hit: the limbs closing on the moment of contact
     let black = 0; // 0..1 how black the screen is
     let flare = 0; // 0..1 the reveal's own flash, fading
+    let flash = 0; // 0..1 the hit's flash - one pulse, and gone in a third of a second
 
     const warden = () => (lv ? lv.warden : null);
+
+    /** Is the player really IN the great room? (Not merely past its left wall - a corridor runs under it.) */
+    function insideRoom(p) {
+      if (!p) return false;
+      const r = warden().room;
+      return p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1;
+    }
+
+    /**
+     * HOW MUCH OF THE ROOM'S LIGHT CAN REACH THE PLAYER, 0..1.
+     *
+     * The room's glow is the game's one exception to "you only ever see what a ripple lights up" - but it is
+     * an exception to the RIPPLE, never to the walls. From outside the room the only way any of it can reach
+     * you is through the single gap in its wall, so this asks the game's own line-of-sight test (`env.los` =
+     * `hasLOS`, the walls-only DDA the visual sound cues use) for a row of points across that gap's room-side
+     * face, and returns the fraction of them you can really see. With stone in the way that is 0, and then
+     * nothing whatever is drawn.
+     */
+    function mouthSight(p) {
+      if (!p) return 0;
+      if (insideRoom(p)) return 1;
+      const m = warden().mouth;
+      const span = m.y1 - m.y0 - 12;
+      let n = 0;
+      for (let i = 0; i < MOUTH_SAMPLES; i++) {
+        // just INSIDE the room, never on the tile boundary itself: a ray aimed exactly at the corner of a
+        // wall tile can slip diagonally between two of them, and that is how the first cut of this leaked.
+        if (env.los(p.x, p.y, m.x + 2, m.y0 + 6 + (span * i) / (MOUTH_SAMPLES - 1))) n++;
+      }
+      return n / MOUTH_SAMPLES;
+    }
 
     /** How close the room is from here, 0..1, by REMAINING PATH (not by how the crow flies - a wall is a wall). */
     function dreadAt(x, y) {
@@ -281,10 +528,13 @@ const EchoWarden = (() => {
       t = 0;
       dread = 0;
       glow = 0;
+      sight = 0;
       waitT = 0;
       armLen = 0;
+      grab = 0;
       black = 0;
       flare = 0;
+      flash = 0;
       pending = null;
       if (lv) {
         // Always hidden again at the start of the level, however many times it has been played: the wall is a
@@ -299,6 +549,7 @@ const EchoWarden = (() => {
       phase = 'off';
       dread = 0;
       glow = 0;
+      sight = 0;
       black = 0;
       if (env.audio) env.audio.stopWardenDrone();
     }
@@ -338,8 +589,14 @@ const EchoWarden = (() => {
       dread += (target - dread) * Math.min(1, (calm ? 0.55 : 1.4) * dt);
       const want = phase === 'approach' ? clamp((target - 0.45) / 0.55, 0, 1) : 1;
       glow += (want - glow) * Math.min(1, (calm ? 0.8 : 1.8) * dt);
+      // The occlusion. It eases UP, so the room's light arrives as you come round into view of the gap
+      // rather than snapping on - and it drops STRAIGHT to whatever you can see the moment you cannot see
+      // it, so a wall between you and the room really does block all of it, with nothing trailing behind.
+      const see = p ? mouthSight(p) : 0;
+      sight = see < sight ? see : sight + (see - sight) * Math.min(1, 9 * dt);
       flare = Math.max(0, flare - dt / 0.9);
-      if (env.audio) env.audio.setWardenDread(dreadFx(), phase === 'reach' || phase === 'black');
+      flash = Math.max(0, flash - dt / 0.34);
+      if (env.audio) env.audio.setWardenDread(dreadFx(), phase === 'reach' || phase === 'impact' || phase === 'black');
 
       t += dt;
       switch (phase) {
@@ -367,16 +624,34 @@ const EchoWarden = (() => {
           }
           break;
         case 'reveal':
+          // It is lit, and it does NOTHING. The beat is the point: a moment to look at what has been
+          // standing in front of the door the whole time before any of it moves.
           if (t >= REVEAL_SECONDS) {
             phase = 'reach';
             t = 0;
-            if (env.audio) env.audio.wardenTake();
+            // the sound is given the picture's own timing, so it peaks on the hit and is still going
+            // after the screen has gone black rather than being cut off by it
+            if (env.audio) env.audio.wardenTake(REACH_SECONDS, IMPACT_SECONDS + BLACK_SECONDS + 0.6);
             if (env.cues) env.cues.caption('[it reaches]');
           }
           break;
         case 'reach':
           armLen = clamp(t / REACH_SECONDS, 0, 1);
           if (t >= REACH_SECONDS) {
+            phase = 'impact';
+            t = 0;
+            armLen = 1;
+            flash = 1; // one pulse, on the frame of contact
+            if (env.audio) env.audio.wardenGrab();
+            if (env.cues) {
+              env.cues.pulse('muffler', p ? p.x : 0, p ? p.y : 0, 1, { big: true });
+              env.cues.caption('[it has you]');
+            }
+          }
+          break;
+        case 'impact':
+          grab = clamp(t / IMPACT_SECONDS, 0, 1);
+          if (t >= IMPACT_SECONDS) {
             phase = 'black';
             t = 0;
           }
@@ -402,15 +677,16 @@ const EchoWarden = (() => {
 
     /** How strong the dread effects are right now. Calm mode: softer, and it never reaches full. */
     function dreadFx() {
-      const base = phase === 'reveal' || phase === 'reach' || phase === 'black' ? 1 : dread;
+      const base = phase === 'reveal' || phase === 'reach' || phase === 'impact' || phase === 'black' ? 1 : dread;
       return base * (env.calm() ? 0.45 : 1);
     }
 
     /** Extra screen shake, in px. Calm mode has none at all, exactly as it has none when you are caught. */
     function shake() {
       if (!lv || env.calm()) return 0;
-      if (phase === 'reach') return 3 + 16 * armLen;
-      if (phase === 'black') return 19 * (1 - black);
+      if (phase === 'reach') return 3 + 15 * armLen;
+      if (phase === 'impact') return 6 + 30 * (1 - grab) * (1 - grab); // the hit: the floor kicks, then settles
+      if (phase === 'black') return 12 * (1 - black);
       if (phase === 'reveal') return 4;
       if (phase === 'dark' || phase === 'done') return 0; // it is over, and the screen is black
       return dread * dread * 2.6; // a tremor in the floor, and only that, until it wakes
@@ -431,28 +707,31 @@ const EchoWarden = (() => {
      * The room's own light, and the thing standing in it. The caller has set the world transform and
      * 'lighter'; this puts it back the way it found it.
      *
-     * The glow is CLIPPED twice: to the room, and - while the player is still outside it - to the wedge they
-     * can actually see through the one gap in its wall. So the exception to "you only see what you ping" never
-     * reaches a single tile the player could not really have seen.
+     * OCCLUSION. The exception is to the ripple, never to the walls: a wall between the player and the room
+     * blocks its light exactly as it blocks an echo. Three things enforce that together - `sight` (above),
+     * which is the fraction of the room's one gap the game's own line-of-sight test says the player can see
+     * and which multiplies everything below; a clip to the room; and, while the player is outside it, a clip
+     * to the wedge they could really see THROUGH that gap. So not one pixel of this ever reaches a tile the
+     * player could not have seen from where they are standing.
      */
     function draw(ctx, artT) {
-      if (!lv || glow <= 0.004) return;
-      const w = warden();
       const p = env.player();
+      if (!lv || !p || glow * sight <= 0.004) return;
+      const w = warden();
       const room = w.room;
       const breathe = 0.86 + 0.14 * Math.sin(artT * 0.9); // one slow swell every seven seconds: nothing flashes
-      const g = glow * breathe;
+      // once it is awake the room's light is not steady any more. 1.4 Hz at a fifth of the brightness: a
+      // warp, well inside the game's three-pulses-a-second limit, and slower again in calm mode.
+      const woke = phase === 'reach' || phase === 'impact' || phase === 'black';
+      const warp = woke ? 1 - 0.2 * (0.5 + 0.5 * Math.sin(artT * (env.calm() ? 4.4 : 8.6))) : 1;
+      const g = glow * sight * breathe * warp;
 
       ctx.save();
       ctx.beginPath();
       ctx.rect(room.x0, room.y0, room.x1 - room.x0, room.y1 - room.y0);
       ctx.clip();
-      const outside = !p || p.x < room.x0;
+      const outside = !insideRoom(p);
       if (outside) {
-        if (!p || !env.los(p.x, p.y, w.mouth.x - TILE * 0.5, (w.mouth.y0 + w.mouth.y1) / 2)) {
-          ctx.restore();
-          return; // a wall between you and the gap: no light reaches you, and none is drawn
-        }
         const K = 60;
         const ax = w.mouth.x - p.x;
         const ay = w.mouth.y0 - p.y;
@@ -500,7 +779,9 @@ const EchoWarden = (() => {
       //    ever shows of it is a lumpy far wall - until a ripple says otherwise. It stands in front of the
       //    door, which is why the door can never be reached.
       // (once it is awake, drawAwake draws the edge instead - and unclipped; here it is only punched out)
-      rim(ctx, artT, w.revealed ? 0 : 0.5 * g, RGB.wall, CORE.wall, 12, 2.6);
+      // (no fill of its own here, and no cracks: asleep it is a rough face of the room's masonry and nothing
+      //  more, and the light has to stop dead at it the way it stops at the wall it is pretending to be)
+      rim(ctx, artT, w.revealed ? 0 : 0.5 * g, RGB.wall, CORE.wall, 12, 2.6, 0);
 
       // 5. ...and the door's light coming round it. The shape of the door is hidden - the mass is in the way,
       //    and a ripple's rays stop dead on it - but a big soft glow does not stop at an edge, so what the room
@@ -519,44 +800,76 @@ const EchoWarden = (() => {
 
     const shiverNow = (artT) => (lv && lv.warden.revealed ? Math.sin(artT * 2.2) * 1.4 : 0); // awake, it is never quite still
 
-    /**
-     * The body, and ONE edge round the whole of it.
-     *
-     * The circles overlap, so the edge cannot be drawn by shrinking them: the union of the smaller circles is
-     * not the smaller union, and every overlap leaves an arc inside the body. Instead the outline of every
-     * circle is stroked first - arcs and all - and the union is then filled in solid black on top, which
-     * covers every arc that falls inside the silhouette and the inner half of the outline with it. What is
-     * left is a clean rim round the union, and a body the room's light stops dead at.
-     */
-    function rim(ctx, artT, a, rgb, core, blur, width) {
-      const s = shiverNow(artT);
-      if (a > 0.004) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.shadowColor = `rgba(${rgb},${0.7 * a})`;
-        ctx.shadowBlur = blur;
-        ctx.strokeStyle = `rgba(${rgb},${a})`;
-        ctx.lineWidth = width * 2;
-        bodyPath(ctx, s);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = `rgba(${core},${a * 0.7})`;
-        ctx.lineWidth = 2;
-        bodyPath(ctx, s + 1);
-        ctx.stroke();
-        ctx.restore();
+    /** The crest (OUTLINE) as one closed path, breathing by the same hair the body does. */
+    function crestPath(ctx, s) {
+      const k = 1 + s / 150;
+      ctx.beginPath();
+      for (let i = 0; i < OUTLINE.length; i++) {
+        const x = MID.x + (OUTLINE[i].x - MID.x) * k;
+        const y = MID.y + (OUTLINE[i].y - MID.y) * k;
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
       }
+      ctx.closePath();
+    }
+
+    /** Stroke a list of polylines as one path - courses, cracks, joints. */
+    function lines(ctx, list, rgb, a, width) {
+      ctx.beginPath();
+      for (const line of list) {
+        ctx.moveTo(line[0][0], line[0][1]);
+        for (let i = 1; i < line.length; i++) ctx.lineTo(line[i][0], line[i][1]);
+      }
+      ctx.strokeStyle = `rgba(${rgb},${a})`;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+
+    /**
+     * THE MASS, AND THE EDGE ROUND IT.
+     *
+     * The body is punched out FIRST, in the page's own black, over the true union of the circles - so nothing
+     * behind it shows through and a ripple's rays end exactly where the solid thing really is. The edge is
+     * then the cut crest (OUTLINE), drawn on top: long uneven facets, deep clefts and masonry joints, so what
+     * the light finds is a worked stone face rather than the rim of a blob. Drawing it in that order is also
+     * what keeps the two honest - the jagged crest lies just inside the circles everywhere, so it can never
+     * promise a millimetre of body that is not solid.
+     */
+    function rim(ctx, artT, a, rgb, core, blur, width, fillA) {
+      const s = shiverNow(artT);
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = BG;
       bodyPath(ctx, s);
       ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
+      if (a <= 0.004) return;
+      ctx.save();
+      ctx.lineJoin = 'round';
+      crestPath(ctx, s);
+      if (fillA > 0) {
+        ctx.fillStyle = `rgba(${rgb},${fillA * a})`;
+        ctx.fill();
+      }
+      ctx.shadowColor = `rgba(${rgb},${0.7 * a})`;
+      ctx.shadowBlur = blur;
+      ctx.strokeStyle = `rgba(${rgb},${a})`;
+      ctx.lineWidth = width * 2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(${core},${a * 0.72})`;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      lines(ctx, JOINTS, core, a * 0.45, 1.3); // the joints, cut back into the crest
+      ctx.restore();
+      ctx.globalCompositeOperation = 'lighter';
     }
 
     /**
-     * Once a ripple has revealed it: the warden itself, drawn over everything and clipped by nothing, because
-     * there is no longer any question of whether you can see it. The caller has set the world transform and
-     * 'lighter'. Nothing is punched out here - the ripple's own rays end on its surface, and this draws on top.
+     * Once a ripple has revealed it: the warden itself, over everything, clipped by nothing but the room -
+     * there is no longer any question of whether you can see it. Ancient and quarried rather than alive: a
+     * crest of facets, courses of stone lying across it in layers, long forked cracks through those courses,
+     * and one closed seam where a face would be if it had one. There are no eyes anywhere on it, and there is
+     * nothing on it that any other monster in this game has.
      */
     function drawAwake(ctx, artT) {
       if (!lv || !lv.warden.revealed) return;
@@ -569,61 +882,136 @@ const EchoWarden = (() => {
       ctx.beginPath();
       ctx.rect(room.x0, room.y0, room.x1 - room.x0, room.y1 - room.y0);
       ctx.clip();
-      rim(ctx, artT, 0.5, rgb, core, 20, 2.6);
-
-      // The seam it has for a face - closed, and eyeless, like everything else down here - and the fissures
-      // across it, and then the reach.
+      rim(ctx, artT, 0.5, rgb, core, 20, 2.6, 0.13);
       const a = 0.5 + 0.5 * Math.sin(artT * 1.7);
-      ctx.strokeStyle = `rgba(${core},${0.5 + 0.3 * a})`;
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(880, 214);
-      ctx.bezierCurveTo(930, 190 + 7 * a, 975, 240 - 7 * a, 1020, 216);
-      ctx.stroke();
-      // fissures across it, each starting on its own bit of the front edge
-      ctx.strokeStyle = `rgba(${rgb},${0.34 + 0.2 * a})`;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      for (let i = 1; i < FRONT_COUNT; i += 2) {
-        const c = BODY[i];
-        const u = i / FRONT_COUNT;
-        ctx.moveTo(c.x - c.r * 0.35, c.y);
-        ctx.lineTo(c.x + 58 + Math.sin(u * 5 + artT) * 10, c.y + Math.sin(u * 13) * 18);
-      }
-      ctx.stroke();
+      lines(ctx, COURSES, rgb, 0.24 + 0.05 * a, 1.1); // the layers it was laid down in
+      lines(ctx, PITS, rgb, 0.13 + 0.04 * a, 1.1); // the chips over all of it
+      lines(ctx, CRACKS, core, 0.19 + 0.09 * a, 1.3); // and what a very long time has done to the courses
+      seam(ctx, core, 0.34 + 0.16 * a, 4.5 + 7 * Math.max(armLen, grab));
       if (armLen > 0) drawReach(ctx, artT);
       ctx.restore();
       ctx.globalCompositeOperation = 'lighter';
     }
 
-    /** It reaches. Five tapering arms out of the front of it, growing towards where the player is standing. */
+    /**
+     * The seam: a long closed cleft, tied shut across its length, that opens by a hair and only while it is
+     * reaching. It is SEALED, not looking - there is nothing here that could be mistaken for an eye.
+     */
+    function seam(ctx, core, a, open) {
+      const lip = SEAM.lip;
+      ctx.save();
+      ctx.translate(SEAM.x, SEAM.y);
+      ctx.rotate(SEAM.tilt);
+      ctx.beginPath();
+      for (let i = 0; i < lip.length; i++) {
+        if (i) ctx.lineTo(lip[i][0], -lip[i][1] * open);
+        else ctx.moveTo(lip[i][0], -lip[i][1] * open);
+      }
+      for (let i = lip.length - 1; i >= 0; i--) ctx.lineTo(lip[i][0], lip[i][1] * open * 0.82);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${core},${0.14 * a})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${core},${a})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /**
+     * One limb, as a filled polygon: down one side of a curved spine and back up the other, the half-width
+     * tapering to the tip and every step of it nicked by the same kind of jag the crest has. It leaves the
+     * path open for the caller to fill and stroke. Nothing here is ever a line.
+     */
+    function limbShape(ctx, sx, sy, mx, my, ex, ey, w0, w1, jag, K) {
+      const px = [];
+      const py = [];
+      const nx = [];
+      const ny = [];
+      for (let i = 0; i <= K; i++) {
+        const u = i / K;
+        const v = 1 - u;
+        px.push(v * v * sx + 2 * v * u * mx + u * u * ex);
+        py.push(v * v * sy + 2 * v * u * my + u * u * ey);
+        const tx = 2 * (v * (mx - sx) + u * (ex - mx));
+        const ty = 2 * (v * (my - sy) + u * (ey - my));
+        const m = Math.hypot(tx, ty) || 1;
+        nx.push(-ty / m);
+        ny.push(tx / m);
+      }
+      const half = (i, off) => (w0 * Math.pow(1 - i / K, 0.75) + w1) * jag[(i + off) % jag.length];
+      ctx.beginPath();
+      for (let i = 0; i <= K; i++) {
+        const w = half(i, 0);
+        if (i) ctx.lineTo(px[i] + nx[i] * w, py[i] + ny[i] * w);
+        else ctx.moveTo(px[i] + nx[i] * w, py[i] + ny[i] * w);
+      }
+      for (let i = K; i >= 0; i--) {
+        const w = half(i, 7);
+        ctx.lineTo(px[i] - nx[i] * w, py[i] - ny[i] * w);
+      }
+      ctx.closePath();
+    }
+
+    /** Fill and stroke whatever limb path is open, in the three passes everything else in the game uses. */
+    function paintLimb(ctx, a, core) {
+      ctx.lineJoin = 'round';
+      ctx.fillStyle = `rgba(${RGB.warden},${0.17 * a})`;
+      ctx.fill();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = `rgba(${RGB.warden},${0.28 * a})`;
+      ctx.stroke();
+      ctx.lineWidth = core;
+      ctx.strokeStyle = `rgba(${CORE.warden},${0.62 * a})`;
+      ctx.stroke();
+    }
+
+    /**
+     * THE REACH. Three limbs come out of its own front edge towards the player, growing longer AND thicker as
+     * they go - the way a limb does, rather than a line that gets drawn further - and each ends in three
+     * short claws that splay while it is coming and shut on the hit.
+     */
     function drawReach(ctx, artT) {
       const p = env.player();
       if (!p) return;
-      // out of five points spread down its own front edge, wherever that happens to be
-      const from = [2, 6, 9, 12, 16].map((i) => {
-        const c = BODY[i];
-        return { x: c.x - c.r * 0.55, y: c.y };
-      });
-      const e = armLen * armLen * (3 - 2 * armLen); // ease
-      for (let i = 0; i < from.length; i++) {
-        const s = from[i];
-        const dx = p.x - s.x;
-        const dy = p.y - s.y;
-        const wob = Math.sin(artT * 3 + i * 1.7) * 26 * (1 - e * 0.6);
-        const mx = s.x + dx * 0.55 - dy * 0.12 + wob * 0.2;
-        const my = s.y + dy * 0.55 + dx * 0.12 + wob;
-        const ex = s.x + dx * e;
-        const ey = s.y + dy * e;
-        ctx.strokeStyle = `rgba(${RGB.warden},${0.22 + 0.3 * e})`;
-        ctx.lineWidth = 11 - 6 * e;
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.quadraticCurveTo(mx, my, ex, ey);
-        ctx.stroke();
-        ctx.strokeStyle = `rgba(${CORE.warden},${0.5 + 0.4 * e})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
+      const e = armLen * armLen * (3 - 2 * armLen);
+      const thick = 0.16 + 0.84 * e + 0.26 * grab; // it thickens as it comes, and hardest as it closes
+      for (let k = 0; k < LIMBS.length; k++) {
+        const L = LIMBS[k];
+        const c = BODY[L.i];
+        // rooted deep INSIDE the mass, so what comes out of it is a long taper and not a stump on its edge
+        const sx = c.x + c.r * 1.6;
+        const sy = c.y;
+        // each one arrives to its own side of the player rather than all three on the same point
+        const tgx = p.x - 13 * L.off * 0.6;
+        const tgy = p.y + 15 * L.off;
+        const dx = tgx - sx;
+        const dy = tgy - sy;
+        const bend = L.curl * (1 - e * 0.55);
+        const wob = Math.sin(artT * 2.4 + k * 1.9) * 18 * (1 - e * 0.8);
+        const mx = sx + dx * 0.5 - dy * 0.15 * bend;
+        const my = sy + dy * 0.5 + dx * 0.15 * bend + wob;
+        // The reach is measured from the SURFACE, not from the root: at 0 the tip is level with the crest
+        // and the whole limb is still a sliver inside the stone; at 1 it is on the player.
+        const u0 = Math.min(0.75, (c.r * 2.6) / (Math.hypot(dx, dy) || 1));
+        const u = u0 + (1 - u0) * e;
+        const ex = sx + dx * u;
+        const ey = sy + dy * u;
+        const a = 0.55 + 0.45 * e;
+        limbShape(ctx, sx, sy, mx, my, ex, ey, L.w0 * thick, L.w1 * thick, LIMB_JAG[k], 20);
+        paintLimb(ctx, a, 1.6);
+        // ...and what the middle one ends in: short tapered claws, splayed while it comes and shut on the hit
+        if (L.claws && e > 0.5) {
+          const f = clamp((e - 0.5) / 0.5, 0, 1);
+          const ang = Math.atan2(ey - my, ex - mx);
+          const reach = 10 + 22 * f;
+          for (let j = -1; j <= 1; j++) {
+            const ax = ang + (0.82 - 0.6 * grab) * j;
+            const tx = ex + Math.cos(ax) * reach;
+            const ty = ey + Math.sin(ax) * reach;
+            limbShape(ctx, ex, ey, (ex + tx) / 2 - Math.sin(ax) * 4 * j, (ey + ty) / 2 + Math.cos(ax) * 4 * j, tx, ty, L.w1 * thick * 0.9, 0.8, LIMB_JAG[(k + j + 3) % LIMB_JAG.length], 6);
+            paintLimb(ctx, a * f, 1.2);
+          }
+        }
       }
     }
 
@@ -633,12 +1021,21 @@ const EchoWarden = (() => {
      */
     function veil(ctx, cw, ch) {
       if (!lv) return;
-      if (flare > 0.01 && !env.calm()) {
-        const f = flare * flare;
+      const calm = !!env.calm();
+      if (flare > 0.01) {
+        const f = flare * flare * (calm ? 0.3 : 1); // softened in calm mode rather than taken away
         const grad = ctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.5);
         grad.addColorStop(0, `rgba(${RGB.warden},${0.16 * f})`);
         grad.addColorStop(1, `rgba(${RGB.warden},0)`);
         ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, cw, ch);
+      }
+      // THE HIT. One pulse - it arrives in a frame and is gone in a third of a second, and there is no
+      // second one - so nothing here comes anywhere near the game's three-flashes-a-second limit. Calm mode
+      // gets a fifth of it, which is still plainly a hit.
+      if (flash > 0.01) {
+        const k = flash * (calm ? 0.2 : 1);
+        ctx.fillStyle = `rgba(${CORE.warden},${0.46 * k})`;
         ctx.fillRect(0, 0, cw, ch);
       }
       // The dread vignette, TIGHTENING: its inner edge closes in as the room gets nearer. It is drawn in the
@@ -667,12 +1064,16 @@ const EchoWarden = (() => {
       dread: +dread.toFixed(3),
       dreadFx: +dreadFx().toFixed(3),
       glow: +glow.toFixed(3),
+      sight: +sight.toFixed(3),
+      lit: +(glow * sight).toFixed(3), // what actually reaches the screen: 0 behind a wall
       shake: +shake().toFixed(2),
       revealed: !!(lv && lv.warden.revealed),
       armed: phase === 'armed',
       waitFor: phase === 'armed' ? +(AUTO_SECONDS - waitT).toFixed(2) : null,
       pending: pending ? +pending.at.toFixed(3) : null,
       arm: +armLen.toFixed(3),
+      grab: +grab.toFixed(3),
+      flash: +flash.toFixed(3),
       black: +black.toFixed(3),
     });
 
