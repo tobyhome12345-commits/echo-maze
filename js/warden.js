@@ -112,10 +112,9 @@ const EchoWarden = (() => {
   const REACH_SECONDS = 1.9; // it reaches for you; the shake and the hum grow
   const BLACK_SECONDS = 1.7; // to black
   const DARK_SECONDS = 1.2; // black, and quiet
-  // Seen it once: the level still ends the same way, but the set piece does not play again.
-  const SHORT_REVEAL = 0.35;
-  const SHORT_BLACK = 1.2;
-  const SHORT_DARK = 0.7;
+  // The capture plays IN FULL every time level 13 is finished (owner's instruction). It is the one cutscene
+  // in the game that is not once-only: the other seven are things that happened to somebody else and are
+  // remembered, and this one is what happens to you, every time you walk into that room.
 
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -245,7 +244,6 @@ const EchoWarden = (() => {
     let glow = 0; // 0..1, smoothed: how much of the room's own light is up
     let waitT = 0; // seconds since the room was entered, for the safety net
     let pending = null; // a ripple on its way to the warden: { rp, at } seconds until it arrives
-    let short = false; // the capture has been seen before: play the brief version
     let armLen = 0; // 0..1 how far it has reached
     let black = 0; // 0..1 how black the screen is
     let flare = 0; // 0..1 the reveal's own flash, fading
@@ -277,10 +275,9 @@ const EchoWarden = (() => {
       return { d: best, c: at };
     }
 
-    function start(level, seenBefore) {
+    function start(level) {
       lv = level && level.warden ? level : null;
       phase = lv ? 'approach' : 'off';
-      short = !!seenBefore;
       t = 0;
       dread = 0;
       glow = 0;
@@ -290,9 +287,9 @@ const EchoWarden = (() => {
       flare = 0;
       pending = null;
       if (lv) {
-        // Seen it once: the illusion is spent. The wall is a warden from the moment you walk in, and any
-        // ripple shows it as one - there is no second first time.
-        lv.warden.revealed = short;
+        // Always hidden again at the start of the level, however many times it has been played: the wall is a
+        // wall until the player's own ripple says otherwise.
+        lv.warden.revealed = false;
         if (env.audio) env.audio.startWardenDrone();
       }
     }
@@ -350,11 +347,9 @@ const EchoWarden = (() => {
           // "Fully entered the room": inside its walls and two tiles past the gap. Nothing is taken yet.
           if (p && p.x >= lv.warden.insideX && p.x <= lv.warden.room.x1 && p.y >= lv.warden.room.y0 && p.y <= lv.warden.room.y1) {
             env.enteredRoom(); // this is what "clearing" level 13 means: progress is written down here
-            phase = short ? 'black' : 'armed';
+            phase = 'armed';
             t = 0;
             waitT = 0;
-            if (short && env.audio) env.audio.wardenTake(true);
-            if (short) env.freeze();
           }
           break;
         case 'armed':
@@ -372,10 +367,10 @@ const EchoWarden = (() => {
           }
           break;
         case 'reveal':
-          if (t >= (short ? SHORT_REVEAL : REVEAL_SECONDS)) {
+          if (t >= REVEAL_SECONDS) {
             phase = 'reach';
             t = 0;
-            if (env.audio) env.audio.wardenTake(false);
+            if (env.audio) env.audio.wardenTake();
             if (env.cues) env.cues.caption('[it reaches]');
           }
           break;
@@ -387,7 +382,7 @@ const EchoWarden = (() => {
           }
           break;
         case 'black':
-          black = clamp(t / (short ? SHORT_BLACK : BLACK_SECONDS), 0, 1);
+          black = clamp(t / BLACK_SECONDS, 0, 1);
           if (black >= 1) {
             phase = 'dark';
             t = 0;
@@ -395,9 +390,9 @@ const EchoWarden = (() => {
           }
           break;
         case 'dark':
-          if (t >= (short ? SHORT_DARK : DARK_SECONDS)) {
+          if (t >= DARK_SECONDS) {
             phase = 'done';
-            env.taken(short);
+            env.taken();
           }
           break;
         default:
@@ -679,7 +674,6 @@ const EchoWarden = (() => {
       pending: pending ? +pending.at.toFixed(3) : null,
       arm: +armLen.toFixed(3),
       black: +black.toFixed(3),
-      short,
     });
 
     return { start, stop, update, onRipple, draw, drawAwake, veil, shake, state, dreadAt, dreadFx, get phase() { return phase; } };

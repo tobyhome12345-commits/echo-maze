@@ -1715,14 +1715,14 @@ class SoundEngine {
   /**
    * It takes you. The Muffler's absorbing hum has a bigger sibling: the same dampened low sines and soft
    * triangle, an octave and a half further down, opened up into a whole room of reverb and swelled over two
-   * seconds instead of hidden. `short` is the brief version, for a level 13 that has been played before.
+   * seconds instead of hidden.
    */
-  wardenTake(short = false) {
+  wardenTake() {
     if (!this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
     const gain = this.calm ? 0.5 : 1;
-    const len = short ? 2.2 : 4.4;
+    const len = 4.4;
     const out = c.createGain();
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.95 * gain, t + len * 0.62);

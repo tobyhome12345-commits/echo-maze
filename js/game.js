@@ -161,7 +161,7 @@
       }
     },
     enteredRoom: () => onWardenCleared(),
-    taken: (short) => onCaptured(short),
+    taken: () => onCaptured(),
   });
 
   // ---------------------------------------------------------------- storage
@@ -2678,9 +2678,10 @@
       $('banner').classList.remove('show'); // never leave a level's banner hanging over a tutorial prompt
       tutorial.start();
     } else showBanner(n);
-    // Level 13: the dread starts with the level. `hasSeen('capture')` decides whether the set piece plays in
-    // full - a cutscene only happens the first time, here as everywhere else.
-    if (level.warden) warden.start(level, hasSeen('capture'));
+    // Level 13: the dread starts with the level, and the capture plays IN FULL every time it is finished.
+    // It is the one cutscene in the game that is not once-only (owner's instruction): the other seven are
+    // somebody else's memory, and this one is what happens to you.
+    if (level.warden) warden.start(level);
   }
 
   // ----------------------------------------------------------- the tutorial
@@ -3024,13 +3025,10 @@
    * deliberately temporary screen and goes back to the title. Replace all of this - the `#ending` overlay in
    * index.html included - when the next area exists.
    */
-  function onCaptured(short) {
+  function onCaptured() {
     state = 'ending';
-    if (!short) {
-      // a cutscene plays once: a second visit to level 13 gets the brief version (see startLevel)
-      seen.capture = 1;
-      store.set(SEEN_KEY, JSON.stringify(seen));
-    }
+    // Nothing is written to `seen` here: the capture is not remembered, because it is not once-only. It plays
+    // in full every time level 13 is finished (owner's instruction).
     touch.releaseAll();
     touch.setVisible(false);
     audio.stopAmbient();
@@ -3942,13 +3940,6 @@
         }
         return warden.state();
       },
-      // whether the capture has played before: `false` gives a fresh player the full set piece again
-      setCaptureSeen: (on) => {
-        if (on) seen.capture = 1;
-        else delete seen.capture;
-        store.set(SEEN_KEY, JSON.stringify(seen));
-        return !!seen.capture;
-      },
       /** Everything worth checking about the hand-drawn level 13: shape, reachability, the seal and the ramp. */
       wardenCheck: () => {
         if (!level || !level.warden) return null;
@@ -4018,7 +4009,7 @@
         campaignLevels: CAMPAIGN_LEVELS, // 13 (the tutorial is level 0 and is not one of them)
         medalLevels: MEDAL_LEVELS, // 12: level 13 is hand-drawn, has no cleared screen and takes no medals
         // level 13 (js/warden.js): the fixed level, the one room that glows, and the capture
-        warden: { level: WARDEN_LEVEL, seen: !!seen.capture, autoRippleSeconds: EchoWarden.AUTO_SECONDS, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
+        warden: { level: WARDEN_LEVEL, autoRippleSeconds: EchoWarden.AUTO_SECONDS, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,
