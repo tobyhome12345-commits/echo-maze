@@ -1484,15 +1484,14 @@
     glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
     audio.ping();
-    // LEVEL 13: this is the press the capture has been waiting for. The ripple itself is untouched - the
-    // warden only watches for it, and only once the player is already inside the room (js/warden.js).
-    if (level.warden) warden.onRipple(ripples[ripples.length - 1], false);
+    // (LEVEL 13: a ripple the player sends is an ordinary ripple and nothing more. The capture is not
+    //  listening for one - walking into the great room is what sets it off. See wardenGasp below.)
   }
 
   /**
-   * LEVEL 13's safety net. Nobody has rippled since walking into the great room, so one is sent for them:
-   * a flinch, not a decision. It ignores the recharge and a held crouch, because it is not something the
-   * player did - and for the same reason it is not counted as one of their ripples.
+   * LEVEL 13. The player has just walked into the great room, and a ripple goes out whether they wanted one
+   * or not: a flinch, not a decision. It ignores the recharge and a held crouch, because it is not something
+   * the player did - and for the same reason it is not counted as one of their ripples.
    */
   function wardenGasp() {
     if (state !== 'play' || !level || !level.warden) return;
@@ -1500,7 +1499,7 @@
     castRipple(player.x, player.y, rippleRange());
     audio.gasp();
     cues.caption('[you flinch]');
-    warden.onRipple(ripples[ripples.length - 1], true);
+    warden.onRipple(ripples[ripples.length - 1]);
   }
 
   /**
@@ -3930,7 +3929,7 @@
       warden,
       wardenState: () => warden.state(),
       wardenDread: (x, y) => warden.dreadAt(x === undefined ? player.x : x, y === undefined ? player.y : y),
-      // the involuntary ripple the safety net sends, on demand
+      // the involuntary ripple walking into the great room sends, on demand
       gasp: () => wardenGasp(),
       // step the capture on by hand once the controls are gone (updatePlay is not running then)
       captureStep: (secs) => {
@@ -4009,7 +4008,7 @@
         campaignLevels: CAMPAIGN_LEVELS, // 13 (the tutorial is level 0 and is not one of them)
         medalLevels: MEDAL_LEVELS, // 12: level 13 is hand-drawn, has no cleared screen and takes no medals
         // level 13 (js/warden.js): the fixed level, the one room that glows, and the capture
-        warden: { level: WARDEN_LEVEL, autoRippleSeconds: EchoWarden.AUTO_SECONDS, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
+        warden: { level: WARDEN_LEVEL, insideX: EchoWarden.INSIDE_PX, waveFallback: EchoWarden.WAVE_FALLBACK, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,

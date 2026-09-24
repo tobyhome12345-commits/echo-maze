@@ -1535,7 +1535,7 @@ class SoundEngine {
     });
   }
 
-  /** An involuntary breath in, and the ripple it carries with it (level 13's safety net). */
+  /** An involuntary breath in, and the ripple it carries with it - what walking into level 13's great room does to you. */
   gasp() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;

@@ -17,9 +17,9 @@
  *
  * What is in the room is a WARDEN: blind and eyeless like everything else down here, big enough to fill half
  * the room, and shaped like the room's own far wall. It does not chase, it does not hunt by footstep, it does
- * not kill on touch. It was simply already there. The only thing that ever shows it is a ripple - and the
- * capture waits for the player's OWN next ripple press, because that is the habit twelve levels have taught
- * them. When that wave arrives, the wall answers.
+ * not kill on touch. It was simply already there. The only thing that ever shows it is a ripple - and WALKING
+ * INTO THE ROOM sends one, whether the player wants to or not: a flinch, a gasp, over before they have taken
+ * a breath. When that wave arrives, the wall answers. Nothing about the capture waits on a key.
  *
  * Three halves live here:
  *   build(cfg)    the maze, in the same shape generateLevel() returns, so the rest of the game cannot tell
@@ -315,8 +315,11 @@ const EchoWarden = (() => {
   // ---------------------------------------------------------------- numbers
   const DREAD_TILES = 28; // the ramp: how many tiles of REMAINING PATH the dread builds over
   const INSIDE_PX = 760; // px: the player counts as "fully inside" the room past this x (two tiles in)
-  const AUTO_SECONDS = 7; // no ripple this long after entering -> an involuntary one (the safety net)
+  // WALKING IN IS THE TRIGGER (owner's instruction). Crossing INSIDE_PX sends the involuntary ripple at once -
+  // a gasp, not a decision - so the wall still lights up because a wave washed over it, which is the only way
+  // anything is ever seen down here, and the player does not have to press a thing. Nothing waits on input.
   const GASP_REVEAL = 0.4; // s: an involuntary ripple sent from somewhere the wave cannot reach still reveals it
+  const WAVE_FALLBACK = 0.5; // s: and if no wave got sent at all, it happens anyway. Nothing can hold this up.
   const MOUTH_SAMPLES = 7; // how finely the one gap in the room's wall is tested for line of sight
   // THE CAPTURE, BEAT BY BEAT. Under three seconds of picture, and it is meant to be: a held breath, a reach,
   // a hit, and then nothing. The sound is handed the first two of these numbers so it peaks on the hit and is
@@ -444,19 +447,18 @@ const EchoWarden = (() => {
    *   los(x0,y0,x1,y1)   clear line of sight (walls only)
    *   rippleSpeed    px/s, so the reveal lands when the wave really arrives
    *   litBy(rp)      re-colour the rays of this ripple that found the warden (js/game.js owns the ray arrays)
-   *   gasp()         send the involuntary ripple (the safety net)
+   *   gasp()         send the involuntary ripple - what walking into the room does to you
    *   freeze()       take the controls - called exactly once, at the reveal
    *   enteredRoom()  the player is fully inside: this is what "clearing" level 13 means
    *   taken()        the capture is over; the placeholder ending follows
    */
   function create(env) {
     let lv = null; // the warden level being played, or null
-    let phase = 'off'; // off | approach | armed | reveal | reach | impact | black | dark | done
+    let phase = 'off'; // off | approach | wave | reveal | reach | impact | black | dark | done
     let t = 0; // seconds in the current phase
     let dread = 0; // 0..1, smoothed: how close the room is, by remaining path
     let glow = 0; // 0..1, smoothed: how much of the room's own light is up
     let sight = 0; // 0..1, smoothed UP only: how much of that light can actually reach the player
-    let waitT = 0; // seconds since the room was entered, for the safety net
     let pending = null; // a ripple on its way to the warden: { rp, at } seconds until it arrives
     let armLen = 0; // 0..1 how far it has reached
     let grab = 0; // 0..1 the hit: the limbs closing on the moment of contact
@@ -529,7 +531,6 @@ const EchoWarden = (() => {
       dread = 0;
       glow = 0;
       sight = 0;
-      waitT = 0;
       armLen = 0;
       grab = 0;
       black = 0;
@@ -554,13 +555,16 @@ const EchoWarden = (() => {
       if (env.audio) env.audio.stopWardenDrone();
     }
 
-    /** The player's own ripple (or the involuntary one). Nothing here changes the ripple in any way. */
-    function onRipple(rp, involuntary) {
-      if (!lv || phase !== 'armed' || lv.warden.revealed || pending) return;
+    /**
+     * The involuntary ripple walking into the room just sent (js/game.js, wardenGasp). It is the only ripple
+     * this ever listens to. Nothing here changes the ripple in any way: it is timed, not altered.
+     */
+    function onRipple(rp) {
+      if (!lv || phase !== 'wave' || lv.warden.revealed || pending) return;
       const near = nearestSurface(rp.x, rp.y);
       const reaches = near.d <= rp.R && env.los(rp.x, rp.y, near.c.x, near.c.y);
-      if (reaches) pending = { rp, at: Math.max(0, near.d) / env.rippleSpeed };
-      else if (involuntary) pending = { rp: null, at: GASP_REVEAL }; // the flinch reveals it wherever it was sent from
+      // when the wave really arrives - or, from a corner it cannot reach round, shortly anyway
+      pending = reaches ? { rp, at: Math.max(0, near.d) / env.rippleSpeed } : { rp: null, at: GASP_REVEAL };
     }
 
     /** The wave has arrived. This is the one moment the game takes the controls. */
@@ -601,17 +605,18 @@ const EchoWarden = (() => {
       t += dt;
       switch (phase) {
         case 'approach':
-          // "Fully entered the room": inside its walls and two tiles past the gap. Nothing is taken yet.
+          // "Fully entered the room": inside its walls and two tiles past the gap. That is the trigger, and
+          // it is the whole of the trigger - nothing here is waiting on the player to do anything.
           if (p && p.x >= lv.warden.insideX && p.x <= lv.warden.room.x1 && p.y >= lv.warden.room.y0 && p.y <= lv.warden.room.y1) {
             env.enteredRoom(); // this is what "clearing" level 13 means: progress is written down here
-            phase = 'armed';
+            phase = 'wave'; // set BEFORE the gasp: env.gasp() calls straight back into onRipple()
             t = 0;
-            waitT = 0;
+            env.gasp(); // you walk in, and you flinch. The wave is on its way before you have taken a breath.
           }
           break;
-        case 'armed':
-          // The player keeps every control they have ever had. All that is waited for is the habit: a ripple.
-          waitT += dt;
+        case 'wave':
+          // The involuntary ripple is crossing the room. The controls are still the player's for these last
+          // couple of tenths of a second - they are simply not needed for anything any more.
           if (pending) {
             pending.at -= dt;
             if (pending.at <= 0) {
@@ -619,8 +624,8 @@ const EchoWarden = (() => {
               pending = null;
               doReveal(rp);
             }
-          } else if (waitT >= AUTO_SECONDS) {
-            env.gasp(); // nobody can stand still long enough to get stuck: a flinch sends one for them
+          } else if (t >= WAVE_FALLBACK) {
+            doReveal(null); // no wave was sent at all (nothing should stop one): it happens regardless
           }
           break;
         case 'reveal':
@@ -1068,8 +1073,7 @@ const EchoWarden = (() => {
       lit: +(glow * sight).toFixed(3), // what actually reaches the screen: 0 behind a wall
       shake: +shake().toFixed(2),
       revealed: !!(lv && lv.warden.revealed),
-      armed: phase === 'armed',
-      waitFor: phase === 'armed' ? +(AUTO_SECONDS - waitT).toFixed(2) : null,
+      waving: phase === 'wave',
       pending: pending ? +pending.at.toFixed(3) : null,
       arm: +armLen.toFixed(3),
       grab: +grab.toFixed(3),
@@ -1080,5 +1084,5 @@ const EchoWarden = (() => {
     return { start, stop, update, onRipple, draw, drawAwake, veil, shake, state, dreadAt, dreadFx, get phase() { return phase; } };
   }
 
-  return { LEVEL, MAP, BODY, ROOM_T, DOOR_T, DOOR_R, ENTRY_T, MOUTH_T, DREAD_TILES, INSIDE_PX, AUTO_SECONDS, build, create };
+  return { LEVEL, MAP, BODY, ROOM_T, DOOR_T, DOOR_R, ENTRY_T, MOUTH_T, DREAD_TILES, INSIDE_PX, WAVE_FALLBACK, build, create };
 })();
