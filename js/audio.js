@@ -1430,13 +1430,24 @@ class SoundEngine {
    */
   voice(code = 97, vol = 1) {
     if (this._busy(120)) return;
+    this._track(this._syllable(code, vol, this.ctx.currentTime, null));
+  }
+
+  /**
+   * One syllable of the explorers' formant voice, starting at `t`. With no `o` this is exactly the sound
+   * voice() has always made (the cutscenes' voice is unchanged, draw for draw). `o` (the lore recordings,
+   * js/lore.js) can move who is speaking: `pitch` x the fundamental, `shake` how unsteady it is (a random
+   * wobble in the pitch and a sharper fall at the end of each syllable - fear, not vibrato), `vol`.
+   */
+  _syllable(code, vol, t, o) {
     const c = this.ctx;
-    const t = c.currentTime;
     const vowels = [[730, 1090], [530, 1840], [270, 2290], [570, 840], [300, 870]]; // a e i o u
     const [f1, f2] = vowels[code % 5];
-    const f0 = 165 + (code % 7) * 7 + Math.random() * 12;
+    const pitch = o && o.pitch ? o.pitch : 1;
+    const shake = o && o.shake ? o.shake : 0;
+    const f0 = (165 + (code % 7) * 7 + Math.random() * 12) * pitch * (shake ? 1 + shake * (Math.random() * 2 - 1) : 1);
     const src = this._osc('sawtooth', f0, t, 0.16);
-    src.frequency.linearRampToValueAtTime(f0 * 0.9, t + 0.11);
+    src.frequency.linearRampToValueAtTime(f0 * (shake ? 0.9 - shake : 0.9), t + 0.11);
     const g = this._env(t, 0.014, 1.4 * vol, 0.09);
     [[f1, 5, 1], [f2, 7, 0.55]].forEach(([f, q, a]) => {
       const bp = this._filter('bandpass', f, q);
@@ -1447,7 +1458,121 @@ class SoundEngine {
       bg.connect(g);
     });
     this._route(g, 0, 0.3);
-    this._track(src);
+    return src;
+  }
+
+  /**
+   * A LORE RECORDING (js/lore.js): the whole line spoken at once, scheduled on the audio clock the way the
+   * cutscenes speak it - a syllable on every other letter as the words are typed out at `o.cps` characters a
+   * second. Because it is on the audio clock, pausing the game (which suspends the AudioContext) holds it
+   * exactly in step with the typing, which runs on the game's clock. The syllables are not counted against
+   * the polyphony limit (`_track`): a recording is bounded by its own length, and it must not crowd out the
+   * monsters. Returns { stop(), seconds } so the line can be taken away mid-sentence.
+   */
+  speak(text, o = {}) {
+    const none = { stop() {}, seconds: 0 };
+    if (!this.ctx || !text) return none;
+    const cps = o.cps || 20;
+    const vol = (o.vol || 1) * (this.calm ? 0.8 : 1);
+    const t0 = this.ctx.currentTime + 0.05;
+    const srcs = [];
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (/[a-z]/i.test(ch) && i % 2 === 0) srcs.push(this._syllable(ch.toLowerCase().charCodeAt(0), vol, t0 + i / cps, o));
+    }
+    return {
+      seconds: text.length / cps,
+      stop: () => {
+        for (const s of srcs) {
+          try {
+            s.stop();
+          } catch (e) {
+            /* already stopped */
+          }
+        }
+      },
+    };
+  }
+
+  /** The wave comes back off a lore fragment: a dry, papery tick with a thin high edge. Quiet on purpose. */
+  echoLore(pan, vol) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.09);
+    const hp = this._filter('bandpass', 3400, 1.6);
+    const g = this._env(t, 0.002, 0.26 * vol, 0.07);
+    n.connect(hp);
+    hp.connect(g);
+    this._route(g, pan, 0.45);
+    const o = this._osc('sine', 2093, t + 0.012, 0.22); // C7: a glint, not a note
+    const og = this._env(t + 0.012, 0.004, 0.05 * vol, 0.16);
+    o.connect(og);
+    this._route(og, pan, 0.6);
+    this._track(n);
+  }
+
+  /** A note is found: paper unfolding - two soft crackles of filtered noise, the second a little lower. */
+  loreNote() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const gain = this.calm ? 0.6 : 1;
+    [[0, 2600, 0.22], [0.13, 1700, 0.16]].forEach(([dt, f, a]) => {
+      const n = this._noise(t + dt, 0.28);
+      const bp = this._filter('bandpass', f, 0.9);
+      bp.frequency.setValueAtTime(f, t + dt);
+      bp.frequency.linearRampToValueAtTime(f * 0.7, t + dt + 0.24);
+      const g = this._env(t + dt, 0.02, a * gain, 0.24);
+      n.connect(bp);
+      bp.connect(g);
+      this._route(g, 0, 0.3);
+    });
+  }
+
+  /** A recording starts: the click of a play key, then a bed of tape hiss for `dur` seconds under the voice. */
+  loreLog(dur = 3) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const gain = this.calm ? 0.6 : 1;
+    const k = this._osc('square', 180, t, 0.03); // the key going down
+    const kg = this._env(t, 0.001, 0.12 * gain, 0.025);
+    k.connect(kg);
+    this._route(kg, 0, 0.1);
+    const n = this._noise(t + 0.03, dur + 0.3);
+    const hp = this._filter('highpass', 2400, 0.5);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.035 * gain, t + 0.15);
+    g.gain.setValueAtTime(0.035 * gain, t + dur);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.3);
+    n.connect(hp);
+    hp.connect(g);
+    this._route(g, 0, 0.1);
+  }
+
+  /** The recording that cuts off: a hard burst of static that falls away, then nothing. */
+  loreStatic() {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const gain = this.calm ? 0.5 : 1;
+    const n = this._noise(t, 1);
+    const bp = this._filter('bandpass', 1900, 0.4);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.3 * gain, t + 0.012);
+    g.gain.setValueAtTime(0.3 * gain, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.2);
+    // and the crackle in it: a few short square blips at uneven moments, fixed so it is the same every time
+    [0.04, 0.11, 0.19, 0.26, 0.4, 0.55].forEach((dt, i) => {
+      const o = this._osc('square', 90 + i * 37, t + dt, 0.03);
+      const og = this._env(t + dt, 0.001, 0.05 * gain, 0.025);
+      o.connect(og);
+      this._route(og, 0, 0.1);
+    });
   }
 
   /** A slow, ragged breath. */

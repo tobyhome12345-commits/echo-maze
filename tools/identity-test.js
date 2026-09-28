@@ -18,6 +18,8 @@
  * `chase: N` teleports the player next to the muffler / singer every N frames, so the two meet (`newStates` counts the frames each spent in each state).
  * `reveal: N` also, every N frames, stands the player beside a disguised mimic and pings it, so the mimic really does
  * turn into an echo monster during the run (`mimicRevealed` counts how often); `cues: true` runs with Visual cues on.
+ * `visit: N, at: {x, y}` (v13.0) stands the player beside the spot `at` every N frames and pings it - pass a lore
+ * fragment's position (__echo.placeFragment) so the run really READS one, and run the same inputs on an old build.
  */
 window.IdentityTest = (() => {
   const E = window.__echo;
@@ -128,6 +130,29 @@ window.IdentityTest = (() => {
             for (const [dx, dy] of [[-34, 0], [34, 0], [0, -34], [0, 34]]) {
               if (open(mm.x + dx, mm.y + dy)) {
                 E.tp(mm.x + dx, mm.y + dy);
+                key('Space', true);
+                key('Space', false);
+                stats.pings++;
+                break;
+              }
+            }
+          }
+        }
+        if (o.visit && o.at && f % o.visit === 11) {
+          // (v13.0) stand beside a given spot and ping it - a lore fragment's tile, on builds that have them. The
+          // spot is passed IN rather than looked up, so an older build with no fragments at all is driven by
+          // exactly the same inputs, and any difference in the fingerprint would be the fragment's doing.
+          const inf0 = E.info();
+          if (inf0.state === 'play') {
+            const lv = inf0.level;
+            const open = (x, y) => {
+              const tx = Math.floor(x / 40);
+              const ty = Math.floor(y / 40);
+              return tx >= 0 && ty >= 0 && tx < lv.W && ty < lv.H && !lv.walls[ty * lv.W + tx];
+            };
+            for (const [dx, dy] of [[-34, 0], [34, 0], [0, -34], [0, 34]]) {
+              if (open(o.at.x + dx, o.at.y + dy)) {
+                E.tp(o.at.x + dx, o.at.y + dy);
                 key('Space', true);
                 key('Space', false);
                 stats.pings++;

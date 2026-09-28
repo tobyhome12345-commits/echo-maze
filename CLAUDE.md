@@ -64,7 +64,8 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v12.0 | aba0209 | MAJOR: LEVEL 13, the capture. A hand-drawn 27x21 maze (`js/warden.js`) with nothing in it that can kill you; a dread ramp over the last 28 tiles of the route (drone, warped ambience, tremor, red vignette - all cosmetic, softened and slowed in calm mode); a great room that GLOWS ON ITS OWN, the game's one deliberate exception to "you never see without a ripple", clipped to what you could really see; a WARDEN filling half of it that a ripple reads as stone until the player's own next ripple press reveals it (a 7 s flinch as a safety net); then the controls are taken for the first and only time and it takes you. Level 12 now leads on to 13, the victory screen is retired, and the game ends on a labelled STUB until the next area is built. Level 13 takes no medals |
 | v12.1 | bd365c0 | MINOR: the level 13 capture now plays IN FULL every time the level is finished, not only the first time. The brief second-visit version is removed outright rather than bypassed - the warden is hidden again at the start of every attempt, and nothing is written to `echomaze.seen` for it, because there is no longer a version to choose |
 | v12.2 | 0d6ae1d | MINOR, level 13 only: the great room's glow now respects WALLS as well as ripples - `mouthSight()` asks the game's own line-of-sight test for seven points across the room's one gap and the glow is scaled by the fraction it can see, which closed the four tiles that leaked (the corridor under the room, and the dead end beside it through a tile corner). And the warden is redrawn: a jagged faceted crest cut from the union of its own circles, masonry courses, chips, forked cracks and one sealed seam instead of a smooth blob; the grab is three filled, tapered, jagged limbs that extend AND thicken, the middle one opening into claws, instead of five straight lines; and the sequence gains a held beat, a 0.3 s IMPACT (one flash, a 36 px floor kick, a new `wardenGrab` sound) and a shorter fade the sound carries on under - 2.92 s of picture, was 4.2. Its collision circles, and therefore the level, are untouched |
-| v12.3 | f69ebf4 | MINOR, level 13 only: **walking into the great room is now the whole trigger** - crossing `INSIDE_PX` fires the involuntary gasp at once instead of after a 7 s wait, so the wall still lights up because a wave washed over it and the player never has to press anything (0.217 s from the threshold to the reveal). The `armed` phase becomes `wave`, `AUTO_SECONDS`, `waitT` and the safety-net idea are gone, `emitRipple` no longer tells the warden anything, and `onRipple` lost its `involuntary` argument. A ripple the player sends on level 13 is now an ordinary ripple and nothing else. This reverses the "your own next ripple press" trigger the owner asked for in v12.0, at their request (latest) |
+| v12.3 | f69ebf4 | MINOR, level 13 only: **walking into the great room is now the whole trigger** - crossing `INSIDE_PX` fires the involuntary gasp at once instead of after a 7 s wait, so the wall still lights up because a wave washed over it and the player never has to press anything (0.217 s from the threshold to the reveal). The `armed` phase becomes `wave`, `AUTO_SECONDS`, `waitT` and the safety-net idea are gone, `emitRipple` no longer tells the warden anything, and `onRipple` lost its `involuntary` argument. A ripple the player sends on level 13 is now an ordinary ripple and nothing else. This reverses the "your own next ripple press" trigger the owner asked for in v12.0, at their request |
+| v13.0 | (pending) | MAJOR: LORE FRAGMENTS (`js/lore.js`). One note or recording per level on 1-12, off the route (a dead end, 13-19 tiles out of the way on average), lit by a ripple through the SAME `flats` path as puddles and decoys and read the moment your own wave reaches it; recordings speak in the cutscenes' formant voice (`audio.speak`); present 100 / 80 / 50 / 0 % on Easy / Normal / Hard / Hardcore; kept for good (`echomaze.lore`) and listed on a new Fragments screen built like the replay screen, with a thirteenth once all twelve are found. Placed after generation from its own stream, so levels 1-12 are byte-identical (`9097b344`, and identity games that really read fragments match v11.6). A tenth palette role, `lore`, that made no palette harder to read. Also: the v12.2/v12.3 generator fingerprint was found to have been hashing nothing - corrected, and the harness is now `tools/generator-fingerprint.js` (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -84,6 +85,7 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - Difficulty lives in `levelConfig()` in `js/level.js`.
 - **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 13: levels 1-13). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
 - **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **one deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
+- **Lore fragments** (`js/lore.js`, v13.0) are the one thing added TO levels 1-12 since they were built, at the owner's request. They must stay unable to move anything else: placed AFTER `generateLevel` from their own random stream, never drawing from the generator's sequence or `Math.random`, never blocking movement or a ripple, never read by anything that decides an outcome. **Prove it after any change near them** with `tools/generator-fingerprint.js` (`9097b344` as of v13.0) and `tools/identity-test.js` runs that use `visit`/`at` so a fragment is really read.
 
 ## Ripple range (owner's request; tools will build on it later)
 
@@ -714,7 +716,11 @@ pulse at the player on the hit.
 - **Levels 1-12 are untouched.** The generator fingerprint over 12 levels x 4 modes x 50 seeds = **2,400
   mazes** (walls, blocked, obstacles, puddles, decoy, every monster incl. pitch, start, exit, `pathTiles`,
   `roomTiles`, the whole `cfg`) is **`c327ce51` on both builds, all 48 rows identical**, with `Math.random`
-  stubbed to throw. The five scripted `tools/identity-test.js` games are identical too - `3504165c` /
+  stubbed to throw. **CORRECTION (found in v13.0): that fingerprint was worthless.** The harness called
+  `generateLevel(cfg, seed)`, but the signature is `generateLevel(n, runSeed, modeId)` - so `n` was an object
+  and it hashed the same degenerate level 2,400 times, which of course matched. Levels 1-12 WERE untouched
+  (nothing here changed `js/level.js`, and the scripted games below run real levels), and the proper harness,
+  now kept as `tools/generator-fingerprint.js`, gives `9097b344` on v11.6 and on v12.3 alike. The five scripted `tools/identity-test.js` games are identical too - `3504165c` /
   `feb0ec5b` / `23907df1` / `4e29d087` / `4e847fae`, 900 frames each, `artRandomCalls` 0 - and give the same
   hashes on a fresh page and on a page that has already staged level 13, so the harness is not carrying state.
 - **The occlusion sweep** above: 195 tiles, 4 leaks -> 0.
@@ -786,7 +792,8 @@ the player simply does not have to press anything for it to happen.
   gap over all 92 ranged **0.03-0.25 s** (it is the wave's travel time, so it depends where in the room the
   player crossed the line) - always under `GASP_REVEAL` 0.4 and `WAVE_FALLBACK` 0.5, i.e. the wave path won
   every single time. `echomaze.seen` was still empty afterwards, so v12.1's rule still holds.
-- **Levels 1-12 untouched**: generator fingerprint `c327ce51` over 2,400 mazes identical to v12.2, and the
+- **Levels 1-12 untouched**: generator fingerprint `c327ce51` over 2,400 mazes identical to v12.2 (**worthless -
+  see the correction in v12.2's tests; the real fingerprint, `9097b344`, is identical to v11.6's**), and the
   five scripted identity games identical (`3504165c` / `feb0ec5b` / `23907df1` / `4e29d087` / `4e847fae`),
   `artRandomCalls` 0.
 
@@ -796,6 +803,168 @@ the player simply does not have to press anything for it to happen.
 hidden - so "Ripples 0" in a scripted test means *the HUD has not been repainted*, not that nothing was
 counted. Reading it straight after `step()` gave a wrong answer twice before that was noticed. Force a
 repaint (any option toggle calls `updateHud`) or read the number from the game rather than from the DOM.
+
+## v13.0: lore fragments (owner's brief, MAJOR - new lore, and a new system)
+
+Owner: collectible fragments hidden off the main path on levels 1-12, **revealed by ripple the same as any
+other object (no special-casing the reveal)**; pinging one shows a written line or plays a short recording in
+the cutscenes' formant voice; one per level; more on Easy, fewer or none on Hardcore; away from the critical
+path; kept for good and viewable on a new screen built like the replay screen; optionally a bonus for all of
+them; notes and recordings from the explorers who came before, connective tissue between the seven cutscenes,
+building quietly towards level 13 **without ever naming the Warden**. The owner supplied the twelve lines.
+
+### THE RULE: levels 1-12 did not move
+
+A fragment is a new thing ON levels 1-12 - which is what the owner asked for - so the proof is not "nothing is
+different" but "nothing that existed is different, and the new thing can touch nothing".
+
+- **Placed after generation, from its own stream.** `EchoLore.place(level, n, mode, runSeed)` runs in
+  `startLevel` AFTER `generateLevel` has returned. It reads the finished level and returns a new object
+  (`level.fragment`); it writes nothing to the level. Its randomness is its own `mulberry32` seeded with
+  `runSeed ^ imul(n, 0x85ebca6b) ^ 0x10a3f7c1` - a different constant from the level's own
+  `runSeed ^ imul(n, 0x9e3779b1)` - so the generator's sequence is never drawn from. **`js/level.js` is not
+  changed at all.** It never calls `Math.random` (spied: 0 calls over 960 placements).
+- **Generator fingerprint: `9097b344`** on v11.6, on v12.3 and on this build (`tools/generator-fingerprint.js`,
+  2,400 mazes, `Math.random` stubbed to throw). This is the FIRST honest run of that fingerprint since v12.1 -
+  see the correction in v12.2's tests.
+- **Simulation identity with fragments actually read.** The eight usual scripted games are identical to
+  v11.6 - but they never wander far enough off the route to find one (a spy counted 0 reads), which proves
+  nothing about the new code. So `tools/identity-test.js` gained `visit: N, at: {x, y}`: every N frames it
+  stands the player beside a given spot and pings it. The spot is passed IN (from `placeFragment`), not looked
+  up, so v11.6 - which has no fragments - is driven by identical inputs. **Seven runs** (Easy 2/4/6/9/12,
+  Normal 8, Hard 10; with mimic reveals and a singer chase among them) **read 9 fragments between them and are
+  identical to v11.6, `artRandomCalls` 0.** The voice, the line on screen and the save write reach nothing the
+  simulation reads.
+
+### Where one lies (`EchoLore.place`)
+
+For every open tile: `extra = dS + dE - L` - how many tiles out of your way it is to walk there and carry on
+(dS from the start, dE from the exit, L the shortest route). A tile on ANY shortest route has extra 0. The
+fragment wants **extra >= 4 in a dead end**; failing that any tile at extra >= 4; then >= 2. It keeps clear of
+the start (dS >= 4), the exit (a tile's width), and a tile's width of every puddle, the decoy and every
+monster's spawn - so finding it is never the same act as walking into something.
+
+**Chance per maze, by mode** (`CHANCE`): Easy 1, Normal 0.8, Hard 0.5, **Hardcore 0**. The FIRST draw of the
+fragment's stream decides presence, the same number in every mode, so it is **nested**: a maze that has it on
+Hard has it on Normal and Easy. A retry is the same maze, so the same answer; the level select makes a new
+maze, so a new chance.
+
+**Measured over 200 seeds x 12 levels x 4 modes = 9,600 mazes:** present 100% / 79.7% / 50.6% / 0%; nesting
+never broken; **0 problems** (never blocked, never on the start or exit, never beside a puddle / decoy /
+monster, never on the route, always reachable); on Easy **2,399 of 2,400 in a dead end** (one level-1 maze fell
+through to extra 2); average detour **12.6 tiles on level 1 rising to 18.7 on level 12**; the same tile in
+Easy and Normal 94% of the time (it moves only when that mode's own monsters or puddles are in the way).
+
+### How it is found - "the same as any other object"
+
+`castRipple` pushes it into the SAME `flats` list puddles and decoys use (`type: T_LORE` = 11, a flat mark,
+never a ray - so `NRAYTYPES` is unchanged), so it is lit by exactly the same line of code: in range, line of
+sight, not in a muffler's shadow -> a timed mark (`t = -d / RIPPLE_SPEED`, so it appears as the wavefront
+arrives) and an echo event (`audio.echoLore`, a dry papery tick). The ONLY addition is a `lore: true` on the
+mark: in `updateRipples`, when that mark's `t` first reaches 0 - the moment it lights up - `readFragment()`
+runs, if `!m.singer` and `state === 'play'`. Consequences that fall out of reusing the path rather than being
+written in:
+- **Crouching** wipes `marks`, so a wave you crouch under before it arrives never reads it (tested: not read;
+  the next ripple reads it).
+- **A Singer's song** lights it (the mark is made, singer-tinted) but does not read it - that is not you
+  pinging it (tested on level 12: lit, not read).
+- **Once per attempt**: `level.fragment.read`. A second ping does nothing; a retry is a new attempt.
+- Behind the **Muffler** it is in the shadow like everything else.
+
+### Reading one (`EchoLore.createReader`, `#lore` in index.html)
+
+- A **note** shows at once, set in italic (handwriting), for `2.4 + 0.055 s/char` (3.8-8 s), with
+  `audio.loreNote()` (paper unfolding) and, with Visual cues on, `[paper, unfolding]`.
+- A **recording** is typed out at its own `cps` while `audio.speak(text, voice)` says it, with
+  `audio.loreLog()` (a key click and a bed of tape hiss) and `[a recording crackles on]`. Level 11's is **CUT**
+  0.75 s after its last word: `audio.loreStatic()`, `[static]`, and the box vanishes with no fade (`.cut`).
+- The head says `A note · 4 of 12 found` for a new find, just `A note` for one already found, and on the
+  twelfth `... all 12 found · one more waits in Fragments`.
+- It runs on the GAME's clock (`update(dt)` from `updatePlay`), so pausing freezes the typing (tested: 19
+  characters before, 19 while paused, 30 after) - and the voice, being on the audio clock, freezes with the
+  AudioContext that pause suspends. It is taken away on caught, level cleared, the title, a cutscene and a new
+  level. It replaces the level banner (same place on screen). On touch it moves to the TOP, like the
+  tutorial's prompt, because the bottom belongs to the joystick (measured: 534-641 of 720 on desktop, 64-153
+  in touch mode).
+
+**The voice.** `voice()` was split: `_syllable(code, vol, t, o)` is one syllable at a given time, and with no
+`o` it is exactly what `voice()` always made - same maths, same single `Math.random` - so the cutscenes are
+untouched. `speak(text, o)` schedules a whole line on the audio clock the way the cutscenes speak (a syllable
+on every other letter at `cps`), and returns `{ stop(), seconds }`. Its syllables are deliberately NOT counted
+by `_track`: a recording is bounded by its own length and must not crowd the monsters out of the polyphony
+limit. `o.pitch` / `o.shake` / `o.vol` / `o.cps` make the speakers: level 5 is **1.22 pitch, 0.1 shake, 21 cps**
+(the first recording, and the first voice that is frightened rather than careful); levels 11 and 12 are the
+same last explorer, **lower (0.86 / 0.84), steadier, slower (17 / 15 cps), quieter**.
+
+### Persistence and the Fragments screen
+
+`echomaze.lore` = a JSON array of ids, **global, not per mode** (a find is a find). Every access in a
+try/catch; with storage blocked a find still counts for the session and simply is not kept (tested: no
+exception, `saved: false`). `found()` re-reads storage each time, so another tab's finds show up.
+
+`#archive` is built the way `#replay` is (`showArchive` beside `showReplay` in js/game.js; the same `.scene`
+rows and panel, in the paper colour instead of blue). A **Fragments** button on the title appears only once
+something is found. Found notes show their text; found recordings are buttons that play again
+(`playArchived`, with the static on level 11's); unfound ones say only `Level 9 · ???` - not even whether it is
+a note or a recording, because which it is, is part of finding it. `Esc` goes back; Enter does not start a run.
+
+**The bonus (the owner's optional stretch goal)**: once all twelve are found, a thirteenth row, *Tucked behind
+the others*: "Every one of these stops before the last room. Nobody writes in there." **This line is mine, a
+draft** - the owner asked for "one small bonus scene or line" and did not supply one. It keeps the rules: it
+names nothing, it says nothing about where anyone was taken, and it spoils nothing about the reveal (a player
+can collect all twelve before ever reaching level 13).
+
+### The content, and the one line that was changed
+
+The owner's twelve lines are used **verbatim except one**. Level 2 was *"Don't run when it sings. It only finds
+you if you're moving."* That is the exact opposite of the Singer: its song marks where you ARE and it leaps
+there, and its own cutscene ends "If its song finds you, keep moving" - a player who trusted the note would die
+for it on level 12. **"sings" became "while it's listening"**, which is true of the echo monster (after a ripple
+touches it, it listens for footsteps; standing still is silent) - the thing that first appears on level 2.
+Flagged to the owner; it is one string in `js/lore.js` if they meant an explorer who had it wrong.
+
+Checked against the owner's rules: no line names the Warden; no explorer is named or gendered (there are no
+pronouns for people in any of them); level 8's door is level 13's door; level 3's decoy is foreshadowing (no
+decoy exists before level 9, and "the north wall" is not a place in a generated maze - kept as written).
+
+### Colour and art
+
+A tenth ripple role, `lore`, in every palette (and `--lore-rgb` for the CSS). Each palette's colour was
+searched for with `tools/palette-check.js`: warm, pale, low-saturation paper, dimmer than the exit (which must
+stay the brightest thing), at least 4.5:1 on black, and **further from all nine existing colours than that
+palette's own closest pair already was, under every vision the palette targets** - so no palette got harder to
+read. Default `220,205,175` (its nearest neighbour 18.6 away, the palette's worst pair 11.9); red-green
+`135,125,110` (18.1 vs 16.9 - that palette is tight: only 35 colours in the whole search passed); blue-yellow
+`175,185,140` (14.9 vs 13.7); High contrast `220,205,180` (18.3 vs 17.2).
+
+`EchoArt` kinds `note` (a page tilted a little, a dog-ear folded down, a torn bottom edge, lines of writing) and
+`log` (a cassette: two reels turning very slowly, a label, the head window) - **no antenna and no ring**, so the
+one other small device in the game, the sonar decoy, cannot be mistaken for it. Both inside radius 1 (true
+size, `R` = 11 px). One title legend row, "Left behind", shows both.
+
+### Other tests
+
+- Hardcore: 0 fragments over all 12 levels; none on the tutorial or level 13.
+- **Soak**: 30,623 frames over 4 modes x 2 calm x 2 cue settings x all 12 levels (192 level starts), cycling the
+  four palettes and drawing throughout, with the player walked to the fragment in most of them: 110 mazes had
+  one, 77 were read, all 12 ended up found, **0 exceptions**.
+- Every new sound constructed on a live AudioContext without error.
+- The test copy (`tools/update-test-copy.ps1`) now also marks every fragment found, reading the ids from
+  `js/lore.js`, so its Fragments screen is full and shows the bonus.
+
+### Lessons
+
+1. **Test the test.** The generator fingerprint had been passing for two versions while hashing nothing: it
+   called `generateLevel` with the wrong arguments, got the same degenerate level every time on both builds,
+   and "matched". A fingerprint that cannot fail is not a fingerprint. It now prints a `sanity` field (the size,
+   the monsters and the path length of one real level 12) so a wrong call is visible at a glance, and it lives
+   in `tools/` instead of being retyped by hand, which is how the mistake got in.
+2. **Make sure the new path is inside the proof.** The usual identity games all passed - and never read a
+   single fragment. A counter on the new code (a spy on `markFound`) is what showed that, and the harness then
+   needed a way to drive the player to it that is identical on a build without it (`visit` / `at`).
+3. **`$(` in a shell substitution eats jQuery-style calls.** A perl replacement containing `$('btn-archive')`
+   silently dropped the `$(...)`, leaving `.classList...` on its own line - caught only by a syntax error on
+   load. Edit anything containing `$(` with the Edit tool.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
@@ -852,6 +1021,6 @@ All are scripted in a hand-built stage (a corridor with side passages); the intr
 
 ## Testing
 
-Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `ripples`, `marks`, `crouch`, `decoys`, `dropDecoy`, `rippleRange`, `cues`, `captionText`, `features`, `seed`, `snapCamera(x, y)`, `zoom(v)`, `artClock(t)`, `showMuffler(on)`, `newMonsters()`, `markBy(singer)`, `touch`, `soundBlocked`, `setVisualCues`, `setTouchControls`, `audio`; and for the tutorial `go(0)`, `startTutorial('intro'|'title')`, `skipTutorial`, `leaveTutorial`, `tutorialState()`, `tutorialSteps()`, `newPlayer()`, `setTutorialDone(on)`; and for the title wordmark `wordmarkState()`, `wordmarkReveal(withSound)`, `wordmarkTick(seconds)`, `wordmarkSeek(u, isReveal)` and `wordmarkRelease()`, plus `ui()` and `transition(fn)` for the screen fades, and `deathTip()`, `tipFor()`, `whyOf()`, `nearMiss()`, `forceNearMiss()`, `savedToast()` and `showSaved()` for the v11.6 feedback layers; and for level 13 `go(13)`, `wardenState()`, `wardenCheck()` (the hand-drawn level's shape, dead ends, ways into the room, start-to-room distance and whether the door is sealed), `wardenDread(x, y)`, `captureStep(secs)` (`step()` cannot drive the capture: `updatePlay` is not running once the controls are gone), `gasp()` (the involuntary ripple walking into the great room sends) - seek FREEZES the frame, which is the only way to photograph the same instant of the sweep with calm mode off and on: the rAF loop otherwise repaints over it before the screenshot is taken). `settings()` = `{ campaignLevels (13), medalLevels (12), warden: {level, insideX, waveFallback, dreadTiles, at}, tutorial: {level, done, after, newPlayer, steps, at}, palette, showTimer, volumes, keyBindings, medalPar, music, muffler, singer, mode, calm, visualCues, touchControls: {on, saved}, audioFx, progress, seen }`. To photograph cues: build the scene and call `__echo.snapCamera(); __echo.draw()` in ONE call, copy the region round the player onto a temporary big `<canvas>` you leave on the page (the game keeps running in real time between calls, so one-shot cues fade before a screenshot), and take two screenshots. For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `intro('mimic')` the 7 -> 8 scene (scene starts at 4.4s: `csTo(20.4)` is the moment the wave touches it, `csTo(21.3)` the hit); `intro('decoy')` the 8 -> 9 scene (starts at 4.6s: the decoy calls at `csTo(21.0)`, the monsters are held by ~23); `intro('stalker')` the 9 -> 10 scene (starts at 4.4s: `csTo(4.4 + 3.7)` the stalker hears them, `+ 6.2` they crouch, `+ 7.96` it reaches the spot, `+ 9.2` it gives up, `+ 15.6` the closing card - the card and subtitles fade in real time, so wait ~2s before a screenshot); `__echo.advance()` does what the Next level button does. **Testing the stalker / crouching** (all done this way in v8.0, no node needed): mute first (`__echo.audio.setMuted(true)` before any `go`), `go(10)`, clear the maze for a clean field (`level.walls.fill(0); level.blocked.fill(0); level.obstacles.length = 0`), drop the other monsters from `info().enemies` (it is the live array), park the stalker with `s.pause = 99`, place things with `tp` and `s.x/s.y` (keep the player INSIDE the level bounds or they are stuck in a wall), and judge hearing with ONE frame (`step(1/60)`) so it does not move; hold keys with `window.dispatchEvent(new KeyboardEvent('keydown', {code:'ShiftLeft'}))`. Spy on `audio.*` methods to count footsteps / echo sounds. Compare generation with the previous `js/level.js` (`git show HEAD:js/level.js`, both evaluated with `new Function`) to prove old levels did not change. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
+Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `ripples`, `marks`, `crouch`, `decoys`, `dropDecoy`, `rippleRange`, `cues`, `captionText`, `features`, `seed`, `snapCamera(x, y)`, `zoom(v)`, `artClock(t)`, `showMuffler(on)`, `newMonsters()`, `markBy(singer)`, `touch`, `soundBlocked`, `setVisualCues`, `setTouchControls`, `audio`; and for the tutorial `go(0)`, `startTutorial('intro'|'title')`, `skipTutorial`, `leaveTutorial`, `tutorialState()`, `tutorialSteps()`, `newPlayer()`, `setTutorialDone(on)`; and for the title wordmark `wordmarkState()`, `wordmarkReveal(withSound)`, `wordmarkTick(seconds)`, `wordmarkSeek(u, isReveal)` and `wordmarkRelease()`, plus `ui()` and `transition(fn)` for the screen fades, and `deathTip()`, `tipFor()`, `whyOf()`, `nearMiss()`, `forceNearMiss()`, `savedToast()` and `showSaved()` for the v11.6 feedback layers; and for level 13 `go(13)`, `wardenState()`, `wardenCheck()` (the hand-drawn level's shape, dead ends, ways into the room, start-to-room distance and whether the door is sealed), `wardenDread(x, y)`, `captureStep(secs)` (`step()` cannot drive the capture: `updatePlay` is not running once the controls are gone), `gasp()` (the involuntary ripple walking into the great room sends) - seek FREEZES the frame, which is the only way to photograph the same instant of the sweep with calm mode off and on: the rAF loop otherwise repaints over it before the screenshot is taken). `settings()` = `{ campaignLevels (13), medalLevels (12), warden: {level, insideX, waveFallback, dreadTiles, at}, lore: {total, found, chance, bonus, here}, tutorial: {level, done, after, newPlayer, steps, at}, palette, showTimer, volumes, keyBindings, medalPar, music, muffler, singer, mode, calm, visualCues, touchControls: {on, saved}, audioFx, progress, seen }`. To photograph cues: build the scene and call `__echo.snapCamera(); __echo.draw()` in ONE call, copy the region round the player onto a temporary big `<canvas>` you leave on the page (the game keeps running in real time between calls, so one-shot cues fade before a screenshot), and take two screenshots. For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `intro('mimic')` the 7 -> 8 scene (scene starts at 4.4s: `csTo(20.4)` is the moment the wave touches it, `csTo(21.3)` the hit); `intro('decoy')` the 8 -> 9 scene (starts at 4.6s: the decoy calls at `csTo(21.0)`, the monsters are held by ~23); `intro('stalker')` the 9 -> 10 scene (starts at 4.4s: `csTo(4.4 + 3.7)` the stalker hears them, `+ 6.2` they crouch, `+ 7.96` it reaches the spot, `+ 9.2` it gives up, `+ 15.6` the closing card - the card and subtitles fade in real time, so wait ~2s before a screenshot); `__echo.advance()` does what the Next level button does. **Testing the stalker / crouching** (all done this way in v8.0, no node needed): mute first (`__echo.audio.setMuted(true)` before any `go`), `go(10)`, clear the maze for a clean field (`level.walls.fill(0); level.blocked.fill(0); level.obstacles.length = 0`), drop the other monsters from `info().enemies` (it is the live array), park the stalker with `s.pause = 99`, place things with `tp` and `s.x/s.y` (keep the player INSIDE the level bounds or they are stuck in a wall), and judge hearing with ONE frame (`step(1/60)`) so it does not move; hold keys with `window.dispatchEvent(new KeyboardEvent('keydown', {code:'ShiftLeft'}))`. Spy on `audio.*` methods to count footsteps / echo sounds. **To prove levels 1-12 did not move, load `tools/generator-fingerprint.js` into a `?debug` page of each build and compare `GENFP().combined`** (`9097b344` from v11.6 to v13.0) - and look at its `sanity` field, which must describe a real level 12 (37x29, an echo monster and a singer): the harness went two versions hashing nothing because `generateLevel` was called with the wrong arguments. The real signature is `generateLevel(n, runSeed, modeId)`. For the lore fragments: `lore()`, `placeFragment(level, seed, mode)`, `readFragment()`, `setLoreFound(ids)`, `showArchive()`. Compare generation with the previous `js/level.js` (`git show HEAD:js/level.js`, both evaluated with `new Function`) to prove old levels did not change. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
 
 Web Audio gotcha: a `GainNode` sits at gain 1.0 until its first scheduled event, so if an oscillator starts before its envelope does you get a full-scale click. Start the oscillator and its `_env` at the same time. `step(seconds)` runs the simulation without needing animation frames, which is handy in headless/embedded browsers. Synthetic key events need `code` set (e.g. `new KeyboardEvent('keydown', {code: 'Space'})`).

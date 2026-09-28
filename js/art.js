@@ -13,6 +13,9 @@
  *   puddle        (lime)    a glossy blob with a shine, two bubbles and a ripple
  *   sonar decoy   (pink)    a small device: a box, a short antenna and a ring round it
  *   exit          (green)   a portal: concentric rings, a slow rotating arc, a doorway and a few soft sparkles
+ *   note          (paper)   a lore fragment (js/lore.js): a torn, dog-eared page with a few lines written on it
+ *   log           (paper)   a lore recording: a cassette - two reels, a label, the head window. No antenna and
+ *                           no ring, so it can never be mistaken for the sonar decoy, the other small device
  *   wall          (blue)    stone joints and the odd crack, along the lit outline (see wallTexture)
  *
  * Rules this file keeps:
@@ -42,7 +45,7 @@ const EchoArt = (() => {
   // both "obstacle" - a palette has one colour for the pair, exactly as the ripple does.
   const RGB = {};
   const CORE = {};
-  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer' };
+  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer', note: 'lore', log: 'lore' };
   EchoPalette.onChange((rgb, core) => {
     for (const k in ART_ROLE) {
       RGB[k] = rgb[ART_ROLE[k]];
@@ -546,8 +549,78 @@ const EchoArt = (() => {
     }
   }
 
+  // ------------------------------------------------------------ lore fragments
+  // A page, a little askew: a dog-ear folded down at the top right, a torn bottom edge, three lines of writing.
+  const NOTE_TILT = -0.2;
+  function note(ctx, a, w) {
+    ctx.rotate(NOTE_TILT);
+    const x0 = -0.56;
+    const x1 = 0.56;
+    const y0 = -0.72;
+    const y1 = 0.62;
+    const f = 0.26; // the dog-ear
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1 - f, y0);
+    ctx.lineTo(x1, y0 + f);
+    ctx.lineTo(x1, y1);
+    const teeth = [0.09, -0.04, 0.1, -0.02, 0.07, -0.05]; // torn, not cut
+    for (let i = 0; i < teeth.length; i++) ctx.lineTo(x1 - ((i + 1) / (teeth.length + 1)) * (x1 - x0), y1 + teeth[i]);
+    ctx.lineTo(x0, y1);
+    ctx.closePath();
+    paint(ctx, RGB.note, CORE.note, a, w, 0.18);
+    ctx.beginPath();
+    ctx.moveTo(x1 - f, y0); // the crease of the fold
+    ctx.lineTo(x1 - f, y0 + f);
+    ctx.lineTo(x1, y0 + f);
+    for (const [y, l] of [[-0.36, 0.8], [-0.08, 0.66], [0.2, 0.74], [0.44, 0.38]]) {
+      ctx.moveTo(x0 + 0.17, y);
+      ctx.lineTo(x0 + 0.17 + l, y);
+    }
+    detail(ctx, CORE.note, a, w, 0.62);
+  }
+
+  // A cassette, lying flat: a rounded body, two reels, a label strip and the head window along the bottom.
+  function log(ctx, a, w, o) {
+    const t = o.t || 0;
+    const x0 = -0.82;
+    const x1 = 0.82;
+    const y0 = -0.52;
+    const y1 = 0.52;
+    const c = 0.12;
+    ctx.beginPath();
+    ctx.moveTo(x0 + c, y0);
+    ctx.lineTo(x1 - c, y0);
+    ctx.quadraticCurveTo(x1, y0, x1, y0 + c);
+    ctx.lineTo(x1, y1 - c);
+    ctx.quadraticCurveTo(x1, y1, x1 - c, y1);
+    ctx.lineTo(x0 + c, y1);
+    ctx.quadraticCurveTo(x0, y1, x0, y1 - c);
+    ctx.lineTo(x0, y0 + c);
+    ctx.quadraticCurveTo(x0, y0, x0 + c, y0);
+    ctx.closePath();
+    paint(ctx, RGB.log, CORE.log, a, w, 0.18);
+    ctx.beginPath();
+    ctx.moveTo(x0 + 0.16, y0 + 0.2); // the label
+    ctx.lineTo(x1 - 0.16, y0 + 0.2);
+    for (const cx of [-0.36, 0.36]) {
+      circle(ctx, cx, 0.02, 0.19); // the reels, turning very slowly, as if it was still running
+      const th = t * 0.9 + cx;
+      for (let k = 0; k < 3; k++) {
+        const u = th + (k * TAU) / 3;
+        ctx.moveTo(cx + Math.cos(u) * 0.06, 0.02 + Math.sin(u) * 0.06);
+        ctx.lineTo(cx + Math.cos(u) * 0.16, 0.02 + Math.sin(u) * 0.16);
+      }
+    }
+    ctx.moveTo(-0.5, y1); // the head window
+    ctx.lineTo(-0.38, y1 - 0.2);
+    ctx.lineTo(0.38, y1 - 0.2);
+    ctx.lineTo(0.5, y1);
+    detail(ctx, CORE.log, a, w, 0.62);
+  }
+
   // ---------------------------------------------------------------- drawing
-  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall };
+  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log };
   const NO = {};
 
   function draw(ctx, kind, x, y, r, o) {

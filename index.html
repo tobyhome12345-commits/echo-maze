@@ -37,6 +37,12 @@
     <div id="banner-text"></div>
   </div>
 
+  <!-- a lore fragment your wave has just found (js/lore.js): a note, or a recording typed out as it plays -->
+  <div id="lore" aria-live="polite">
+    <span id="lore-head"></span>
+    <span id="lore-line"></span>
+  </div>
+
   <!-- Visual cues (accessibility): a short text caption for a loud sound, e.g. [monster screech] -->
   <div id="cue-caption" aria-live="polite"></div>
 
@@ -79,6 +85,7 @@
         <li><canvas class="swatch" data-art="singer" width="32" height="32"></canvas>Singers</li>
         <li><canvas class="swatch" data-art="puddle" width="32" height="32"></canvas>Smell puddles</li>
         <li><canvas class="swatch" data-art="decoy" width="32" height="32"></canvas>Sonar decoy</li>
+        <li><canvas class="swatch" data-art="note" width="32" height="32"></canvas><canvas class="swatch" data-art="log" width="32" height="32"></canvas>Left behind</li>
         <li><canvas class="swatch" data-art="exit" width="32" height="32"></canvas>The way out</li>
       </ul>
 
@@ -120,6 +127,7 @@
       <div class="buttons">
         <button id="btn-tutorial" class="quiet">Tutorial</button>
         <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
+        <button id="btn-archive" class="quiet hidden">Fragments</button>
         <button id="btn-settings" class="quiet">Settings</button>
       </div>
       <p id="title-medals" class="medal-summary hidden"></p>
@@ -141,6 +149,19 @@
 
       <div class="buttons">
         <button id="btn-replay-back" class="primary">Back <span class="key">Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- the notes and recordings found so far (js/lore.js), built like the replay screen above -->
+  <section id="archive" class="overlay hidden">
+    <div class="panel">
+      <h2>Fragments</h2>
+      <p id="archive-sub" class="mode-desc"></p>
+      <div id="fragment-list" class="scene-list fragment-list"></div>
+      <p id="archive-note" class="fine"></p>
+      <div class="buttons">
+        <button id="btn-archive-back" class="primary">Back <span class="key">Esc</span></button>
       </div>
     </div>
   </section>
@@ -322,6 +343,7 @@
   <script src="js/level.js"></script>
   <script src="js/tutorial.js"></script>
   <script src="js/warden.js"></script>
+  <script src="js/lore.js"></script>
   <script src="js/wordmark.js"></script>
   <script src="js/feedback.js"></script>
   <script src="js/art.js"></script>

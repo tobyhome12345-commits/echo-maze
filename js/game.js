@@ -49,21 +49,22 @@
   const T_STALKER = 8; // stalker (orange) - a ripple can show it, but it learns nothing from it
   const T_SINGER = 9; // singer (magenta) - a ripple can show it, but it is deaf to yours. (The muffler has NO type: it absorbs the ray, so nothing is ever lit.)
   const T_WARDEN = 10; // the warden (level 13 only) - and ONLY once a ripple has revealed it. Until then its rays come back as T_WALL.
+  const T_LORE = 11; // a lore fragment (js/lore.js) - lies flat like a puddle or a decoy: the wave lights it and passes over
   // The ripple's hit colours, by type. They are filled in from js/palette.js and refilled whenever the player
   // picks another palette (Settings -> Display); the array itself is never replaced, so everything that reads
   // COLORS[T_...] keeps working, and a palette can never reach anything but the drawing.
-  const COLORS = [null, null, null, null, null, null, null, null, null, null, null];
-  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden'];
+  const COLORS = [null, null, null, null, null, null, null, null, null, null, null, null];
+  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden', 'lore'];
   // which palette colour each swatch on the title legend belongs to (drawing only: it tints the chip around it)
-  const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit' };
+  const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit', note: 'lore' };
   const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
   EchoPalette.onChange((rgb) => {
     for (let i = 1; i < COLOR_ROLE.length; i++) COLORS[i] = rgb[COLOR_ROLE[i]];
   });
   // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
   // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
-  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2];
-  const NRAYTYPES = 11; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer) and 10 (the level-13 warden, once revealed); 0 = nothing (also where the muffler ate the ray). 6 and 7 are flat marks (puddle, decoy), never rays
+  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2, 3];
+  const NRAYTYPES = 11; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer) and 10 (the level-13 warden, once revealed); 0 = nothing (also where the muffler ate the ray). 6, 7 and 11 are flat marks (puddle, decoy, lore fragment), never rays - so 11 needs no ray bucket
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
@@ -108,7 +109,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending'];
+  const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
   //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after it)
 
@@ -163,6 +164,13 @@
     enteredRoom: () => onWardenCleared(),
     taken: () => onCaptured(),
   });
+
+  /**
+   * LORE FRAGMENTS (js/lore.js): the line on screen, and the voice, when your wave finds one. It is shown and
+   * timed on the game's own clock (updatePlay), so it pauses with the game. It writes to the screen, the
+   * speakers and the `echomaze.lore` save - and to nothing the game ever reads back.
+   */
+  const loreReader = EchoLore.createReader({ el: { box: $('lore'), head: $('lore-head'), line: $('lore-line') }, audio, cues });
 
   // ---------------------------------------------------------------- storage
   // Everything is wrapped in try/catch: storage can be blocked or unavailable.
@@ -1675,7 +1683,11 @@
     const flats = (level.puddles || []).map((p) => ({ x: p.x, y: p.y, r: p.r, type: T_PUDDLE }));
     if (level.decoy && !level.decoy.taken) flats.push({ x: level.decoy.x, y: level.decoy.y, r: 12, type: T_DECOY });
     for (const dc of decoys) flats.push({ x: dc.x, y: dc.y, r: 12, type: T_DECOY });
-    // (Anything behind a muffler is in its shadow, puddles and decoys included.)
+    // ...and a lore fragment (js/lore.js), in the colour of old paper. Nothing about how it is lit is special:
+    // it is one more flat thing on the floor, and the wave finds it or it does not.
+    const fr = level.fragment;
+    if (fr) flats.push({ x: fr.x, y: fr.y, r: fr.r, type: T_LORE, art: fr.kind === 'log' ? 'log' : 'note', lore: true });
+    // (Anything behind a muffler is in its shadow, puddles, decoys and fragments included.)
     const shadowed = (px, py, d) => {
       for (const c of circles) {
         if (!c.absorb) continue;
@@ -1687,7 +1699,7 @@
     for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
       if (d > R || !hasLOS(ox, oy, p.x, p.y) || (d > 1 && shadowed(p.x, p.y, d))) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.type === T_DECOY ? 'decoy' : 'puddle', ar: p.r, singer: !!singerRp });
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore });
       echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
@@ -1813,6 +1825,7 @@
       case T_STALKER: audio.echoStalker(ev.pan, vol, ev.d); break;
       case T_SINGER: audio.echoSinger(ev.pan, vol, ev.d); break;
       case T_WARDEN: audio.echoWarden(ev.pan, vol, ev.d); break; // level 13: the wall that came back wrong
+      case T_LORE: audio.echoLore(ev.pan, vol); break; // a lore fragment: paper
     }
   }
 
@@ -1826,8 +1839,29 @@
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
     }
     ripples = ripples.filter((rp) => rp.t < rp.life);
-    for (const m of marks) m.t += dt;
+    for (const m of marks) {
+      m.t += dt;
+      // A lore fragment is READ the moment the player's own wave reaches it - the same moment it lights up.
+      // Not by a singer's wave (that is not you pinging it), and not once the game is over for this attempt.
+      // Crouching wipes `marks`, so a wave you crouched under never gets to read it: the same rule as the rest.
+      if (m.lore && !m.fired && m.t >= 0) {
+        m.fired = true;
+        if (!m.singer && state === 'play') readFragment();
+      }
+    }
     marks = marks.filter((m) => m.t < m.life);
+  }
+
+  /** Your wave has reached this level's lore fragment (js/lore.js). Read at most once per attempt at a level. */
+  function readFragment() {
+    const fr = level && level.fragment;
+    if (!fr || fr.read) return;
+    fr.read = true;
+    const info = EchoLore.markFound(fr.id);
+    // the level's own banner gives way: the two sit in the same place, and this is the one worth reading
+    clearTimeout(bannerTimer);
+    $('banner').classList.remove('show');
+    loreReader.show(EchoLore.byId(fr.id), info);
   }
 
   // ------------------------------------------------- sonar decoy (level 8+)
@@ -2053,6 +2087,7 @@
     for (const e of enemies) if (e.kind === 'singer' && e.state === 'marked') markLeft = Math.max(markLeft, e.markFrac);
     cues.setMark(markLeft);
     cues.update(dt, player.x, player.y);
+    loreReader.update(dt); // a fragment's line on screen (js/lore.js): drawing and sound only
 
     // the tutorial's teaching prompts: they read where you are and how many ripples you have sent, and write
     // a line of text. Nothing above this point knows the tutorial exists.
@@ -2629,6 +2664,10 @@
       store.set(PROGRESS_KEY, JSON.stringify(progress));
     }
     level = generateLevel(n, runSeed, mode);
+    // The level's lore fragment, if this maze has one (js/lore.js). Placed AFTER the level is finished, from
+    // its own random stream, reading the level and writing nothing to it - so it can move nothing else.
+    level.fragment = EchoLore.place(level, n, mode, runSeed);
+    loreReader.hide();
     cfg = level.cfg;
     player = {
       x: level.start.x,
@@ -2807,6 +2846,7 @@
       store.set(SEEN_KEY, JSON.stringify(seen));
     }
     destroyVoices();
+    loreReader.hide();
     audio.stopAmbient();
     music.stop(); // a cutscene has its own sound; the score never plays over it
     tutorial.stop(); // (coming straight out of the tutorial: nothing of it is left on screen)
@@ -2843,6 +2883,7 @@
   function onCaught(cause, why = 'blind') {
     if (state !== 'play') return;
     state = 'caught';
+    loreReader.hide(); // a fragment's line, if one was up (its find is already saved)
     // one line saying what really happened, picked without touching the game's random numbers
     deathTip = EchoFeedback.tipFor(cause, why, levelNum, Math.round(levelTime * 1000));
     $('caught-tip').textContent = deathTip;
@@ -2976,6 +3017,7 @@
   function onLevelComplete() {
     if (state !== 'play') return;
     state = 'complete';
+    loreReader.hide();
     touch.releaseAll();
     audio.stopAmbient();
     music.stop();
@@ -3061,6 +3103,7 @@
 
   function toTitle() {
     destroyVoices();
+    loreReader.hide();
     audio.stopAmbient();
     audio.resume();
     EchoProfile.flush();
@@ -3117,6 +3160,7 @@
       c.checked = calm;
     });
     $('btn-replay').classList.toggle('hidden', !replayAvailable());
+    $('btn-archive').classList.toggle('hidden', !archiveAvailable()); // only once something has been found
     // a small medal line for the mode that is picked (Settings -> Stats & Medals has the whole board)
     const sum = EchoProfile.medalSummary(mode, MEDAL_LEVELS); // (level 13 has no medals - see MEDAL_LEVELS)
     const line = $('title-medals');
@@ -3248,6 +3292,81 @@
     refreshTitle();
     showOverlay('title');
     wordmark.reveal(false); // the title is back: sweep once, but this is not an arrival - no sound
+  }
+
+  // ----------------------------------------------------- the fragments archive
+  /**
+   * FRAGMENTS: every note and recording found so far (js/lore.js), in level order, built the same way as the
+   * replay screen above. A found note can be read; a found recording can be played again, in the same voice.
+   * What is not found yet only says which level to look on. Once all twelve are found, a thirteenth appears.
+   * Finds are global - not per mode - so this screen is the same whichever difficulty is picked.
+   */
+  const archiveAvailable = () => EchoLore.count() > 0;
+  let archiveVoice = null; // the recording playing on this screen, so it can be stopped
+  let archiveStatic = 0; // ...and the static at the end of the one that is cut off
+
+  function stopArchiveVoice() {
+    if (archiveVoice) archiveVoice.stop();
+    archiveVoice = null;
+    clearTimeout(archiveStatic);
+  }
+
+  function playArchived(f) {
+    audio.init(); // a button click, so the browser lets the sound start
+    stopArchiveVoice();
+    const v = f.voice || {};
+    const seconds = f.text.length / (v.cps || EchoLore.CPS);
+    audio.loreLog(seconds + (f.cut ? 0.75 : 0.6));
+    archiveVoice = audio.speak(f.text, v);
+    if (f.cut) archiveStatic = setTimeout(() => audio.loreStatic(), (seconds + 0.8) * 1000);
+  }
+
+  function showArchive() {
+    const total = EchoLore.TOTAL;
+    const n = EchoLore.count();
+    $('archive-sub').textContent = `Notes and recordings left by the ones who came through before you. ${n} of ${total} found.`;
+    const list = $('fragment-list');
+    list.textContent = '';
+    for (const f of EchoLore.FRAGMENTS.concat([EchoLore.BONUS])) {
+      const got = f.bonus ? EchoLore.bonusUnlocked() : EchoLore.isFound(f.id);
+      const log = f.kind === 'log';
+      const row = document.createElement(got && log ? 'button' : 'div');
+      // (an unfound one is not marked as a note or a recording: which it is, is part of finding it)
+      row.className = `scene fragment${got ? '' : ' locked'}${got && log ? ' log' : ''}${f.bonus ? ' bonus' : ''}`;
+      const name = document.createElement('b');
+      if (f.bonus) name.textContent = got ? 'Tucked behind the others' : '???';
+      else name.textContent = `Level ${f.level} · ${got ? (log ? 'a recording' : 'a note') : '???'}`;
+      const text = document.createElement('small');
+      if (got) text.textContent = f.text;
+      else text.textContent = f.bonus ? `Find all ${total} to read this one.` : 'Not found yet. It lies somewhere off the way to the exit.';
+      row.append(name, text);
+      if (got && log) {
+        row.type = 'button';
+        const play = document.createElement('span');
+        play.className = 'play';
+        play.textContent = 'Play';
+        name.appendChild(play);
+        row.setAttribute('aria-label', `Play the recording from level ${f.level}: ${f.text}`);
+        row.addEventListener('click', () => playArchived(f));
+      }
+      list.appendChild(row);
+    }
+    $('archive-note').textContent = "A level's fragment is always there on Easy, usually on Normal, sometimes on Hard, and never on Hardcore. Whatever you find is kept for good, whichever difficulty you found it on.";
+    showOverlay('archive');
+  }
+
+  function openArchive() {
+    audio.init();
+    audio.uiClick();
+    showArchive();
+  }
+
+  function closeArchive() {
+    stopArchiveVoice();
+    audio.uiClick();
+    refreshTitle();
+    showOverlay('title');
+    wordmark.reveal(false);
   }
 
   /** Play a cleared level again: like Continue, no cutscene first, same mode rules. */
@@ -3456,6 +3575,9 @@
         if (!$('replay').classList.contains('hidden')) {
           // the replay screen is open: Esc goes back; Enter just presses the focused button
           if (e.code === 'Escape') closeReplay();
+        } else if (!$('archive').classList.contains('hidden')) {
+          // the fragments screen, the same way
+          if (e.code === 'Escape') closeArchive();
         } else if (e.code === 'Enter') {
           // a focused button (tabbed to) handles its own Enter; otherwise Enter means Begin
           if (document.activeElement && document.activeElement.tagName === 'BUTTON') break;
@@ -3647,6 +3769,8 @@
   });
   $('btn-replay').addEventListener('click', openReplay);
   $('btn-replay-back').addEventListener('click', closeReplay);
+  $('btn-archive').addEventListener('click', openArchive);
+  $('btn-archive-back').addEventListener('click', closeArchive);
   $('btn-settings').addEventListener('click', () => openSettings('title'));
   $('btn-pause-settings').addEventListener('click', () => openSettings('pause'));
   $('btn-resume').addEventListener('click', () => {
@@ -3925,6 +4049,18 @@
         }
         return tutorialDone;
       },
+      // v13.0: lore fragments (js/lore.js)
+      lore: () => ({
+        here: level && level.fragment ? Object.assign({}, level.fragment) : null,
+        found: EchoLore.found(),
+        count: EchoLore.count(),
+        reading: loreReader.state(),
+      }),
+      // where a maze WOULD put its fragment, without playing it: (level, run seed, mode)
+      placeFragment: (n, seed, m) => EchoLore.place(generateLevel(n, seed, m || mode), n, m || mode, seed),
+      readFragment: () => readFragment(),
+      setLoreFound: (ids) => EchoLore.setFound(ids),
+      showArchive: () => showArchive(),
       // v12.0: level 13, the capture (js/warden.js). go(13) plays it; the hooks below drive and inspect it.
       warden,
       wardenState: () => warden.state(),
@@ -4009,6 +4145,7 @@
         medalLevels: MEDAL_LEVELS, // 12: level 13 is hand-drawn, has no cleared screen and takes no medals
         // level 13 (js/warden.js): the fixed level, the one room that glows, and the capture
         warden: { level: WARDEN_LEVEL, insideX: EchoWarden.INSIDE_PX, waveFallback: EchoWarden.WAVE_FALLBACK, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
+        lore: { total: EchoLore.TOTAL, found: EchoLore.count(), chance: EchoLore.CHANCE[mode], bonus: EchoLore.bonusUnlocked(), here: level && level.fragment ? level.fragment.id : null },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,

@@ -12,7 +12,8 @@
     * index.html  - title, a small "TEST COPY" notice, one extra <script src="test-save.js">
     * js\*.js     - every save-slot name "echomaze." becomes "echomaze.test." so the copy never touches the
                     real game's save (a browser shares localStorage between all local copies of the game)
-    * test-save.js       - generated: marks every level of every mode cleared and every cutscene seen
+    * test-save.js       - generated: marks every level of every mode cleared, every cutscene seen and every lore
+                           fragment found (the ids are read from js\lore.js)
     * READ ME - test copy.txt - generated
   Everything else (style.css, README.md, the game code) is copied unchanged. The script checks all of this
   when it is done and stops with an error if anything did not come out as expected.
@@ -84,6 +85,16 @@ $scenes = @($scenes | Select-Object -Unique)
 if ($scenes.Count -lt 4) { Fail "only found $($scenes.Count) cutscenes ($($scenes -join ', ')); expected at least the four that exist" }
 $seenJs = '{ ' + (($scenes | ForEach-Object { "$_`: 1" }) -join ', ') + ' }'
 
+# v13.0: the lore fragments (js/lore.js) - every one found. Only the level ones (level 1 and up): the bonus is not
+# stored, it simply appears once all of those are.
+$loreJs = Join-Path $Source 'js\lore.js'
+$fragments = @()
+if (Test-Path $loreJs) {
+  $fragments = @([regex]::Matches((Get-Text $loreJs), "\{ id: '(f\d+)', level: ([1-9]\d*),") | ForEach-Object { $_.Groups[1].Value })
+  if ($fragments.Count -lt 12) { Fail "only found $($fragments.Count) lore fragments in js\lore.js; expected at least the twelve that exist" }
+}
+$loreJson = '[' + (($fragments | ForEach-Object { "'$_'" }) -join ', ') + ']'
+
 # ---- index.html
 $html = Get-Text (Join-Path $Source 'index.html')
 $notice = 'TEST COPY &mdash; every level and cutscene is already finished and unlocked here. It has its own save slot, so your real game''s progress is not touched.'
@@ -105,6 +116,7 @@ $save = @"
  *   - every level cleared in every difficulty (so Continue is replaced by "Finished",
  *     the Levels & cutscenes screen lets you pick any level, and Hardcore shows a finished high score)
  *   - every story cutscene already seen (so all of them can be replayed)
+ *   - every lore fragment already found (so the Fragments screen is full, the bonus one included)
  *
  * This copy uses its OWN save slot (keys start with "echomaze.test."), so it never
  * touches the save of your real game. It only ever raises progress, never lowers it,
@@ -124,6 +136,7 @@ $save = @"
     for (const m of ['easy', 'normal', 'hard', 'hardcore']) progress[m] = Math.max(parseInt(progress[m], 10) || 0, FINISHED);
     localStorage.setItem(P + 'progress', JSON.stringify(progress));
     localStorage.setItem(P + 'seen', JSON.stringify($seenJs));
+    localStorage.setItem(P + 'lore', JSON.stringify($loreJson)); // every lore fragment found (v13.0)
   } catch (e) {
     /* storage is blocked: this copy then just behaves like a fresh game */
   }
@@ -144,6 +157,7 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
 
   * every level ($campaign so far) is cleared in every difficulty (Easy, Normal, Hard, Hardcore)
   * every story cutscene ($($scenes.Count) so far) has been seen
+  * every lore fragment ($($fragments.Count) so far) has been found, so the "Fragments" screen is full
   * so on the title screen every mode says "Finished", and the
     "Levels & cutscenes" button lets you play any level (Easy, Normal
     and Hard) or rewatch any cutscene, without playing through anything first
@@ -191,5 +205,6 @@ if ($problems) { Fail ($problems -join '; ') }
 "Test copy rebuilt from '$leaf'"
 "  levels: $campaign (progress set to $finished in every mode)"
 "  cutscenes marked seen: $($scenes -join ', ')"
+"  lore fragments marked found: $($fragments.Count)"
 "  save-slot names changed: $slotCount"
 "  checks passed. Still open the copy once and look at it (see CLAUDE.md)."

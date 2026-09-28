@@ -2294,3 +2294,157 @@ body.touch #saved-toast.show {
   border-color: rgba(190, 205, 225, 0.36);
   box-shadow: 0 0 30px rgba(190, 205, 225, 0.1), inset 0 1px 0 rgba(190, 205, 225, 0.16);
 }
+
+/* ==========================================================================
+   v13.0: LORE FRAGMENTS (js/lore.js)
+   The colour is the palette's own `lore` role (old paper in lamplight), set as --lore-rgb by js/palette.js.
+   ========================================================================== */
+
+/* the line on screen when your wave finds one - the cutscenes' subtitle, on the tutorial prompt's plate */
+#lore {
+  position: fixed;
+  left: 50%;
+  bottom: 11%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 32px));
+  padding: 12px 22px 14px;
+  text-align: center;
+  background: rgba(3, 5, 8, 0.82);
+  border: 1px solid rgba(var(--lore-rgb), 0.32);
+  border-radius: 10px;
+  box-shadow: 0 0 30px rgba(var(--lore-rgb), 0.1);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity calc(var(--ui-fade) * 2) ease;
+}
+
+#lore.show {
+  opacity: 1;
+}
+
+/* the recording that is cut off is CUT: no fade at all */
+#lore.cut {
+  transition: none;
+}
+
+#lore-head {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgb(var(--lore-rgb));
+}
+
+/* a note is someone's handwriting; a recording is speech, so it is set like the cutscenes' subtitles */
+#lore-line {
+  display: block;
+  min-height: 1.4em;
+  font-size: clamp(16px, 2.2vw, 20px);
+  line-height: 1.45;
+  font-style: italic;
+  color: #f3efe6;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+}
+
+#lore.log #lore-line {
+  font-style: normal;
+}
+
+/* touch: the bottom of the screen belongs to the joystick and the buttons (the tutorial prompt moves too) */
+body.touch #lore {
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  bottom: auto;
+  width: min(520px, calc(100vw - 170px));
+  padding: 10px 16px 12px;
+}
+
+body.touch #lore-line {
+  font-size: 15px;
+}
+
+/* ---- the Fragments screen: built like the replay screen, in paper instead of blue ---- */
+.fragment-list {
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+  touch-action: pan-y;
+}
+
+.scene.fragment {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  width: 100%;
+  padding: 11px 16px;
+  text-align: left;
+  border: 1px solid rgba(var(--lore-rgb), 0.24);
+  border-radius: 8px;
+  background: rgba(var(--lore-rgb), 0.04);
+}
+
+.scene.fragment b {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--lore-rgb));
+}
+
+.scene.fragment small {
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  font-style: italic;
+  color: #ece6d8;
+}
+
+.scene.fragment.log small {
+  font-style: normal;
+}
+
+.scene.fragment .play {
+  padding: 1px 9px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  border: 1px solid rgba(var(--lore-rgb), 0.5);
+  border-radius: 999px;
+}
+
+button.scene.fragment:hover,
+button.scene.fragment:focus-visible {
+  background: rgba(var(--lore-rgb), 0.1);
+  border-color: rgba(var(--lore-rgb), 0.55);
+  box-shadow: 0 0 22px rgba(var(--lore-rgb), 0.16);
+}
+
+.scene.fragment.locked {
+  border-style: dashed;
+  background: transparent;
+  opacity: 0.6;
+}
+
+.scene.fragment.locked b {
+  color: var(--dim);
+}
+
+.scene.fragment.locked small {
+  font-size: 13px;
+  font-style: normal;
+  color: var(--dim);
+}
+
+/* the thirteenth, once all twelve are found */
+.scene.fragment.bonus:not(.locked) {
+  border-color: rgba(var(--lore-rgb), 0.5);
+  box-shadow: 0 0 26px rgba(var(--lore-rgb), 0.12);
+}
+
+#archive .buttons {
+  margin-top: 18px;
+}

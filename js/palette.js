@@ -22,8 +22,13 @@
  * tritanopia and measures every pair of colours with CIEDE2000. See README / CLAUDE.md for the numbers.
  */
 const EchoPalette = (() => {
-  /** Everything a colour is needed for. The first nine are what a ripple can light up. */
-  const RIPPLE_ROLES = ['wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer'];
+  /**
+   * Everything a colour is needed for. The first ten are what a ripple can light up - v13.0 added 'lore', the
+   * explorers' notes and recordings (js/lore.js), a flat thing on the floor like a puddle or a decoy. Its colour
+   * in every palette was picked by tools/palette-check.js to be further from all nine others than that
+   * palette's own closest pair already was, so adding it made no palette any harder to read (see CLAUDE.md).
+   */
+  const RIPPLE_ROLES = ['wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'lore'];
   const CUE_ROLES = ['echo', 'scent', 'stalker', 'exit', 'decoy', 'muffler', 'singer', 'heart'];
   // 'warden' is the level-13 warden (js/warden.js). It is deliberately NOT one of the RIPPLE_ROLES the
   // colour-blind checker compares nine ways: level 13 holds nothing else a ripple can light up, so it only
@@ -44,6 +49,7 @@ const EchoPalette = (() => {
         decoy: '255,122,217',
         stalker: '255,116,16',
         singer: '236,64,236',
+        lore: '220,205,175', // old paper in lamplight
         muffler: '205,220,238',
         heart: '255,132,150',
         warden: '255,232,224',
@@ -59,6 +65,7 @@ const EchoPalette = (() => {
         decoy: '255,182,236',
         stalker: '255,186,116',
         singer: '255,176,255',
+        lore: '246,238,220',
         warden: '252,248,240',
       },
     },
@@ -78,6 +85,7 @@ const EchoPalette = (() => {
         decoy: '85,233,255',
         stalker: '189,168,175',
         singer: '154,106,146',
+        lore: '135,125,110',
         muffler: '168,153,118',
         heart: '242,198,88',
         warden: '196,150,120',
@@ -99,6 +107,7 @@ const EchoPalette = (() => {
         decoy: '156,164,164',
         stalker: '255,209,54',
         singer: '202,186,198',
+        lore: '175,185,140',
         muffler: '201,208,187',
         heart: '220,179,165',
         warden: '206,142,150',
@@ -120,6 +129,7 @@ const EchoPalette = (() => {
         decoy: '255,126,186',
         stalker: '255,118,8',
         singer: '250,58,255',
+        lore: '220,205,180',
         muffler: '226,241,255',
         heart: '255,127,144',
         warden: '255,232,224',
@@ -173,6 +183,7 @@ const EchoPalette = (() => {
     root.style.setProperty('--puddle-rgb', rgbOf('puddle'));
     root.style.setProperty('--singer-rgb', rgbOf('singer'));
     root.style.setProperty('--muffler-rgb', rgbOf('muffler'));
+    root.style.setProperty('--lore-rgb', rgbOf('lore')); // the fragment line and the Fragments screen
     // the cue shapes in the title legend are inline SVG: each one carries the role it stands for
     const svgs = document.querySelectorAll('[data-cue]');
     for (let i = 0; i < svgs.length; i++) {
