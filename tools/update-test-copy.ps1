@@ -72,8 +72,15 @@ foreach ($k in 'progress', 'seen') {
 }
 
 # ---- what "finished" means for THIS version of the game
-if ($gameJs -notmatch 'const CAMPAIGN_LEVELS = (\d+);') { Fail 'could not read CAMPAIGN_LEVELS from game.js' }
-$campaign = [int]$Matches[1]
+# (up to v13.0 CAMPAIGN_LEVELS was a number in game.js; from v14.0 it is STORY_LAST, the last of the hand-drawn
+#  levels 14-16, which lives in js/level.js)
+if ($gameJs -match 'const CAMPAIGN_LEVELS = (\d+);') { $campaign = [int]$Matches[1] }
+elseif ($gameJs -match 'const CAMPAIGN_LEVELS = STORY_LAST;') {
+  $levelJs = Get-Text (Join-Path $Source 'js\level.js')
+  if ($levelJs -notmatch 'const STORY_LAST = (\d+);') { Fail 'game.js says CAMPAIGN_LEVELS = STORY_LAST, but js\level.js has no STORY_LAST' }
+  $campaign = [int]$Matches[1]
+}
+else { Fail 'could not read CAMPAIGN_LEVELS from game.js' }
 $finished = $campaign + 1     # progress above the last level means "cleared the whole game"
 
 if ($gameJs -notmatch 'const SCENE_LEADS_TO = \{([^}]*)\}') { Fail 'could not read SCENE_LEADS_TO from game.js' }

@@ -65,7 +65,8 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v12.1 | bd365c0 | MINOR: the level 13 capture now plays IN FULL every time the level is finished, not only the first time. The brief second-visit version is removed outright rather than bypassed - the warden is hidden again at the start of every attempt, and nothing is written to `echomaze.seen` for it, because there is no longer a version to choose |
 | v12.2 | 0d6ae1d | MINOR, level 13 only: the great room's glow now respects WALLS as well as ripples - `mouthSight()` asks the game's own line-of-sight test for seven points across the room's one gap and the glow is scaled by the fraction it can see, which closed the four tiles that leaked (the corridor under the room, and the dead end beside it through a tile corner). And the warden is redrawn: a jagged faceted crest cut from the union of its own circles, masonry courses, chips, forked cracks and one sealed seam instead of a smooth blob; the grab is three filled, tapered, jagged limbs that extend AND thicken, the middle one opening into claws, instead of five straight lines; and the sequence gains a held beat, a 0.3 s IMPACT (one flash, a 36 px floor kick, a new `wardenGrab` sound) and a shorter fade the sound carries on under - 2.92 s of picture, was 4.2. Its collision circles, and therefore the level, are untouched |
 | v12.3 | f69ebf4 | MINOR, level 13 only: **walking into the great room is now the whole trigger** - crossing `INSIDE_PX` fires the involuntary gasp at once instead of after a 7 s wait, so the wall still lights up because a wave washed over it and the player never has to press anything (0.217 s from the threshold to the reveal). The `armed` phase becomes `wave`, `AUTO_SECONDS`, `waitT` and the safety-net idea are gone, `emitRipple` no longer tells the warden anything, and `onRipple` lost its `involuntary` argument. A ripple the player sends on level 13 is now an ordinary ripple and nothing else. This reverses the "your own next ripple press" trigger the owner asked for in v12.0, at their request |
-| v13.0 | 9cdaa90 | MAJOR: LORE FRAGMENTS (`js/lore.js`). One note or recording per level on 1-12, off the route (a dead end, 13-19 tiles out of the way on average), lit by a ripple through the SAME `flats` path as puddles and decoys and read the moment your own wave reaches it; recordings speak in the cutscenes' formant voice (`audio.speak`); present 100 / 80 / 50 / 0 % on Easy / Normal / Hard / Hardcore; kept for good (`echomaze.lore`) and listed on a new Fragments screen built like the replay screen, with a thirteenth once all twelve are found. Placed after generation from its own stream, so levels 1-12 are byte-identical (`9097b344`, and identity games that really read fragments match v11.6). A tenth palette role, `lore`, that made no palette harder to read. Also: the v12.2/v12.3 generator fingerprint was found to have been hashing nothing - corrected, and the harness is now `tools/generator-fingerprint.js` (latest) |
+| v13.0 | 9cdaa90 | MAJOR: LORE FRAGMENTS (`js/lore.js`). One note or recording per level on 1-12, off the route (a dead end, 13-19 tiles out of the way on average), lit by a ripple through the SAME `flats` path as puddles and decoys and read the moment your own wave reaches it; recordings speak in the cutscenes' formant voice (`audio.speak`); present 100 / 80 / 50 / 0 % on Easy / Normal / Hard / Hardcore; kept for good (`echomaze.lore`) and listed on a new Fragments screen built like the replay screen, with a thirteenth once all twelve are found. Placed after generation from its own stream, so levels 1-12 are byte-identical (`9097b344`, and identity games that really read fragments match v11.6). A tenth palette role, `lore`, that made no palette harder to read. Also: the v12.2/v12.3 generator fingerprint was found to have been hashing nothing - corrected, and the harness is now `tools/generator-fingerprint.js` |
+| v14.0 | (pending) | MAJOR: LEVELS 14-16 (`js/story.js`), hand-drawn like 13 and following straight on from the capture. **14, the gaol**: no enemies; a scripted wake-up, iron bars a ripple sees through, drips that are small ripples of their own, a KEY found like any floor object (`T_KEY`, brass), a locked door that rattles until it turns, a walk out. **15, the false exit**: warm light at the end of a passage (the second "seen without a ripple" exception, clipped to the player's own line of sight - 0 leaks over every tile) that turns out to be a Warden; it wakes, a sealed passage cracks open and it hunts you at `WARDEN_SPEED` 0.75 x your walking speed. **16**: another, sealed behind you, faster - `WARDEN_UPGRADED_SPEED` 1.05 - in galleries with water dripping along the way out (a clean run arrives 560 px of path ahead; ~3 s of hesitation in all catches you). The Warden always knows where you are, kills on touch by the usual rule, and has no abilities yet (`js/warden.js` `VARIANTS` / `ABILITIES`, hooks ready). The capture now leads into 14 and the ending stub moved to after 16; no medals for 13-16; the Settings medal board fixed to "of 36". Levels 1-12 byte-identical (`9097b344`, eleven identity games = v13.0) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -83,8 +84,9 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - Plain HTML/CSS/JS, **no build step and no dependencies**. Scripts are classic `<script>` tags (not ES modules) so `index.html` also works from `file://`.
 - **No audio files.** All sound is synthesised in `js/audio.js` with the Web Audio API. The `AudioContext` must only be created from a user click (the Begin button) — keep it that way.
 - Difficulty lives in `levelConfig()` in `js/level.js`.
-- **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 13: levels 1-13). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
-- **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **one deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
+- **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 16 since v14.0: levels 1-16). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
+- **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **first deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
+- **Levels 14-16** (`js/story.js`, v14.0) are hand-drawn in the same way, take no medals, and hand straight on to one another; the end-of-game stub comes after 16. Level 15's false light is the **second deliberate exception**, held to the same rule (clipped to the player's own line of sight). The Warden that hunts on 15-16 is tuned by exactly two numbers, `WARDEN_SPEED` / `WARDEN_UPGRADED_SPEED` in `js/level.js` (fractions of the player's walking speed), and has **no abilities until the owner names them** - add one as an entry in `ABILITIES` in `js/warden.js` and its name in a variant's list; never by rewriting the hunt. **Prove 16 is still fair after any change near it** with `tools/story-bot.js` (a clean run, wrong turns, pauses - see v14.0).
 - **Lore fragments** (`js/lore.js`, v13.0) are the one thing added TO levels 1-12 since they were built, at the owner's request. They must stay unable to move anything else: placed AFTER `generateLevel` from their own random stream, never drawing from the generator's sequence or `Math.random`, never blocking movement or a ripple, never read by anything that decides an outcome. **Prove it after any change near them** with `tools/generator-fingerprint.js` (`9097b344` as of v13.0) and `tools/identity-test.js` runs that use `visit`/`at` so a fragment is really read.
 
 ## Ripple range (owner's request; tools will build on it later)
@@ -966,6 +968,253 @@ size, `R` = 11 px). One title legend row, "Left behind", shows both.
    silently dropped the `$(...)`, leaving `.classList...` on its own line - caught only by a syntax error on
    load. Edit anything containing `$(` with the Edit tool.
 
+## v14.0: levels 14-16 - the gaol, the false exit, the upgraded Warden (owner's brief, MAJOR)
+
+Owner: three fixed, hand-authored levels built the same way as level 13, following straight on from the capture.
+**14, the gaol**: no enemies; cinematic (wake-up, ripples revealing bars and stone, dripping, a deliberate reveal
+of the key, the door unlocking, a final beat walking out); a new KEY mechanic - a ripple-revealed floor object
+like puddles, decoys and fragments, its own look and pickup sound, a carried indicator, the exit locked with
+feedback until it is picked up. **15, the false exit**: light peeks through ahead as if it opened on the world -
+warm light, a softer sound, a clear path - and it is the Warden; it reveals itself, then you escape it for the rest
+of the level; reuse the v12.2 look and sound. **16**: another Warden, stronger, its own layout and feel, fair.
+**The Warden's behaviour**: detects everything (ripples, noise, scent, crouching, muffling and decoys neither hide
+nor distract), **75%** of the player's normal walking speed on 15 and **105%** on 16, both named constants in
+one place, structured so abilities can be added per variant without a rewrite, **and no invented abilities**;
+touching it is a death by the same touch rules, with the death tips and near misses. Levels 1-12 untouched
+(prove it with `tools/generator-fingerprint.js`), no lore fragments on 14-16, no explaining what the Warden is.
+
+### Levels 1-12 did not move
+
+- **Generator fingerprint `9097b344`** - the same as v11.6 and v13.0 - with the sanity field describing a real
+  level 12 (37x29, echo + singer, 72 path tiles). `levelConfig` and `generateLevel` gained one early return
+  each for `isStoryLevel(n)` (14-16), **before** `mulberry32` is constructed, exactly like the tutorial's and
+  level 13's; no level 1-12 config changed (the fingerprint hashes every `cfg`).
+- **Eleven scripted `tools/identity-test.js` games identical to v13.0**: the usual eight (normal L3/s5, easy
+  L5/s11, hard L7/s3, normal L8/s7 with mimic reveals, hardcore L9/s2, easy L10/s6 with cues, hard L11/s4 chase,
+  normal L12/s9 chase - 1,200 frames each: `5e02174d` / `67675ca5` / `d72d0668` / `e44f30fa` / `820d314c` /
+  `ed3f918f` / `e15cce08` / `490fcf8f`) and three that really READ a lore fragment (`visit`/`at`: easy L4/s3,
+  normal L8/s7, easy L12/s2 - `a36ce892` / `e84d1c34` / `dd6b13f3`, 3 reads on each build), because the flat-object
+  code those go through (`castRipple`'s `flats`, the marks loop) is where the key was added. `artRandomCalls` 0.
+- **Level 13's stone is identical, cut for cut.** `js/warden.js`'s table builders were made generic
+  (`carveOutline`, `carveJoints`, `carveCourses`, `carveCracks`, `carvePits`, `carveSeam`, `carveJag`) so the
+  hunting Warden is carved by the same code. Proved by evaluating v13.0's `warden.js` with its tables exported
+  and comparing JSON: OUTLINE, JOINTS, COURSES, CRACKS, PITS, SEAM and LIMB_JAG all identical, and `BODY` and
+  `MAP` too. `wardenCheck()` on 13 unchanged (27x21, 195 floors, 7 dead ends, 1 mouth, 74, door sealed, 24 circles).
+- Every new branch in `js/game.js` is behind `level.story`, `e.kind === 'warden'`, `rp.ambient` or `scriptLock`
+  (always false on 1-12), and `makeEnemy` draws exactly the same `Math.random` numbers for every other kind.
+
+### Where it lives
+
+- **`js/story.js` (`EchoStory`)**, loaded after `js/warden.js`. `build(n, cfg)` returns the maze in exactly the
+  shape `generateLevel` returns (plus `level.story`), and draws **no random numbers at all**. `create(env)` is the
+  scripted beats, the drips, the false light and the speech line; it can only do what `env` lets it (take/give the
+  controls, walk the player, open a tile, wake/hold/reveal the Warden, send a drip, speak, set the key, change the
+  music mood, show the banner, say the level is done). Map legend: `#` wall, `.` floor, `S`/`X` start/way out,
+  `b` a row of bars across the tile, `o` an open cell door, `D` the gaol door, `K` the key, `W` a Warden, `P` a
+  sealed passage, `p` a pillar, `d` a drip. **`build()` asserts the things the levels depend on** (as level 13's
+  does): the way out reachable once everything opens; on 14 and 15 NOT reachable before (on 14 that is the whole of
+  "the key cannot be skipped"); on 16 the Warden's pocket sealed in; the key reachable.
+- **`js/level.js`**: `STORY_FIRST` 14, `STORY_LAST` 16, `isStoryLevel(n)`, `storyConfig(n, mode)` (the plain curve
+  for that level and mode, every generated monster/puddle/decoy zeroed - level 13's rule). **`WARDEN_SPEED = 0.75`
+  and `WARDEN_UPGRADED_SPEED = 1.05`** live here, beside the other monster speed constants, as fractions of the
+  player's walking speed (`WALK_SPEED` 170 in game.js). Those two numbers are the whole of the Warden's tuning.
+- **`js/warden.js`**: `VARIANTS` (`regular`: speed `WARDEN_SPEED`, r 18, sealed seam; `upgraded`: speed
+  `WARDEN_UPGRADED_SPEED`, r 18, the seam standing a little open and brighter edges - drawing only), **`ABILITIES` =
+  `{}`** and `abilitiesOf(id)`. An ability is an object of optional hooks the hunt calls at fixed points -
+  `start(e, api)`, `update(e, dt, api)`, `speed(e, px, api)`, `draw(ctx, e, o)` - so a new one is an entry in
+  ABILITIES plus its name in a variant's list, and the hunt is never rewritten. Both lists are empty (owner: do not
+  invent abilities). `drawHunter(ctx, x, y, r, o)` draws it.
+- **`js/game.js`**: the Warden is an ordinary member of `enemies` (`kind: 'warden'`) - so the catch, near-miss,
+  heartbeat/danger, death-tip, Doppler and wall-muffling code all apply to it - with `updateWardenHunt`,
+  `wakeWarden`, `storySolids`, `visibleFrom`, `drip`, `onStoryCleared`, `onStoryEnd`, and the controls lock
+  `scriptLock` / `scriptWalk`.
+
+### The hunt (`updateWardenHunt`)
+
+States: `dormant` (in the stone - solid like a wall, silent, never deadly, skipped by danger and near misses) ->
+`hunt`. While hunting it re-plans `setPathTo(player)` **every frame** - it knows where you are, always - and
+`followPath` moves it `speed x dt` along that path. Nothing else reaches it: `touchMonsters` only handles echo /
+mimic, the listeners and scent code filter by kind, and **`callMonsters` skips it** (no decoy exists on 15-16, but
+if one did it would not be distracted). `held` freezes it for the level's last beat. **Touch = death by the same
+rule as every monster - circles overlapping** - with its own circle (`e.r + PLAYER_R` = 27 px, because it is
+bigger than a monster's 14); the near-miss margin is 1.5x that reach, the same rule as the others. Its `why` is
+`hunt` (15) or `upgraded` (16), and `js/feedback.js` has three tips for each that say what it DOES, never what it
+is; the stats count it as `warden`, shown in Settings as **"Hunted down (levels 15-16)"** - the name "Warden" is
+never on screen.
+
+**Measured speed** (on the real levels, after the real reveal / release, both moving along a straight corridor,
+a 1.5 s window): player **170.0000 px/s**; regular Warden **127.5000 px/s = 0.75000x**; upgraded **178.5000 px/s =
+1.05000x**. Note for the owner (reported): 178.5 px/s is faster than EVERY other monster's walking/chasing speed in
+the game (all are capped under 170); only the Singer's leap is faster. Built as specified.
+
+### Level 14: the gaol
+
+27x11 tiles: a corridor of eight barred cells (four open, four shut), the gaol door at its east end, and a short
+passage beyond it to the way out. **Bars** are ordinary obstacles (`bar: true`, r 3.4, three per tile across its
+middle, 6-7 px apart): the player (18 px across) cannot pass, a ripple's rays can, so a ripple shows the cells
+dashed through their fronts; drawn with `EchoArt` `bar`. **The gaol door** is a slab of three overlapping circles
+(r 8 at -12 / 0 / +12 px) filling its doorway, so what a ripple finds and what stops you is the shape drawn
+(`EchoArt` `door`: slab, two bands, rivets, keyhole, swinging back on its hinge as it opens), in the way out's
+colour with the way out's bell (its three parts ring once: they share one echo bin). **The key** is pushed into
+`castRipple`'s `flats` exactly like a puddle, decoy or fragment (`T_KEY` = 12, a flat mark, so `NRAYTYPES` is
+unchanged), with `EchoArt` `key` (ring bow with a hole, shaft, two teeth), `audio.echoKey`, and a `key: true` on
+its mark. **The beats**, all on the game's clock (pausing freezes them):
+
+1. **Wake** (4.6 s, controls taken): black; `audio.wakeUp` (ringing ears, three slowing heartbeats - none in calm
+   mode); the dark lifts over 2.6 s; a breath; a drop lands beside you and its ripple shows the cell and its bars;
+   "...Still breathing." Then the controls, and 1.8 s later the hint banner (after the line, not over it).
+2. **The door, locked**: pushing into it rattles it (`audio.doorRattle`, `[the door rattles: locked]`, an exit cue
+   at the door); the first time, "Locked." - and the drop over the key starts (it lands on metal: `dripMetal`).
+3. **The key's moment**: the first time a wave (yours or a drop's) lights the key while you have line of sight to
+   it within 380 px, the controls go for 1.6 s and the camera leans towards it (`camera()`, 0.7 of the way; 0.45 and
+   slower in calm mode), `[metal glints]`, "A key."
+4. **Pickup**: walk onto it - `audio.keyPickup`, `[you take the key]`, HUD **Key** (in the key's colour) and a
+   small key drawn at your side.
+5. **Unlock** (2.5 s, controls taken): the key turns, the bolt draws back, the door grinds open and swings (shake 3,
+   none in calm); at 2.0 s the slab stops being solid and its tile opens.
+6. **Out**: reaching the way out walks you on south for 3.4 s while the cold comes up the passage
+   (`audio.draught`, `[cold air]`), "Out. Not free. Just out.", fade to black - and level 15.
+
+**The key cannot be skipped** (tested): a bot that never takes it pushed on the door for 60 s (34 tries) and never
+got through; pushing into it from five angles stopped the player at x = 923.04 (the slab's face at 932 minus the
+player's 9); a closed cell's bars held at y = 152.4 (140 + 3.4 + 9); and the way out is unreachable on the map
+while the door is shut (`build()` asserts it).
+
+**Drips** (`env.drip`, levels 14 and 16): `castRipple(x, y, 76, { ambient: true })` - the real ripple through the
+same code as yours, lighting walls, bars and the key the same way - drawn at 0.62 alpha, with **no echoes**,
+**no monster touches**, and kept by a crouch (like a singer's wave: it is not yours). `audio.drip` (muffled through
+walls like every placed sound) and a `drip` cue. Each spot drips on its own period from a private xorshift.
+
+### Level 15: the false exit
+
+31x23 tiles. The first part winds to a junction; from there a straight passage of 17 tiles runs east to where the
+Warden stands, dormant, filling the passage's end. **The light**: drawn on its own, warm (`255,214,160`), the
+second deliberate exception to "you never see without a ripple" - and held to level 13's rule that it is an
+exception to the ripple, never to the walls: everything is clipped to `visibleFrom(player)` (a 360-ray
+line-of-sight polygon from where the player stands) and multiplied by `sight`, the fraction of six points across
+the light the game's own `hasLOS` can reach. It is a pool of warm light, the stone around it lit warmly (240 rays
+cast once from the light), a glare, and a crack of light in what looks like stone - the Warden's seam
+(`drawHunter` with `lure`). **Sweep over every floor tile** with an independent oracle (a 2 px march to a spread of
+points in the glare), counting warm pixels on the canvas: **drawn on 12 tiles, the oracle sees it from 12, 0 leaks,
+0 missed.** Hope, on purpose: the first time it is in view, "...Light?", the `hope` mood (major pentatonic, the
+warmest in the score) and `audio.startDaylight` - air and a warm major chord that grow as you get nearer
+(`setDaylight`), and now and then birdsong; within 420 px, "Is that... outside?". The real way out is **silent**
+until the reveal (`exitMuted`): it is behind sealed stone, and a chime from elsewhere would give the lie away.
+
+**The reveal** (controls taken when your front is within 150 px of it): the soft sound is CUT dead, the music
+stops, the light dips twice (under 2 Hz; a plain dimming in calm mode) and goes out; you flinch - the same
+involuntary ripple as level 13 (`env.gasp`) - and when that wave REACHES it (its travel time, worked out), it is
+shown for what it is (`litByWarden` re-colours the rays that came back as stone), `wardenReveal` + a short
+`wardenTake`, a flare (x0.3 in calm), shake (none in calm), `[the light moves]`, and its limbs reach towards you -
+level 13's limbs, at its size (`reach` 0.55, then back). At 1.0 s the sealed passage 2.4 tiles behind you cracks
+open (`stoneGrind`, shake 9, `[stone grinds open behind you]`); at 1.85 s the way out starts to chime, the `hunt`
+mood starts, and "Run."; you have the controls at 1.9 s; **it starts after you at 2.6 s** (`REVEAL_WAKE`).
+
+### Level 16: another one
+
+37x26 tiles, its own shape: an antechamber, a long corridor, two **galleries with pillars**, two long switchbacks
+between them and a final run down to the way out, with **water dripping along the way out** (seven drip spots on
+the route, none in the five short dead ends) - "follow the water" is in the level's hint, and it is what makes a
+blind escape from something faster than you fair. Its own sound: water moving under the floor
+(`audio.startCistern`), the `cistern` mood, and the upgraded Warden's heavier steps, which kick the screen a
+little when it is close (not in calm mode). The upgraded Warden is sealed in a pocket behind the antechamber
+(`build()` asserts nothing can reach it). **The release**: stepping into the first gallery - stone splits far behind
+you (`stoneSplit`, panned to it, shake 7, `[stone splits, far behind you]`), the seal opens, "Another one."; you
+have the controls at 1.6 s (and the `hunt` mood, and a message 1.4 s later: "Faster than you"); **it comes out of
+the wall at 3.0 s** (`RELEASE_WAKE`). That 1.4 s is part of the head start, and the head start is what makes it fair.
+
+**Fairness, measured** (`tools/story-bot.js`, Normal; the gap is ALONG THE PATH between their tiles, not through
+walls): a clean run reaches the way out **560 px** ahead of it; one 2-tile wrong turn **440**; two **360**;
+standing still 1 s **400**, 2 s **200**, 3 s **caught**; two wrong turns plus wandering back through the second
+gallery **caught**. So it slowly catches you if you make mistakes - about three seconds of hesitation in all, or a
+few wrong turns. (Before the 1.4 s was added a clean run arrived only 320 px ahead - two wrong turns and you were
+dead - which was too tight for a blind player.) Level 15, for comparison: a clean run leaves it 600 px behind.
+
+### Integration (the owner asked for these to be flagged)
+
+- **Difficulty modes and calm mode: level 13's rules.** The same mazes in every mode; the ordinary curve's ripple
+  range and recharge for 14-16 (the range is at its floor: 288 / 247 / 211 / 204 px, recharge 1.2 / 1.455 / 1.725
+  / 1.8 s); **the Warden's speed is the same in every mode** (the owner gave exact fractions; flagged - it is the one
+  thing a mode could scale if wanted); Hardcore is one life (caught on 15/16 -> the title with the tip). Calm mode
+  removes every shake (story `quake`, the upgraded Warden's step kick), softens the reveal's flare to 0.3, the
+  light's flicker to a plain dimming and the startling sounds; the gameplay is identical (the bot's leads at the
+  way out are the same with it on).
+- **No "Level cleared" screen between 13, 14, 15 and 16**: each hands straight on to the next (`env.finish` ->
+  `onStoryCleared` -> `saveBest(n+1)`, `addClear`, `startLevel(n+1)`), starting in the dark the last ended in. The
+  "Progress saved" toast waits for the next level's first release of the controls (`savedPending` / `env.ready`).
+- **Medals: none for 13-16** (`MEDAL_LEVELS` stays 12). **Progress / level select**: `CAMPAIGN_LEVELS` =
+  `STORY_LAST` = 16; the level grid shows 1-16 (13-16 without pips); best 17 = "Finished". An old save that
+  finished v13.0 (best 14) now reads "Best: Lv 14" and offers **Continue (Level 14)**. **Replay screen**: no new
+  cutscene entries - the beats are in-level, like the capture; levels 13-16 are replayable from the level grid.
+- **The ending moved.** v12.0-v13.0 showed the `#ending` stub straight after level 13's capture (`onCaptured`).
+  Now the capture hands on to level 14 (`onCaptured` -> `startLevel(14)`), and the stub (`onStoryEnd`, text "Behind
+  you, the stone settles. Ahead, the dark goes on." + "This is as far as the maze goes for now...") comes after
+  level 16's way out. There are still no credits anywhere in the game.
+- **Lore fragments**: untouched; `EchoLore.place` returns null for any level without a fragment, so 14-16 have none.
+- **A bug found and fixed on the way**: Settings -> Stats & Medals counted the whole campaign (13 levels, "of 39"
+  and an always-empty cell 13) while the title said "of 36". It now asks `env.medalLevels()`: 12 cells, "of 36".
+- **A latent bug found and NOT fixed (flagged)**: level 13's `JOINTS` have never been drawn - `rim()` passes
+  `[x1, y1, x2, y2]` rows to `lines()`, which wants `[[x, y], ...]`, so every `moveTo` gets `undefined` and the
+  canvas ignores it. Left alone so level 13 looks exactly as the owner approved it in v12.2; the hunting Warden
+  copies that approved look (no joints). Switching them on is a one-line change in `rim()`.
+
+### Words on screen (none of them explains what the Warden is)
+
+The player speaks for the first time - in the cutscenes' formant voice (`audio.speak`, pitch 0.94), typed in a box
+labelled **You** (`#say`, the lore line's plate; at the top in touch mode): "...Still breathing." / "Locked." /
+"A key." / "Out. Not free. Just out." (14) - "...Light?" / "Is that... outside?" / "Run." (15) - "Another one." (16).
+Hints: 14 "Somewhere in here is the key. The door at the end will not open without it." / 15 "Keep going. Somewhere
+ahead, the dark gives way." (the lure, on purpose) / 16 "Somewhere below, water drips towards the way out. Follow it,
+and whatever happens, keep moving." The ending stub as above. Captions for every sound (Visual cues).
+
+### Look, sound, colour
+
+- **The hunting Warden** (`drawHunter`): six overlapping circles in a design space of radius 72 (facing +x), carved
+  by the same functions as level 13's mass with its own seeds and smaller facets, drawn at r 18 in the same passes
+  (black punch of the true union, faint fill, glowing crest, core line, courses, chips, forked cracks, the seam),
+  facing the ripple's origin like every monster. It is drawn only when a ripple lights it (`drawLit` T_WARDEN with
+  `c.enemy`); before it shows itself it is STONE to a ripple (T_WALL with `warden: true`, re-typed by
+  `litByWarden`), level 13's trick. The upgraded one's seam stands open and its edges are brighter (drawing only).
+- **Sound**: `_wardenVoice` - level 13's drone (the tritone, the noise through a waveshaper) made into a voice that
+  walks, with the usual wall muffling and Doppler, heard from 950 px; `wardenStep` (heavier for the upgraded one);
+  `wardenGrab` when it catches you. Plus `wakeUp`, `drip`, `dripMetal`, `echoKey`, `keyPickup`, `doorRattle`,
+  `doorUnlock`, `doorOpen`, `draught`, `startDaylight`/`setDaylight`/`stopDaylight`, `birdChirp`,
+  `startCistern`/`stopCistern`, `stoneGrind`, `stoneSplit`; moods `gaol`, `hope`, `hunt`, `cistern`
+  (`music.start` now also takes a mood's name). **All built and checked on a live AudioContext, none heard by ear.**
+- **Cues**: two new glyphs - `warden` (an uneven block with a seam of light) and `drip` (a falling drop, wall
+  colour) - in the title's cue legend too.
+- **Colour**: a `key` role, kept out of the nine-way check like `warden` (the gaol holds only walls, bars
+  = obstacle, the door = exit and the key). Picked with `tools/palette-check.js` as the nearest to old brass whose
+  nearest neighbour among those three, under every vision the palette targets, is further than the palette's own
+  worst ripple pair (+2): default `235,210,135` (14.0 vs 11.9), red-green `235,205,130` (22.5 vs 16.9), blue-yellow
+  `240,205,125` (16.1 vs 13.7), High contrast `215,220,175` (19.2 vs 17.2). The warden colour against level 16's
+  walls / pillars / exit: 24.9 / 17.5 / 27.5 / 25.0 (default / protan / tritan / contrast).
+
+### Other tests
+
+- **Completable on every difficulty**: `StoryBot.run` (real key presses, BFS over the live map) cleared 14, 15
+  and 16 in all four modes, and again with calm mode on - 14 in 17.65 s, 15 in 20.35 s, 16 in 21.48 s.
+- **Soak**: 58,100 + 11,992 frames of random play (random headings, pings, crouches, pause/resume, the player
+  stood by the key / the door / the light / the tripwire) over 4 modes x calm x cues x levels 14-16, drawing every
+  third frame: **0 exceptions**, 40 deaths to the Warden, every phase reached.
+- **The hand-offs**: 13's capture -> level 14's wake in the same black (4.1 s from walking in); 14 -> 15 -> 16 ->
+  the ending; Hardcore caught on 15 -> the title with the tip; Normal caught on 16 -> Try again restarts 16 from its
+  own beginning, the Warden sealed in again.
+- **Pausing** mid-beat freezes it (beat clock 1.0 -> 1.0 while paused); **touch**: the controls are hidden while a
+  beat has them, and the speech box moves to the top.
+
+### Lessons
+
+1. **Measure the chase along the path, not through the walls.** The bot's first "closest the Warden came" said
+   93 px on level 16 - in the switchbacks, where it was one wall away and 15 tiles of walking behind. The number
+   that decides a catch is the distance it has to walk.
+2. **A fair escape from something faster than you is built out of a head start, and the head start has to be
+   measured.** The first layout looked generous on paper (15 tiles) and left a clean run 320 px ahead - two wrong
+   turns from death, for someone who cannot see. 1.4 s more of it climbing out of the wall made it 560.
+3. **Two things that share the bottom of the screen will meet.** The level banner and the new spoken line sat at
+   12% and 11%; on level 14 the hint arrived while "...Still breathing." was still up. A spoken line now clears the
+   banner, and the hints that follow a line wait for it.
+
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
 Owner's brief: level 8 has 1 mimic, 1 echo, 1 scent. The mimic "mimics the end": same green glow, same sound as being near an exit, and "the second your echo touches it, it turns into an echo monster". The sonar decoy (first built on level 8 in v6.0; the owner then moved it to the NEW level 9 in v7.0, `DECOY_FROM_LEVEL` = 9, so level 8 has no decoy): one per level from level 9; collect it, drop it with E (never more than one carried), and 5 seconds after dropping it attracts ALL monsters in a fairly large radius (one time use), including a mimic that has not turned yet; attracted monsters pathfind to it and are trapped there for 5 seconds after they ARRIVE before returning to normal.
@@ -1021,6 +1270,6 @@ All are scripted in a hand-built stage (a corridor with side passages); the intr
 
 ## Testing
 
-Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `ripples`, `marks`, `crouch`, `decoys`, `dropDecoy`, `rippleRange`, `cues`, `captionText`, `features`, `seed`, `snapCamera(x, y)`, `zoom(v)`, `artClock(t)`, `showMuffler(on)`, `newMonsters()`, `markBy(singer)`, `touch`, `soundBlocked`, `setVisualCues`, `setTouchControls`, `audio`; and for the tutorial `go(0)`, `startTutorial('intro'|'title')`, `skipTutorial`, `leaveTutorial`, `tutorialState()`, `tutorialSteps()`, `newPlayer()`, `setTutorialDone(on)`; and for the title wordmark `wordmarkState()`, `wordmarkReveal(withSound)`, `wordmarkTick(seconds)`, `wordmarkSeek(u, isReveal)` and `wordmarkRelease()`, plus `ui()` and `transition(fn)` for the screen fades, and `deathTip()`, `tipFor()`, `whyOf()`, `nearMiss()`, `forceNearMiss()`, `savedToast()` and `showSaved()` for the v11.6 feedback layers; and for level 13 `go(13)`, `wardenState()`, `wardenCheck()` (the hand-drawn level's shape, dead ends, ways into the room, start-to-room distance and whether the door is sealed), `wardenDread(x, y)`, `captureStep(secs)` (`step()` cannot drive the capture: `updatePlay` is not running once the controls are gone), `gasp()` (the involuntary ripple walking into the great room sends) - seek FREEZES the frame, which is the only way to photograph the same instant of the sweep with calm mode off and on: the rAF loop otherwise repaints over it before the screenshot is taken). `settings()` = `{ campaignLevels (13), medalLevels (12), warden: {level, insideX, waveFallback, dreadTiles, at}, lore: {total, found, chance, bonus, here}, tutorial: {level, done, after, newPlayer, steps, at}, palette, showTimer, volumes, keyBindings, medalPar, music, muffler, singer, mode, calm, visualCues, touchControls: {on, saved}, audioFx, progress, seen }`. To photograph cues: build the scene and call `__echo.snapCamera(); __echo.draw()` in ONE call, copy the region round the player onto a temporary big `<canvas>` you leave on the page (the game keeps running in real time between calls, so one-shot cues fade before a screenshot), and take two screenshots. For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `intro('mimic')` the 7 -> 8 scene (scene starts at 4.4s: `csTo(20.4)` is the moment the wave touches it, `csTo(21.3)` the hit); `intro('decoy')` the 8 -> 9 scene (starts at 4.6s: the decoy calls at `csTo(21.0)`, the monsters are held by ~23); `intro('stalker')` the 9 -> 10 scene (starts at 4.4s: `csTo(4.4 + 3.7)` the stalker hears them, `+ 6.2` they crouch, `+ 7.96` it reaches the spot, `+ 9.2` it gives up, `+ 15.6` the closing card - the card and subtitles fade in real time, so wait ~2s before a screenshot); `__echo.advance()` does what the Next level button does. **Testing the stalker / crouching** (all done this way in v8.0, no node needed): mute first (`__echo.audio.setMuted(true)` before any `go`), `go(10)`, clear the maze for a clean field (`level.walls.fill(0); level.blocked.fill(0); level.obstacles.length = 0`), drop the other monsters from `info().enemies` (it is the live array), park the stalker with `s.pause = 99`, place things with `tp` and `s.x/s.y` (keep the player INSIDE the level bounds or they are stuck in a wall), and judge hearing with ONE frame (`step(1/60)`) so it does not move; hold keys with `window.dispatchEvent(new KeyboardEvent('keydown', {code:'ShiftLeft'}))`. Spy on `audio.*` methods to count footsteps / echo sounds. **To prove levels 1-12 did not move, load `tools/generator-fingerprint.js` into a `?debug` page of each build and compare `GENFP().combined`** (`9097b344` from v11.6 to v13.0) - and look at its `sanity` field, which must describe a real level 12 (37x29, an echo monster and a singer): the harness went two versions hashing nothing because `generateLevel` was called with the wrong arguments. The real signature is `generateLevel(n, runSeed, modeId)`. For the lore fragments: `lore()`, `placeFragment(level, seed, mode)`, `readFragment()`, `setLoreFound(ids)`, `showArchive()`. Compare generation with the previous `js/level.js` (`git show HEAD:js/level.js`, both evaluated with `new Function`) to prove old levels did not change. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
+Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `ripples`, `marks`, `crouch`, `decoys`, `dropDecoy`, `rippleRange`, `cues`, `captionText`, `features`, `seed`, `snapCamera(x, y)`, `zoom(v)`, `artClock(t)`, `showMuffler(on)`, `newMonsters()`, `markBy(singer)`, `touch`, `soundBlocked`, `setVisualCues`, `setTouchControls`, `audio`; and for the tutorial `go(0)`, `startTutorial('intro'|'title')`, `skipTutorial`, `leaveTutorial`, `tutorialState()`, `tutorialSteps()`, `newPlayer()`, `setTutorialDone(on)`; and for the title wordmark `wordmarkState()`, `wordmarkReveal(withSound)`, `wordmarkTick(seconds)`, `wordmarkSeek(u, isReveal)` and `wordmarkRelease()`, plus `ui()` and `transition(fn)` for the screen fades, and `deathTip()`, `tipFor()`, `whyOf()`, `nearMiss()`, `forceNearMiss()`, `savedToast()` and `showSaved()` for the v11.6 feedback layers; and for level 13 `go(13)`, `wardenState()`, `wardenCheck()` (the hand-drawn level's shape, dead ends, ways into the room, start-to-room distance and whether the door is sealed), `wardenDread(x, y)`, `captureStep(secs)` (`step()` cannot drive the capture: `updatePlay` is not running once the controls are gone), `gasp()` (the involuntary ripple walking into the great room sends) - seek FREEZES the frame, which is the only way to photograph the same instant of the sweep with calm mode off and on: the rAF loop otherwise repaints over it before the screenshot is taken). `settings()` = `{ campaignLevels (13), medalLevels (12), warden: {level, insideX, waveFallback, dreadTiles, at}, lore: {total, found, chance, bonus, here}, tutorial: {level, done, after, newPlayer, steps, at}, palette, showTimer, volumes, keyBindings, medalPar, music, muffler, singer, mode, calm, visualCues, touchControls: {on, saved}, audioFx, progress, seen }`. To photograph cues: build the scene and call `__echo.snapCamera(); __echo.draw()` in ONE call, copy the region round the player onto a temporary big `<canvas>` you leave on the page (the game keeps running in real time between calls, so one-shot cues fade before a screenshot), and take two screenshots. For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `intro('mimic')` the 7 -> 8 scene (scene starts at 4.4s: `csTo(20.4)` is the moment the wave touches it, `csTo(21.3)` the hit); `intro('decoy')` the 8 -> 9 scene (starts at 4.6s: the decoy calls at `csTo(21.0)`, the monsters are held by ~23); `intro('stalker')` the 9 -> 10 scene (starts at 4.4s: `csTo(4.4 + 3.7)` the stalker hears them, `+ 6.2` they crouch, `+ 7.96` it reaches the spot, `+ 9.2` it gives up, `+ 15.6` the closing card - the card and subtitles fade in real time, so wait ~2s before a screenshot); `__echo.advance()` does what the Next level button does. **Testing the stalker / crouching** (all done this way in v8.0, no node needed): mute first (`__echo.audio.setMuted(true)` before any `go`), `go(10)`, clear the maze for a clean field (`level.walls.fill(0); level.blocked.fill(0); level.obstacles.length = 0`), drop the other monsters from `info().enemies` (it is the live array), park the stalker with `s.pause = 99`, place things with `tp` and `s.x/s.y` (keep the player INSIDE the level bounds or they are stuck in a wall), and judge hearing with ONE frame (`step(1/60)`) so it does not move; hold keys with `window.dispatchEvent(new KeyboardEvent('keydown', {code:'ShiftLeft'}))`. Spy on `audio.*` methods to count footsteps / echo sounds. **To prove levels 1-12 did not move, load `tools/generator-fingerprint.js` into a `?debug` page of each build and compare `GENFP().combined`** (`9097b344` from v11.6 to v13.0) - and look at its `sanity` field, which must describe a real level 12 (37x29, an echo monster and a singer): the harness went two versions hashing nothing because `generateLevel` was called with the wrong arguments. The real signature is `generateLevel(n, runSeed, modeId)`. For the lore fragments: `lore()`, `placeFragment(level, seed, mode)`, `readFragment()`, `setLoreFound(ids)`, `showArchive()`. For levels 14-16 (v14.0): `go(14..16)`, `storyState()`, `scriptLock()`, `hunter()`, `wakeHunter()`; `step()` drives them (their beats run inside `play`). **`tools/story-bot.js` plays them through the real keys** - `StoryBot.run({ level, mode, detours, pauses, skipKey, tryDoorFirst })` - and reports whether it cleared, was caught, and the gap to the Warden ALONG THE PATH (never measure the chase through the walls). The pane only runs animation frames while a screenshot is being taken, so to photograph a moment, `draw()` it and copy the canvas into an overlay canvas first (and dispatch a `resize` event after a reload, or the canvas is 0x0). Compare generation with the previous `js/level.js` (`git show HEAD:js/level.js`, both evaluated with `new Function`) to prove old levels did not change. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
 
 Web Audio gotcha: a `GainNode` sits at gain 1.0 until its first scheduled event, so if an oscillator starts before its envelope does you get a full-scale click. Start the oscillator and its `_env` at the same time. `step(seconds)` runs the simulation without needing animation frames, which is handy in headless/embedded browsers. Synthetic key events need `code` set (e.g. `new KeyboardEvent('keydown', {code: 'Space'})`).

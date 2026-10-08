@@ -31,6 +31,12 @@
  *
  * Everything before the reveal is COSMETIC: the ramp never touches collision, movement speed, ripple range or
  * accuracy, or any other simulated value. Calm mode softens and slows it and never removes it.
+ *
+ * AND THE ONES THAT HUNT (levels 15 and 16, v14.0). The same creature, at the size of a corridor: VARIANTS says
+ * what each Warden is (how fast - a fraction of the player's own walking speed, set in js/level.js - how big,
+ * how it is drawn, and which ABILITIES it has; none yet), and drawHunter draws it with level 13's own stone,
+ * cut by the same carving functions from seeds of its own. How it hunts lives in js/game.js (updateWardenHunt),
+ * and where it waits and when it wakes in js/story.js.
  */
 const EchoWarden = (() => {
   const TAU = Math.PI * 2;
@@ -121,13 +127,18 @@ const EchoWarden = (() => {
     };
   }
 
-  const MID = { x: 948, y: 220 }; // the middle of the mass: what its outline is cut around
-
-  /** How wide the body is at this height: [left, right] in px, or null above or below all of it. */
-  function spanAt(y) {
+  /**
+   * THE CARVING. Everything that makes a Warden look like worked stone rather than a blob is cut here, by the
+   * same code, for any body made of overlapping circles: level 13's great mass below, and the smaller Warden
+   * that hunts you on levels 15 and 16 (HUNTER, further down). Each function takes the body and its own seed and
+   * does exactly what the level-13 tables were always built with - the numbers that size the stonework are
+   * options whose defaults ARE level 13's, so its stone comes out the same, cut for cut.
+   */
+  /** How wide a body is at this height: [left, right], or null above or below all of it. */
+  function spanOf(body, y) {
     let L = Infinity;
     let R = -Infinity;
-    for (const c of BODY) {
+    for (const c of body) {
       const dy = y - c.y;
       if (Math.abs(dy) >= c.r) continue;
       const w = Math.sqrt(c.r * c.r - dy * dy);
@@ -138,13 +149,15 @@ const EchoWarden = (() => {
   }
 
   /**
-   * THE CREST - what you see. The circles above are what a ripple hits and what stops you; they are a smooth
-   * blob, and a smooth blob is not what this is. So the union's boundary is walked once here and cut into a
-   * few dozen long, uneven facets, every one of them pulled INWARDS (so the drawn stone can never claim a
-   * millimetre of room the solid body has not got) and roughly one in six of them bitten back into a deeper
-   * cleft. Nothing about it is regular and nothing about it is symmetrical: it is worked stone, not an animal.
+   * THE CREST - what you see. The circles are what a ripple hits and what stops you; they are a smooth blob, and
+   * a smooth blob is not what this is. So the union's boundary is walked once and cut into long, uneven facets,
+   * every one of them pulled INWARDS (so the drawn stone can never claim a millimetre the solid body has not got)
+   * and roughly one in six of them bitten back into a deeper cleft. Nothing about it is regular and nothing about
+   * it is symmetrical: it is worked stone, not an animal.
    */
-  const OUTLINE = (() => {
+  function carveOutline(body, mid, seed, o = {}) {
+    const facet0 = o.facet0 === undefined ? 24 : o.facet0;
+    const facetVar = o.facetVar === undefined ? 34 : o.facetVar;
     const N = 288;
     const raw = [];
     for (let i = 0; i < N; i++) {
@@ -152,18 +165,18 @@ const EchoWarden = (() => {
       const dx = Math.cos(th);
       const dy = Math.sin(th);
       let far = 0;
-      for (const c of BODY) {
-        const mx = MID.x - c.x;
-        const my = MID.y - c.y;
+      for (const c of body) {
+        const mx = mid.x - c.x;
+        const my = mid.y - c.y;
         const b = mx * dx + my * dy;
         const disc = b * b - (mx * mx + my * my - c.r * c.r);
         if (disc < 0) continue;
         const d = -b + Math.sqrt(disc);
         if (d > far) far = d; // the far side of the outermost circle along this ray IS the union's edge
       }
-      raw.push({ th, d: far, x: MID.x + dx * far, y: MID.y + dy * far });
+      raw.push({ th, d: far, x: mid.x + dx * far, y: mid.y + dy * far });
     }
-    const R = rng(0x57a9e1);
+    const R = rng(seed);
     const out = [];
     let acc = 1e9;
     let want = 0;
@@ -171,38 +184,40 @@ const EchoWarden = (() => {
       const p = raw[i];
       const q = raw[(i + N - 1) % N];
       acc += Math.hypot(p.x - q.x, p.y - q.y);
-      if (acc < want) continue; // a facet every 24-58 px of edge, so no two are the same length
+      if (acc < want) continue; // a facet every 24-58 px of edge (on level 13), so no two are the same length
       acc = 0;
-      want = 24 + R() * 34;
+      want = facet0 + R() * facetVar;
       const cleft = R() < 0.17;
       const bite = cleft ? 0.085 + R() * 0.055 : R() * 0.045;
       const d = p.d * (1 - bite);
-      out.push({ x: MID.x + Math.cos(p.th) * d, y: MID.y + Math.sin(p.th) * d, th: p.th });
+      out.push({ x: mid.x + Math.cos(p.th) * d, y: mid.y + Math.sin(p.th) * d, th: p.th });
     }
     return out;
-  })();
+  }
 
   /** Joints cut into the crest, at the same two-in-five the game's own walls have (js/art.js, wallTexture). */
-  const JOINTS = (() => {
-    const R = rng(0x1b4c07);
+  function carveJoints(outline, seed, o = {}) {
+    const len0 = o.joint0 === undefined ? 5 : o.joint0;
+    const lenVar = o.jointVar === undefined ? 8 : o.jointVar;
+    const R = rng(seed);
     const out = [];
-    for (const p of OUTLINE) {
+    for (const p of outline) {
       if (R() > 0.42) continue;
-      const len = 5 + R() * 8;
+      const len = len0 + R() * lenVar;
       out.push([p.x, p.y, p.x - Math.cos(p.th) * len, p.y - Math.sin(p.th) * len]);
     }
     return out;
-  })();
+  }
 
   /**
-   * Courses: the layers the stone lies in, and - like the masonry of the room it is standing in - broken
-   * along each one into blocks with gaps between them, rather than running the whole width as a single line.
+   * Courses: the layers the stone lies in, and - like the masonry of the room it is standing in - broken along
+   * each one into blocks with gaps between them, rather than running the whole width as a single line.
    */
-  const COURSES = (() => {
-    const R = rng(0x2c6f11);
+  function carveCourses(body, seed, y0, y1) {
+    const R = rng(seed);
     const out = [];
-    for (let y = -6; y < 456; y += 16 + R() * 11) {
-      const sp = spanAt(y);
+    for (let y = y0; y < y1; y += 16 + R() * 11) {
+      const sp = spanOf(body, y);
       if (!sp || sp[1] - sp[0] < 70) continue;
       let x = sp[0] + 8 + R() * 16;
       while (x < sp[1] - 24) {
@@ -217,16 +232,16 @@ const EchoWarden = (() => {
       }
     }
     return out;
-  })();
+  }
 
   /** And the cracks across them: jagged, forked - what gives away how long it has been standing here. */
-  const CRACKS = (() => {
-    const R = rng(0x3ff20d);
+  function carveCracks(body, seed, rows, y0, step) {
+    const R = rng(seed);
     const out = [];
     const walk = (x, y, dx, dy, n) => {
       const line = [];
       for (let i = 0; i <= n; i++) {
-        const sp = spanAt(y);
+        const sp = spanOf(body, y);
         if (!sp || sp[1] - sp[0] < 30) break;
         line.push([clamp(x, sp[0] + 8, sp[1] - 8), y]);
         x += dx * (0.7 + R() * 0.6);
@@ -235,11 +250,11 @@ const EchoWarden = (() => {
       return line.length > 1 ? line : null;
     };
     // Short steps and plenty of them: a crack is a jagged run of small kinks, not a long straight scratch.
-    for (let k = 0; k < 10; k++) {
-      const y0 = 8 + k * 42 + R() * 20;
-      const sp = spanAt(y0);
+    for (let k = 0; k < rows; k++) {
+      const yy = y0 + k * step + R() * 20;
+      const sp = spanOf(body, yy);
       if (!sp) continue;
-      const main = walk(sp[0] + 10 + R() * 50, y0, 9 + R() * 7, (R() - 0.5) * 13, 5 + ((R() * 4) | 0));
+      const main = walk(sp[0] + 10 + R() * 50, yy, 9 + R() * 7, (R() - 0.5) * 13, 5 + ((R() * 4) | 0));
       if (!main) continue;
       out.push(main);
       const j = main[Math.min(2, main.length - 1)];
@@ -247,19 +262,21 @@ const EchoWarden = (() => {
       if (fork) out.push(fork);
     }
     return out;
-  })();
+  }
 
   /** Pitting: the small angular chips a surface picks up over a very long time standing perfectly still. */
-  const PITS = (() => {
-    const R = rng(0x6a10bd);
+  function carvePits(body, seed, count, y0, span, o = {}) {
+    const len0 = o.pit0 === undefined ? 2 : o.pit0;
+    const lenVar = o.pitVar === undefined ? 4 : o.pitVar;
+    const R = rng(seed);
     const out = [];
-    for (let i = 0; i < 130; i++) {
-      const y = -6 + R() * 458;
-      const sp = spanAt(y);
+    for (let i = 0; i < count; i++) {
+      const y = y0 + R() * span;
+      const sp = spanOf(body, y);
       if (!sp || sp[1] - sp[0] < 44) continue;
       const x = sp[0] + 9 + R() * (sp[1] - sp[0] - 18);
       const th = R() * TAU;
-      const len = 2 + R() * 4;
+      const len = len0 + R() * lenVar;
       const bend = th + 1.6 + R() * 1.2; // two short strokes meeting at an angle: a chip, not a stick
       out.push([
         [x + Math.cos(th) * len, y + Math.sin(th) * len],
@@ -268,18 +285,17 @@ const EchoWarden = (() => {
       ]);
     }
     return out;
-  })();
+  }
 
   /**
    * The seam. NOT an eye - nothing down here has eyes - and not a mouth it eats with either: one closed line
-   * across the upper third of it, well off the middle, that is the only thing on the whole surface which is
-   * not masonry. It opens by a hair, and only while it is reaching.
+   * across the upper part of it, well off the middle, that is the only thing on the whole surface which is not
+   * masonry. On level 13 it opens by a hair, and only while it is reaching.
    */
-  const SEAM = (() => {
-    const y = 198;
-    const sp = spanAt(y);
+  function carveSeam(body, seed, y, along, tilt) {
+    const sp = spanOf(body, y);
     const len = (sp[1] - sp[0]) * 0.32;
-    const R = rng(0x4d3c21);
+    const R = rng(seed);
     const lip = [];
     const N = 10;
     for (let i = 0; i <= N; i++) {
@@ -287,8 +303,30 @@ const EchoWarden = (() => {
       // closed at both ends (sin), and no two bites of it the same depth
       lip.push([-len / 2 + len * u, Math.sin(Math.PI * u) * (0.55 + R() * 0.65)]);
     }
-    return { x: sp[0] + (sp[1] - sp[0]) * 0.44, y, len, tilt: 0.14, lip };
-  })();
+    return { x: sp[0] + (sp[1] - sp[0]) * along, y, len, tilt, lip };
+  }
+
+  /** A fixed row of half-width multipliers per limb, so a limb is knobbly in the same places every time. */
+  function carveJag(seed, limbs) {
+    const R = rng(seed);
+    const out = [];
+    for (let k = 0; k < limbs; k++) {
+      const row = [];
+      for (let i = 0; i < 29; i++) row.push(0.86 + R() * 0.3);
+      out.push(row);
+    }
+    return out;
+  }
+
+  // --- level 13's great mass, cut with level 13's own numbers (the same tables it has always had)
+  const MID = { x: 948, y: 220 }; // the middle of the mass: what its outline is cut around
+  const spanAt = (y) => spanOf(BODY, y);
+  const OUTLINE = carveOutline(BODY, MID, 0x57a9e1);
+  const JOINTS = carveJoints(OUTLINE, 0x1b4c07);
+  const COURSES = carveCourses(BODY, 0x2c6f11, -6, 456);
+  const CRACKS = carveCracks(BODY, 0x3ff20d, 10, 8, 42);
+  const PITS = carvePits(BODY, 0x6a10bd, 130, -6, 458);
+  const SEAM = carveSeam(BODY, 0x4d3c21, 198, 0.44, 0.14);
 
   /**
    * THE LIMBS. Three of them, rooted at three circles down its front edge, each with its own curl and its own
@@ -301,16 +339,82 @@ const EchoWarden = (() => {
     { i: 9, curl: 0.25, w0: 17, w1: 4, off: 0.15, claws: 3 }, // the middle one is the hand
     { i: 15, curl: 1.05, w0: 12, w1: 2.6, off: 1, claws: 0 },
   ];
-  const LIMB_JAG = (() => {
-    const R = rng(0x77b1c5);
-    const out = [];
-    for (let k = 0; k < LIMBS.length; k++) {
-      const row = [];
-      for (let i = 0; i < 29; i++) row.push(0.86 + R() * 0.3);
-      out.push(row);
-    }
-    return out;
-  })();
+  const LIMB_JAG = carveJag(0x77b1c5, LIMBS.length);
+
+  /**
+   * THE HUNTING WARDEN (levels 15 and 16). The same creature, at the size of a corridor: it has to fit the maze
+   * to come after you through it. Its body is a handful of overlapping circles drawn in a DESIGN space of radius
+   * HUNTER_DESIGN (facing +x) and scaled down to its real collision radius in the game, so - like everything a
+   * ripple lights - what you see is exactly what will touch you. It is cut by the carving above, from seeds of
+   * its own, with the stonework sized for a body this size; the masonry, the clefts, the chips, the forked cracks
+   * and the one sealed seam are all the same things level 13's has, in the same passes and the same colour.
+   */
+  const HUNTER_DESIGN = 72;
+  const HUNTER_BODY = [
+    { x: -6, y: 4, r: 48 }, // the core
+    { x: 26, y: -22, r: 34 }, // the shoulder the seam is set in
+    { x: 30, y: 26, r: 30 },
+    { x: -36, y: -16, r: 29 },
+    { x: -28, y: 32, r: 26 },
+    { x: 0, y: -44, r: 24 },
+  ];
+  const HUNTER_MID = { x: 0, y: 0 };
+  const HUNTER = {
+    outline: carveOutline(HUNTER_BODY, HUNTER_MID, 0x3c91e7, { facet0: 15, facetVar: 19 }),
+    courses: carveCourses(HUNTER_BODY, 0x51a2f3, -62, 66),
+    cracks: carveCracks(HUNTER_BODY, 0x6e01b9, 3, -48, 40),
+    pits: carvePits(HUNTER_BODY, 0x2a7d55, 26, -60, 124, { pit0: 6, pitVar: 7 }),
+    seam: carveSeam(HUNTER_BODY, 0x19e6c3, -24, 0.6, -0.32),
+    jag: carveJag(0x45bd2f, 3),
+  };
+  // its three limbs: rooted at the front of the core, the middle one with claws - level 13's, at this size
+  const HUNTER_LIMBS = [
+    { rx: 14, ry: -24, curl: -1.0, w0: 16, w1: 4, off: -1, claws: 0 },
+    { rx: 20, ry: 2, curl: 0.25, w0: 19, w1: 5, off: 0.15, claws: 3 },
+    { rx: 14, ry: 28, curl: 1.05, w0: 14, w1: 3.5, off: 1, claws: 0 },
+  ];
+
+  /**
+   * WHAT A HUNTING WARDEN IS. A variant is everything that may differ from one Warden to the next: how fast it
+   * moves (a fraction of the PLAYER's walking speed - WARDEN_SPEED / WARDEN_UPGRADED_SPEED, js/level.js, the one
+   * place they are set), how big it is, how it is drawn, and the list of ABILITIES it has. What every variant
+   * does - it always knows exactly where you are, and walks the shortest way there - is the hunt itself, in
+   * js/game.js (updateWardenHunt); ripples, noise, smell, crouching, a muffler's shadow and the sonar decoy hide
+   * nothing from it and distract it from nothing.
+   *
+   * AN ABILITY is a small object of optional hooks that the hunt calls at fixed points, so a new one never needs
+   * the hunt rewritten:
+   *   start(e, api)           when it wakes and starts hunting
+   *   update(e, dt, api)      every frame of the hunt, before it moves
+   *   speed(e, px, api)       may change this frame's speed (px/s in, px/s out)
+   *   draw(ctx, e, o)         extra drawing on top of its body, when a ripple shows it
+   * where `api` is what the hunt hands it: { player, dist, levelTime, calm } and the helpers the game gives it.
+   * Neither Warden has any abilities yet - the owner will say what they are ("do NOT invent extra Warden
+   * abilities") - so ABILITIES is empty and both lists are empty. Adding one is an entry here and its name in a
+   * variant's `abilities`; nothing else changes.
+   */
+  const ABILITIES = {};
+  const VARIANTS = {
+    regular: {
+      id: 'regular',
+      speed: WARDEN_SPEED, // x the player's walking speed
+      r: 18, // px: as big as a 40 px corridor allows (a monster is 14, you are 9)
+      abilities: [],
+      look: { seam: 0, core: 1 }, // how far its seam stands open (0 = sealed), and how bright its edges are
+    },
+    upgraded: {
+      id: 'upgraded',
+      speed: WARDEN_UPGRADED_SPEED,
+      r: 18,
+      abilities: [],
+      // Another one, and a harder one. It LOOKS harder too - its seam stands a little open and its edges are
+      // brighter - but that is drawing only: what makes it stronger is `speed` and nothing else.
+      look: { seam: 0.45, core: 1.25 },
+    },
+  };
+  const variant = (id) => VARIANTS[id] || VARIANTS.regular;
+  /** The ability objects a variant has, in order (for the hunt to call). An unknown name is simply skipped. */
+  const abilitiesOf = (id) => variant(id).abilities.map((n) => ABILITIES[n]).filter(Boolean);
 
   // ---------------------------------------------------------------- numbers
   const DREAD_TILES = 28; // the ramp: how many tiles of REMAINING PATH the dread builds over
@@ -435,6 +539,200 @@ const EchoWarden = (() => {
         revealed: false, // until a ripple finds it, every ray that reaches it comes back as stone
       },
     };
+  }
+
+  // ----------------------------------------------- drawing shared by both
+  /**
+   * One limb, as a filled polygon: down one side of a curved spine and back up the other, the half-width
+   * tapering to the tip and every step of it nicked by the same kind of jag the crest has. It leaves the
+   * path open for the caller to fill and stroke. Nothing here is ever a line.
+   */
+  function limbShape(ctx, sx, sy, mx, my, ex, ey, w0, w1, jag, K) {
+    const px = [];
+    const py = [];
+    const nx = [];
+    const ny = [];
+    for (let i = 0; i <= K; i++) {
+      const u = i / K;
+      const v = 1 - u;
+      px.push(v * v * sx + 2 * v * u * mx + u * u * ex);
+      py.push(v * v * sy + 2 * v * u * my + u * u * ey);
+      const tx = 2 * (v * (mx - sx) + u * (ex - mx));
+      const ty = 2 * (v * (my - sy) + u * (ey - my));
+      const m = Math.hypot(tx, ty) || 1;
+      nx.push(-ty / m);
+      ny.push(tx / m);
+    }
+    const half = (i, off) => (w0 * Math.pow(1 - i / K, 0.75) + w1) * jag[(i + off) % jag.length];
+    ctx.beginPath();
+    for (let i = 0; i <= K; i++) {
+      const w = half(i, 0);
+      if (i) ctx.lineTo(px[i] + nx[i] * w, py[i] + ny[i] * w);
+      else ctx.moveTo(px[i] + nx[i] * w, py[i] + ny[i] * w);
+    }
+    for (let i = K; i >= 0; i--) {
+      const w = half(i, 7);
+      ctx.lineTo(px[i] - nx[i] * w, py[i] - ny[i] * w);
+    }
+    ctx.closePath();
+  }
+
+  /** Stroke a list of polylines ([[x, y], ...] each) as one path. */
+  function strokeLines(ctx, list, rgb, a, width) {
+    ctx.beginPath();
+    for (const line of list) {
+      ctx.moveTo(line[0][0], line[0][1]);
+      for (let i = 1; i < line.length; i++) ctx.lineTo(line[i][0], line[i][1]);
+    }
+    ctx.strokeStyle = `rgba(${rgb},${a})`;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+
+  /** The seam's lens, as an open path: closed at both ends, opened by `open` (in the drawing's units). */
+  function seamPath(ctx, S, open) {
+    const lip = S.lip;
+    ctx.beginPath();
+    for (let i = 0; i < lip.length; i++) {
+      if (i) ctx.lineTo(lip[i][0], -lip[i][1] * open);
+      else ctx.moveTo(lip[i][0], -lip[i][1] * open);
+    }
+    for (let i = lip.length - 1; i >= 0; i--) ctx.lineTo(lip[i][0], lip[i][1] * open * 0.82);
+    ctx.closePath();
+  }
+
+  /**
+   * THE HUNTING WARDEN, drawn (levels 15 and 16). It is called by the game like any monster's art: at its true
+   * collision radius `r`, facing where the ripple came from (o.h) - never where it is really going - and as bright
+   * as the ripple that found it (o.a). The caller has set 'lighter'; this puts it back.
+   *   o.a          brightness from a ripple (0 = not lit: then only the lure, if any, is drawn)
+   *   o.t          the art clock
+   *   o.h          which way it faces (radians)
+   *   o.variant    'regular' | 'upgraded' (its look: how open the seam stands, how bright its edges are)
+   *   o.lure       0..1: warm light pouring out of the seam - the false light of level 15 - and o.lureRgb
+   *   o.reach      0..1: its limbs out towards the world point (o.tx, o.ty) - the reveal on level 15
+   * Like level 13's, the body is punched out of the dark in the page's own black first (the true union of its
+   * circles), so a ripple's rays end exactly where it is solid, and the crest is drawn on top.
+   */
+  function drawHunter(ctx, x, y, r, o) {
+    const a = o.a || 0;
+    const lure = o.lure || 0;
+    const reach = o.reach || 0;
+    if (a <= 0.01 && lure <= 0.01) return;
+    const look = variant(o.variant).look;
+    const s = r / HUNTER_DESIGN;
+    const px = 1 / s; // one screen pixel, in the drawing's own units
+    const t = o.t || 0;
+    const h = o.h || 0;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(h);
+    ctx.scale(s, s);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const S = HUNTER.seam;
+    const open = 2.2 + 13 * look.seam + 9 * Math.max(reach, lure);
+    if (a > 0.01) {
+      // 1. the mass: punched out in black, over the true union of its circles
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = BG;
+      ctx.beginPath();
+      for (const c of HUNTER_BODY) {
+        ctx.moveTo(c.x + c.r, c.y);
+        ctx.arc(c.x, c.y, c.r, 0, TAU);
+      }
+      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      // 2. the crest: a faint fill, a glow, a core line - level 13's passes
+      const k = look.core;
+      ctx.beginPath();
+      HUNTER.outline.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${RGB.warden},${0.13 * a})`;
+      ctx.fill();
+      ctx.shadowColor = `rgba(${RGB.warden},${0.7 * a})`;
+      ctx.shadowBlur = 7;
+      ctx.strokeStyle = `rgba(${RGB.warden},${Math.min(1, a * k)})`;
+      ctx.lineWidth = 2.6 * px;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(${CORE.warden},${Math.min(1, 0.72 * a * k)})`;
+      ctx.lineWidth = 1.2 * px;
+      ctx.stroke();
+      // 3. the courses it is laid in, the chips over all of it, and the cracks through the courses
+      const p = 0.5 + 0.5 * Math.sin(t * 1.7);
+      strokeLines(ctx, HUNTER.courses, RGB.warden, (0.3 + 0.06 * p) * a, 1.0 * px);
+      strokeLines(ctx, HUNTER.pits, RGB.warden, (0.2 + 0.05 * p) * a, 1.0 * px);
+      strokeLines(ctx, HUNTER.cracks, CORE.warden, (0.26 + 0.1 * p) * a * k, 1.1 * px);
+      // 4. the seam - sealed on the first one, standing a little open on the second
+      ctx.save();
+      ctx.translate(S.x, S.y);
+      ctx.rotate(S.tilt);
+      seamPath(ctx, S, open);
+      ctx.fillStyle = `rgba(${CORE.warden},${0.14 * a})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${CORE.warden},${Math.min(1, (0.45 + 0.2 * p) * a * k)})`;
+      ctx.lineWidth = 1.2 * px;
+      ctx.stroke();
+      ctx.restore();
+    }
+    // the false light: warm, pouring out of the seam - the only part of it that shows without a ripple
+    if (lure > 0.01) {
+      const rgb = o.lureRgb || '255,214,160';
+      ctx.save();
+      ctx.translate(S.x, S.y);
+      ctx.rotate(S.tilt);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, S.len * 1.3);
+      g.addColorStop(0, `rgba(${rgb},${0.55 * lure})`);
+      g.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, S.len * 1.3, 0, TAU);
+      ctx.fill();
+      seamPath(ctx, S, open);
+      ctx.fillStyle = `rgba(255,248,236,${0.85 * lure})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${rgb},${lure})`;
+      ctx.lineWidth = 1.6 * px;
+      ctx.stroke();
+      ctx.restore();
+    }
+    // the limbs, out of its front towards a point in the world - the same limbs level 13's reaches with
+    if (reach > 0.01 && a > 0.01) {
+      const e = reach * reach * (3 - 2 * reach);
+      // the target, in the drawing's own frame
+      const wx = (o.tx === undefined ? x + 60 : o.tx) - x;
+      const wy = (o.ty === undefined ? y : o.ty) - y;
+      const lx = (wx * Math.cos(-h) - wy * Math.sin(-h)) / s;
+      const ly = (wx * Math.sin(-h) + wy * Math.cos(-h)) / s;
+      for (let k = 0; k < HUNTER_LIMBS.length; k++) {
+        const L = HUNTER_LIMBS[k];
+        const tgx = lx - 40 * L.off * 0.6;
+        const tgy = ly + 46 * L.off;
+        const dx = tgx - L.rx;
+        const dy = tgy - L.ry;
+        const bend = L.curl * (1 - e * 0.55);
+        const wob = Math.sin(t * 2.4 + k * 1.9) * 30 * (1 - e * 0.8);
+        const mx = L.rx + dx * 0.5 - dy * 0.15 * bend;
+        const my = L.ry + dy * 0.5 + dx * 0.15 * bend + wob;
+        const u0 = Math.min(0.75, 60 / (Math.hypot(dx, dy) || 1));
+        const u = u0 + (1 - u0) * e;
+        const ex = L.rx + dx * u;
+        const ey = L.ry + dy * u;
+        const thick = 0.3 + 0.7 * e;
+        limbShape(ctx, L.rx, L.ry, mx, my, ex, ey, L.w0 * thick, L.w1 * thick, HUNTER.jag[k], 16);
+        ctx.fillStyle = `rgba(${RGB.warden},${0.17 * a})`;
+        ctx.fill();
+        ctx.lineWidth = 4 * px;
+        ctx.strokeStyle = `rgba(${RGB.warden},${0.28 * a})`;
+        ctx.stroke();
+        ctx.lineWidth = 1.3 * px;
+        ctx.strokeStyle = `rgba(${CORE.warden},${0.62 * a})`;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation = 'lighter';
   }
 
   // ------------------------------------------------------------ the capture
@@ -922,40 +1220,8 @@ const EchoWarden = (() => {
       ctx.restore();
     }
 
-    /**
-     * One limb, as a filled polygon: down one side of a curved spine and back up the other, the half-width
-     * tapering to the tip and every step of it nicked by the same kind of jag the crest has. It leaves the
-     * path open for the caller to fill and stroke. Nothing here is ever a line.
-     */
-    function limbShape(ctx, sx, sy, mx, my, ex, ey, w0, w1, jag, K) {
-      const px = [];
-      const py = [];
-      const nx = [];
-      const ny = [];
-      for (let i = 0; i <= K; i++) {
-        const u = i / K;
-        const v = 1 - u;
-        px.push(v * v * sx + 2 * v * u * mx + u * u * ex);
-        py.push(v * v * sy + 2 * v * u * my + u * u * ey);
-        const tx = 2 * (v * (mx - sx) + u * (ex - mx));
-        const ty = 2 * (v * (my - sy) + u * (ey - my));
-        const m = Math.hypot(tx, ty) || 1;
-        nx.push(-ty / m);
-        ny.push(tx / m);
-      }
-      const half = (i, off) => (w0 * Math.pow(1 - i / K, 0.75) + w1) * jag[(i + off) % jag.length];
-      ctx.beginPath();
-      for (let i = 0; i <= K; i++) {
-        const w = half(i, 0);
-        if (i) ctx.lineTo(px[i] + nx[i] * w, py[i] + ny[i] * w);
-        else ctx.moveTo(px[i] + nx[i] * w, py[i] + ny[i] * w);
-      }
-      for (let i = K; i >= 0; i--) {
-        const w = half(i, 7);
-        ctx.lineTo(px[i] - nx[i] * w, py[i] - ny[i] * w);
-      }
-      ctx.closePath();
-    }
+    // (limbShape - one limb as a filled, tapering, nicked polygon - lives above create(): the hunting Warden
+    //  on levels 15 and 16 grows its limbs with the very same function.)
 
     /** Fill and stroke whatever limb path is open, in the three passes everything else in the game uses. */
     function paintLimb(ctx, a, core) {
@@ -1084,5 +1350,11 @@ const EchoWarden = (() => {
     return { start, stop, update, onRipple, draw, drawAwake, veil, shake, state, dreadAt, dreadFx, get phase() { return phase; } };
   }
 
-  return { LEVEL, MAP, BODY, ROOM_T, DOOR_T, DOOR_R, ENTRY_T, MOUTH_T, DREAD_TILES, INSIDE_PX, WAVE_FALLBACK, build, create };
+  return {
+    LEVEL, MAP, BODY, ROOM_T, DOOR_T, DOOR_R, ENTRY_T, MOUTH_T, DREAD_TILES, INSIDE_PX, WAVE_FALLBACK, build, create,
+    // the hunting Warden (levels 15 and 16): what each one is, and how it is drawn
+    VARIANTS, ABILITIES, variant, abilitiesOf, drawHunter, HUNTER_BODY, HUNTER_DESIGN,
+    // ?debug / tools only: level 13's stone, so a test can prove the carving still cuts it the same
+    TABLES: { OUTLINE, JOINTS, COURSES, CRACKS, PITS, SEAM, LIMB_JAG },
+  };
 })();

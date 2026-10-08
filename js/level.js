@@ -133,6 +133,16 @@ const SINGER_LAND_WAIT = 2; // s it waits where it landed before it roams and si
 const PUDDLE_CAP = { 9: 6 }; // level 9 has two scent monsters (Normal, Hard, Hardcore): no swamp - at most this many puddles
 
 /**
+ * THE WARDEN, HUNTING (levels 15 and 16 - js/story.js places it, js/warden.js says what each one is, and
+ * js/game.js `updateWardenHunt` moves it). Both speeds are FRACTIONS OF THE PLAYER'S NORMAL WALKING SPEED
+ * (WALK_SPEED, 170 px/s, in js/game.js - crouching is the same speed, so there is only one), not of any monster's.
+ * They are the same in every difficulty mode. These two numbers are the whole of the tuning: change them here
+ * and nothing else needs to move.
+ */
+const WARDEN_SPEED = 0.75; // level 15: the Warden - slower than you, so it only gains while you stop or go wrong
+const WARDEN_UPGRADED_SPEED = 1.05; // level 16: the upgraded Warden - faster than you, so it gains a little all the time
+
+/**
  * The monsters on each level of the game - EXACT (the number never varies from run to run; the modes differ in
  * speed, hearing, ripples and so on - and, from level 9, in Easy having one fewer). The game ends after level 12.
  *
@@ -154,7 +164,8 @@ const PUDDLE_CAP = { 9: 6 }; // level 9 has two scent monsters (Normal, Hard, Ha
  * three monsters at a time (levels 8 and 9 are the peak; the mimic counts as one). The decoy and the smell puddles are
  * terrain, not monsters: they are on every level that had them, whatever the mode's monster mix.
  * Level 13 is the capture (js/warden.js): hand-drawn, and empty of everything above - see wardenConfig.
- * Levels past 13 do not exist; the fallback formula below only keeps them generating sensibly for debug / testing.
+ * Levels 14-16 (js/story.js) are hand-drawn too, and also empty of everything above - see storyConfig.
+ * Levels past 16 do not exist; the fallback formula below only keeps them generating sensibly for debug / testing.
  */
 const ECHO_MONSTERS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0, 11: 1, 12: 1 };
 const SCENT_MONSTERS = { 6: 1, 7: 1, 8: 1, 9: 2, 10: 1 };
@@ -228,10 +239,39 @@ function wardenConfig(modeId) {
   };
 }
 
+/**
+ * LEVELS 14-16 come after the capture (js/story.js): the gaol (14), the false exit (15) and the upgraded Warden
+ * (16). They are hand-drawn like 13, the same in every mode and for every seed, and handled exactly the way 13 is:
+ * the ORDINARY curve's ripple range and recharge for that level and mode (at n = 14 the range has reached its
+ * 240 px floor and the recharge its 1.5 s cap, so 14-16 share them), and every generated monster, puddle and decoy
+ * zeroed. The Warden that hunts you on 15 and 16 is not one of the generator's monsters: the level places it.
+ */
+const STORY_FIRST = 14;
+const STORY_LAST = 16;
+const isStoryLevel = (n) => n >= STORY_FIRST && n <= STORY_LAST;
+function storyConfig(n, modeId) {
+  const base = levelConfig(n, modeId, true); // `true`: the plain curve, before this exception
+  return {
+    ...base,
+    rooms: 0,
+    obstacles: 0,
+    enemies: 0,
+    scentMonsters: 0,
+    puddles: 0,
+    puddlesDrawn: 0,
+    mimics: 0,
+    decoy: false,
+    stalkers: 0,
+    mufflers: 0,
+    singers: 0,
+  };
+}
+
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal', raw = false) {
   if (n === 0) return tutorialConfig(modeId);
   if (n === WARDEN_LEVEL && !raw) return wardenConfig(modeId); // (`raw` is wardenConfig asking for the plain curve)
+  if (isStoryLevel(n) && !raw) return storyConfig(n, modeId); // (and the same for 14-16)
   const m = MODES[modeId] || MODES.normal;
   const baseEnemies = n === 1 ? 0 : Math.min(1 + Math.floor((n - 2) * 0.7), 8);
   const baseScent = n < SCENT_FROM_LEVEL ? 0 : n < 9 ? 1 : 2;
@@ -336,6 +376,8 @@ function generateLevel(n, runSeed, modeId = 'normal') {
   if (n === 0) return EchoTutorial.build(cfg);
   // Level 13 is the capture, hand-drawn in the same way and for the same reason (js/warden.js).
   if (n === WARDEN_LEVEL) return EchoWarden.build(cfg);
+  // ...and so are 14-16, which follow it (js/story.js).
+  if (isStoryLevel(n)) return EchoStory.build(n, cfg);
   const rand = mulberry32((runSeed ^ Math.imul(n, 0x9e3779b1)) >>> 0);
   const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
 

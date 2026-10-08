@@ -14,11 +14,13 @@
   const NEAR_MISS_DIST = CATCH_DIST * 1.5;
   const NEAR_MISS_GAP = 2; // seconds before the same monster can give you another one
   const NEAR_MISS_SECONDS = 0.42; // how long the beat lasts
-  const CAMPAIGN_LEVELS = 13; // levels 1-13. Level 13 is the capture (js/warden.js) and the end of the game so far
-  // Medals are for levels 1-12 only. Level 13 is hand-drawn, always the same, and has no "Level cleared"
-  // screen to show medals on - and a Time medal would ask the player to hurry through the one part of the
-  // game that is built to be walked slowly. It still counts for progress, for "levels cleared" and for the
-  // level select; it just is not raced. (WARDEN_LEVEL is 13 and lives in js/level.js, beside its config.)
+  // Levels 1-16. Level 13 is the capture (js/warden.js); 14-16 follow it (js/story.js): the gaol, the false exit
+  // and the upgraded Warden. Clearing 16 is the end of the game so far.
+  const CAMPAIGN_LEVELS = STORY_LAST;
+  // Medals are for levels 1-12 only. 13-16 are hand-drawn, always the same, and have no "Level cleared" screen
+  // to show medals on (each hands straight on to the next) - and a medal for a maze that never changes is a
+  // medal for having learned it by heart. They still count for progress, for "levels cleared" and for the
+  // level select; they are just not raced. (WARDEN_LEVEL and STORY_FIRST/LAST live in js/level.js.)
   const MEDAL_LEVELS = 12;
   // LEVEL 0 is the tutorial (js/tutorial.js). It is not part of the campaign: it counts for no progress, no
   // Continue, no medals, no stats and no "levels cleared". Everywhere that would score something asks `scored()`.
@@ -50,11 +52,12 @@
   const T_SINGER = 9; // singer (magenta) - a ripple can show it, but it is deaf to yours. (The muffler has NO type: it absorbs the ray, so nothing is ever lit.)
   const T_WARDEN = 10; // the warden (level 13 only) - and ONLY once a ripple has revealed it. Until then its rays come back as T_WALL.
   const T_LORE = 11; // a lore fragment (js/lore.js) - lies flat like a puddle or a decoy: the wave lights it and passes over
+  const T_KEY = 12; // level 14's key (js/story.js) - flat on the floor too, and found exactly the same way
   // The ripple's hit colours, by type. They are filled in from js/palette.js and refilled whenever the player
   // picks another palette (Settings -> Display); the array itself is never replaced, so everything that reads
   // COLORS[T_...] keeps working, and a palette can never reach anything but the drawing.
-  const COLORS = [null, null, null, null, null, null, null, null, null, null, null, null];
-  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden', 'lore'];
+  const COLORS = [null, null, null, null, null, null, null, null, null, null, null, null, null];
+  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden', 'lore', 'key'];
   // which palette colour each swatch on the title legend belongs to (drawing only: it tints the chip around it)
   const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit', note: 'lore' };
   const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
@@ -63,8 +66,8 @@
   });
   // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
   // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
-  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2, 3];
-  const NRAYTYPES = 11; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer) and 10 (the level-13 warden, once revealed); 0 = nothing (also where the muffler ate the ray). 6, 7 and 11 are flat marks (puddle, decoy, lore fragment), never rays - so 11 needs no ray bucket
+  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2, 3, 3];
+  const NRAYTYPES = 11; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer) and 10 (a warden - level 13's once revealed, and the one hunting you on 15-16); 0 = nothing (also where the muffler ate the ray). 6, 7, 11 and 12 are flat marks (puddle, decoy, lore fragment, key), never rays - so they need no ray bucket
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
@@ -92,6 +95,9 @@
     11: 'If your ripple leaves a hole in the echo, something is standing in it. You cannot see it or smell it - only hear it. It listens harder than the stalker, and crouching helps a lot, but it is not a guarantee.',
     12: 'Something sings. Its song lights the maze, and if a wave of it reaches you, you are marked: a countdown ticks, then it leaps to where the song found you. Keep moving.',
     13: 'Nothing down here can kill you. That is not the same as nothing being here.',
+    14: 'Somewhere in here is the key. The door at the end will not open without it.',
+    15: 'Keep going. Somewhere ahead, the dark gives way.',
+    16: 'Somewhere below, water drips towards the way out. Follow it, and whatever happens, keep moving.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -111,7 +117,9 @@
   const ctx = canvas.getContext('2d');
   const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
-  //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after it)
+  //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after
+  //         level 16). (Levels 14-16's scripted beats are NOT a state of their own: they run inside 'play' and take
+  //         the controls with `scriptLock`, so pausing, ripples and the clock all carry on as normal.)
 
   const audio = new SoundEngine();
   // the player's saved volumes, ready for when the AudioContext is created on the first click
@@ -171,6 +179,76 @@
    * speakers and the `echomaze.lore` save - and to nothing the game ever reads back.
    */
   const loreReader = EchoLore.createReader({ el: { box: $('lore'), head: $('lore-head'), line: $('lore-line') }, audio, cues });
+
+  /**
+   * LEVELS 14-16 (js/story.js): the gaol, the false exit and the upgraded Warden. Like level 13 it reads where
+   * the player is and writes to the screen and the speakers - and these are all the things it may DO. Taking
+   * the controls (`lock`) leaves the game running underneath: ripples travel, water drips, the clock ticks and
+   * pausing still works. Every one of them is reached only on a story level.
+   */
+  const story = EchoStory.create({
+    player: () => player,
+    level: () => level,
+    audio,
+    cues,
+    calm: () => calm,
+    playerR: PLAYER_R,
+    rippleSpeed: RIPPLE_SPEED,
+    el: { box: $('say'), head: $('say-head'), line: $('say-line') },
+    los: (x0, y0, x1, y1) => hasLOS(x0, y0, x1, y1),
+    raycast: (x, y, dx, dy, max) => raycastWall(x, y, dx, dy, max),
+    visible: (x, y) => visibleFrom(x, y),
+    lock: (on) => {
+      scriptLock = !!on;
+      if (scriptLock) touch.releaseAll();
+    },
+    walk: (vx, vy) => {
+      scriptWalk.x = vx;
+      scriptWalk.y = vy;
+    },
+    openTile: (tx, ty) => {
+      const i = ty * level.W + tx;
+      level.walls[i] = 0;
+      level.blocked[i] = 0;
+    },
+    hunter: () => enemies.find((e) => e.kind === 'warden') || null,
+    wake: (e, why) => wakeWarden(e, why),
+    hold: (on) => {
+      for (const e of enemies) if (e.kind === 'warden') e.held = !!on;
+    },
+    reveal: (e, rp) => {
+      e.hidden = false;
+      if (rp) litByWarden(rp);
+    },
+    gasp: () => {
+      glimmerOff = false;
+      castRipple(player.x, player.y, rippleRange());
+      audio.gasp();
+      cues.caption('[you flinch]');
+      return ripples[ripples.length - 1];
+    },
+    drip: (x, y, R, metal) => drip(x, y, R, metal),
+    setKey: (on) => {
+      player.hasKey = !!on;
+      updateHud();
+    },
+    music: (mood) => (mood ? music.start(mood) : music.stop()),
+    banner: () => showBanner(levelNum),
+    notify: (title, text) => notify(title, text, 6500),
+    hideBanner: () => {
+      clearTimeout(bannerTimer);
+      $('banner').classList.remove('show');
+    },
+    ready: () => {
+      if (savedPending) {
+        savedPending = false;
+        showSaved(); // the "Progress saved" from the level before, now that there is a moment for it
+      }
+    },
+    finish: () => {
+      storyDone = true; // handled at the end of updatePlay, once this frame's outcomes are settled
+    },
+  });
 
   // ---------------------------------------------------------------- storage
   // Everything is wrapped in try/catch: storage can be blocked or unavailable.
@@ -253,6 +331,11 @@
   // ---- level 13 (js/warden.js)
   let wardenCleared = false; // the great room has been entered on this attempt: progress is written down once
   let wardenSaved = false; // ...and a new best really reached storage, so the ending may say "Progress saved"
+  // ---- levels 14-16 (js/story.js)
+  let scriptLock = false; // a scripted beat has the controls: no moving, no ripples, no crouch, no item
+  const scriptWalk = { x: 0, y: 0 }; // ...and while it has, the beat may walk the player (px/s)
+  let storyDone = false; // the level's way out has been walked through and its last beat played
+  let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
   let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -465,6 +548,21 @@
           contact = { x: c.x + (ddx / d) * c.r, y: c.y + (ddy / d) * c.r };
         }
       }
+      // LEVELS 14-16 only: the gaol door while it is shut, and a Warden that has not woken - stone, so far as
+      // anyone can tell - are solid. (A Warden that is hunting is a monster like any other: touching it kills.)
+      if (level.story) {
+        for (const c of storySolids()) {
+          const ddx = e.x - c.x;
+          const ddy = e.y - c.y;
+          const d = Math.hypot(ddx, ddy);
+          if (d >= e.r + c.r || d < 1e-6) continue;
+          const pen = e.r + c.r - d;
+          e.x += (ddx / d) * pen;
+          e.y += (ddy / d) * pen;
+          pushed = true;
+          contact = { x: c.x + (ddx / d) * c.r, y: c.y + (ddy / d) * c.r };
+        }
+      }
       if (!pushed) break;
     }
     return contact;
@@ -611,19 +709,22 @@
   function makeEnemy(spec) {
     const kind = spec.kind || 'echo';
     const roamer = kind === 'scent' || kind === 'stalker' || kind === 'muffler' || kind === 'singer'; // these never stand about
-    return {
+    // the Warden that hunts you on levels 15 and 16: what kind of one it is lives in js/warden.js (VARIANTS)
+    const isWarden = kind === 'warden';
+    const wv = isWarden ? EchoWarden.variant(spec.variant) : null;
+    const e = {
       kind,
       x: spec.x,
       y: spec.y,
-      r: kind === 'mimic' ? EXIT_R : ENEMY_R, // a disguised mimic is exactly as big as the exit it copies
+      r: kind === 'mimic' ? EXIT_R : isWarden ? wv.r : ENEMY_R, // a disguised mimic is exactly as big as the exit it copies
       pitch: spec.pitch, // kept so a mimic can get its echo-monster voice when it turns
       sleeper: spec.sleeper,
-      state: roamer ? 'patrol' : 'idle',
+      state: isWarden ? 'dormant' : roamer ? 'patrol' : 'idle', // (a Warden sleeps in the stone until the story wakes it)
       path: null,
       pi: 0,
       timer: 0,
       repath: 0,
-      pause: kind === 'scent' ? 0.3 + Math.random() : kind === 'stalker' || kind === 'muffler' || kind === 'singer' ? 0 : 1 + Math.random() * 2,
+      pause: isWarden ? 0 : kind === 'scent' ? 0.3 + Math.random() : kind === 'stalker' || kind === 'muffler' || kind === 'singer' ? 0 : 1 + Math.random() * 2,
       everHeard: false, // muffler: it has heard you at least once (its patrol leans towards heardX/heardY)
       singCd: kind === 'singer' ? 2 + Math.random() * 2 : 0, // singer: seconds to its next song (the first comes a little after you arrive) - a draw only for a singer, so no other monster's random numbers move
       markX: 0, // singer: the exact spot the wave that marked you found you at (where it will land)
@@ -639,13 +740,24 @@
       heardY: 0,
       deaf: 0, // stalker: seconds since it last heard you
       spotNew: false, // stalker: the spot has changed since it last planned a route
-      clickCd: 1 + Math.random() * 2, // stalker: seconds to its next soft click
+      clickCd: isWarden ? 1 : 1 + Math.random() * 2, // stalker: seconds to its next soft click
       aDist: -1, // audio only (Doppler): its distance to the player last frame, and the smoothed rate that distance is changing
       aVr: 0,
       followTrail: null, // scent monster: the trail it is following
       ignoreTrail: null, // scent monster: a trail it just finished; ignored until it walks away from it
-      voice: audio.ready && kind !== 'mimic' ? audio.createEnemyVoice(spec.pitch, kind) : null, // a disguised mimic makes no sound of its own
+      // a disguised mimic makes no sound of its own - and a Warden asleep in the stone makes none until it wakes
+      voice: audio.ready && kind !== 'mimic' && !isWarden ? audio.createEnemyVoice(spec.pitch, kind) : null,
     };
+    if (isWarden) {
+      e.variant = wv.id;
+      e.speed = wv.speed * WALK_SPEED; // px/s: a fraction of YOUR walking speed (js/level.js)
+      e.abilities = EchoWarden.abilitiesOf(wv.id); // none yet, on either one
+      e.hidden = true; // stone, to a ripple, until it shows itself
+      e.held = false; // the level is over: it stops where it is
+      e.lure = 0; // level 15: the warm light out of its seam (drawn by js/story.js)
+      e.reach = 0; // its limbs, out towards you (the reveal on level 15)
+    }
+    return e;
   }
 
   const isChasing = (e) => e.state === 'hunt' || e.state === 'track' || e.state === 'follow';
@@ -763,7 +875,8 @@
     }
     // a disguised mimic just sits there, silent, being an exit
     const moved =
-      e.kind === 'stalker' ? updateStalker(e, dt)
+      e.kind === 'warden' ? updateWardenHunt(e, dt) // levels 15-16: it knows where you are, always
+      : e.kind === 'stalker' ? updateStalker(e, dt)
       : e.kind === 'muffler' ? updateMuffler(e, dt)
       : e.kind === 'singer' ? updateSinger(e, dt)
       : e.kind === 'scent' ? updateScent(e, dt)
@@ -1413,12 +1526,14 @@
    */
   function enemyAudio(e, moved, dt = 0) {
     if (e.kind === 'mimic') return; // disguised: no footsteps, no voice - the only sound it makes is the exit's chime
+    if (e.kind === 'warden' && e.state !== 'hunt') return; // a Warden still in the stone (levels 15-16) is silent
     const scent = e.kind === 'scent';
     const stalker = e.kind === 'stalker';
     const muffler = e.kind === 'muffler';
     const singer = e.kind === 'singer';
+    const warden = e.kind === 'warden';
     const chasing = isChasing(e);
-    const cueKind = stalker ? 'stalker' : scent ? 'scent' : muffler ? 'muffler' : singer ? 'singer' : 'echo';
+    const cueKind = warden ? 'warden' : stalker ? 'stalker' : scent ? 'scent' : muffler ? 'muffler' : singer ? 'singer' : 'echo';
     const blocked = soundBlocked(e.x, e.y, player.x, player.y);
     const muf = audioFx && blocked; // what the audio does about it (?debug can switch the audio effect off; the cue still follows `blocked`)
 
@@ -1431,12 +1546,17 @@
     const doppler = audioFx ? 1 - DOPPLER_MAX * clamp(e.aVr / DOPPLER_FULL_SPEED, -1, 1) : 1; // closing = up, leaving = down
 
     e.stepDist += moved;
-    const stride = stalker ? (chasing ? 22 : 19) : scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
+    const stride = warden ? 34 : stalker ? (chasing ? 22 : 19) : scent ? (chasing ? 26 : 22) : chasing ? 24 : 18;
     if (!muffler && !singer && e.stepDist >= stride) {
       // (a muffler's "footsteps" are its slow thumps, below; a singer glides - it is only its hum and its song you hear)
       e.stepDist = 0;
-      const sp = spatial(e.x, e.y, 540);
-      if (stalker) audio.stalkerStep(sp.pan, sp.g, muf);
+      const sp = spatial(e.x, e.y, warden ? 760 : 540);
+      if (warden) {
+        // stone coming down on stone - and the upgraded one's steps are heavy enough to feel (none of that in calm mode)
+        const heavy = e.variant === 'upgraded';
+        audio.wardenStep(sp.pan, sp.g, muf, heavy);
+        if (heavy && !calm && sp.g > 0.2) shake = Math.max(shake, 3.2 * sp.g);
+      } else if (stalker) audio.stalkerStep(sp.pan, sp.g, muf);
       else if (scent) audio.scentStep(sp.pan, sp.g, muf);
       else audio.enemyStep(sp.pan, sp.g, muf);
       if (sp.g >= 0.01) cues.pulse(cueKind, e.x, e.y, cueLoud(sp.g), { key: e, sub: 'step', dots: 2, muffled: blocked });
@@ -1464,7 +1584,7 @@
       }
     }
 
-    const sp = spatial(e.x, e.y, 720);
+    const sp = spatial(e.x, e.y, warden ? 950 : 720); // (a Warden can be heard coming from further off)
     const excited = chasing || e.state === 'marked' || e.state === 'leap'; // hunting you / a singer with you marked
     const mood = excited ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker || singer ? 0.5 : muffler ? 0.4 : 0.35;
     const gain = sp.g * (0.16 + 0.3 * mood);
@@ -1484,7 +1604,7 @@
   }
 
   function emitRipple() {
-    if (state !== 'play' || cooldown > 0) return;
+    if (state !== 'play' || cooldown > 0 || scriptLock) return; // (a scripted beat on 14-16 has the controls)
     if (crouchHeld()) return; // you cannot send a ripple while crouching
     cooldown = cfg.cooldown;
     ripplesUsed++;
@@ -1524,6 +1644,98 @@
     for (let i = rp.ei; i < rp.echoes.length; i++) if (rp.echoes[i].warden) rp.echoes[i].type = T_WARDEN;
   }
 
+  // ---------------------------------------------------- levels 14-16 (js/story.js)
+  /** What is solid on a story level besides the walls: the gaol door while it is shut, and a Warden still asleep. */
+  const solidsBuf = [];
+  function storySolids() {
+    solidsBuf.length = 0;
+    const st = level.story;
+    if (st.door && st.door.solid) for (const q of st.door.parts) solidsBuf.push(q);
+    for (const e of enemies) if (e.kind === 'warden' && e.state === 'dormant') solidsBuf.push(e);
+    return solidsBuf;
+  }
+
+  /**
+   * Everything that can be seen from (x, y), as a polygon of points (x0, y0, x1, y1, ...): where a ray in each
+   * direction first meets a wall. Level 15's light is clipped to it, so it can never be drawn anywhere a wall
+   * stands between it and the player. Drawing only.
+   */
+  const VIS_RAYS = 360;
+  const visBuf = new Float32Array(VIS_RAYS * 2);
+  function visibleFrom(x, y) {
+    for (let i = 0; i < VIS_RAYS; i++) {
+      const a = (i / VIS_RAYS) * TAU;
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      const d = raycastWall(x, y, dx, dy, 1100);
+      visBuf[2 * i] = x + dx * d;
+      visBuf[2 * i + 1] = y + dy * d;
+    }
+    return visBuf;
+  }
+
+  /**
+   * A drop of water (levels 14 and 16): a small ripple of its own from where it lands - a real one, through the
+   * same castRipple as yours, lighting the stone, the bars and the key the same way - and its sound and cue.
+   * It is not YOURS: it alerts nothing, it makes no echoes, and crouching does not wipe it (like a singer's).
+   */
+  function drip(x, y, R, metal) {
+    castRipple(x, y, R, { ambient: true });
+    const sp = spatial(x, y, 560);
+    const blocked = soundBlocked(x, y, player.x, player.y);
+    if (metal) audio.dripMetal(sp.pan, sp.g, audioFx && blocked);
+    else audio.drip(sp.pan, sp.g, audioFx && blocked);
+    if (sp.g >= 0.02) {
+      cues.pulse('drip', x, y, cueLoud(sp.g), { muffled: blocked });
+      if (metal) cues.caption('[water rings on metal]');
+    }
+  }
+
+  /**
+   * THE WARDEN, HUNTING (levels 15 and 16). What every variant does, whatever its abilities: it ALWAYS knows
+   * exactly where the player is - ripples, footsteps, smell, crouching, a muffler's shadow and the sonar decoy
+   * hide nothing from it and distract it from nothing - and it walks the shortest way there, re-planned every
+   * frame, at its variant's speed (a fraction of the player's own: WARDEN_SPEED / WARDEN_UPGRADED_SPEED in
+   * js/level.js). Its abilities (js/warden.js) get their hooks at fixed points; neither Warden has any yet.
+   */
+  function wardenApi(e) {
+    return { player, dist: Math.hypot(player.x - e.x, player.y - e.y), levelTime, calm, setPathTo, followPath };
+  }
+
+  function wakeWarden(e, why) {
+    e.state = 'hunt';
+    e.why = why; // the Caught screen's tip only (js/feedback.js): 'hunt' on level 15, 'upgraded' on 16
+    e.hidden = false;
+    e.held = false;
+    if (!e.voice && audio.ready) e.voice = audio.createEnemyVoice(e.pitch, 'warden');
+    for (const ab of e.abilities) if (ab.start) ab.start(e, wardenApi(e));
+  }
+
+  function updateWardenHunt(e, dt) {
+    if (e.state !== 'hunt' || e.held) return 0; // asleep in the stone, or the level is over
+    const api = e.abilities.length ? wardenApi(e) : null;
+    for (const ab of e.abilities) if (ab.update) ab.update(e, dt, api);
+    let speed = e.speed;
+    for (const ab of e.abilities) if (ab.speed) speed = ab.speed(e, speed, api);
+    setPathTo(e, player.x, player.y); // it knows where you are, every frame, wherever that is
+    return followPath(e, speed, dt);
+  }
+
+  /** A story level's way out has been walked through and its last beat played: on to the next, or the end. */
+  function onStoryCleared() {
+    if (state !== 'play') return;
+    const n = levelNum;
+    const newBest = saveBest(n + 1);
+    EchoProfile.addClear(mode);
+    EchoProfile.flush();
+    if (n < STORY_LAST) {
+      savedPending = newBest; // said at the next level's first quiet moment, not in the middle of the dark
+      startLevel(n + 1);
+      return;
+    }
+    onStoryEnd(newBest);
+  }
+
   // ---------------------------------------------------------------- crouching
   /** Is a crouch key (Shift) held? Same speed as walking; no footsteps, no ripples, and a stalker cannot hear you. */
   const crouchHeld = () => act('crouch') || touch.crouch; // a crouch key (Shift by default), or the touch CROUCH button held
@@ -1538,15 +1750,15 @@
   function startCrouch() {
     // Only what YOUR ripples showed is wiped. A singer's waves are not yours: crouching does not stop them, so they keep
     // travelling (and can still mark you), and what they lit stays.
-    ripples = ripples.filter((rp) => rp.singer);
-    marks = marks.filter((m) => m.singer);
+    ripples = ripples.filter((rp) => rp.singer || rp.ambient); // (and a drop of water's is not yours either: levels 14 and 16)
+    marks = marks.filter((m) => m.singer || m.ambient);
     glimmerOff = true;
     if (scored()) EchoProfile.bump('crouches'); // stats: counted only, never read back by the game
   }
 
   /** Bring `player.crouching` in line with the key. Called every frame, and straight from the key press so the wipe is instant. */
   function syncCrouch() {
-    if (state !== 'play' || !player) return;
+    if (state !== 'play' || !player || scriptLock) return;
     const now = crouchHeld();
     if (now === !!player.crouching) return;
     player.crouching = now;
@@ -1566,11 +1778,13 @@
    */
   function castRipple(ox, oy, R = cfg.rippleRadius, opts = null) {
     const singerRp = opts && opts.singer ? opts.singer : null;
+    // a drop of water's ripple (levels 14 and 16): not yours, so it alerts nothing and makes no echoes of its own
+    const ambient = !!(opts && opts.ambient);
 
     // Round things the wave can bounce off (and the absorbers it cannot get past).
     const circles = [];
     level.obstacles.forEach((o) => {
-      if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE });
+      if (Math.hypot(o.x - ox, o.y - oy) < R + o.r) circles.push({ x: o.x, y: o.y, r: o.r, type: T_OBSTACLE, bar: o.bar }); // (bar: level 14's cell fronts)
     });
     enemies.forEach((e) => {
       if (e === singerRp) return; // a singer's own wave starts inside it: it is not part of it
@@ -1580,6 +1794,12 @@
       if (Math.hypot(e.x - ox, e.y - oy) < R + e.r) {
         if (e.kind === 'muffler') {
           circles.push({ x: e.x, y: e.y, r: e.r, type: 0, absorb: true });
+          return;
+        }
+        if (e.kind === 'warden') {
+          // LEVELS 15-16: a hunting Warden. One that has not shown itself yet is STONE to a ripple - the wall's
+          // colour, texture and echo, exactly the trick level 13 plays - until the moment it does (litByWarden).
+          circles.push({ x: e.x, y: e.y, r: e.r, type: e.hidden ? T_WALL : T_WARDEN, enemy: e, warden: !!e.hidden });
           return;
         }
         const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'singer' ? T_SINGER : e.kind === 'mimic' ? T_EXIT : T_ENEMY;
@@ -1597,6 +1817,14 @@
       for (const c of level.warden.circles) {
         if (Math.hypot(c.x - ox, c.y - oy) < R + c.r) circles.push({ x: c.x, y: c.y, r: c.r, type: wt, warden: true });
       }
+    }
+    // LEVEL 14: the gaol door, while it is shut - the way out, in the way out's colour, with the way out's bell.
+    // It is a slab across its doorway (three overlapping circles); all three are one door to the echo.
+    const st = level.story;
+    if (st && st.door && st.door.solid) {
+      st.door.parts.forEach((q, i) => {
+        if (Math.hypot(q.x - ox, q.y - oy) < R + q.r) circles.push({ x: q.x, y: q.y, r: q.r, type: T_EXIT, door: st.door, doorArt: i === 1 });
+      });
     }
     const ex = level.exit;
     if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push({ x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
@@ -1657,8 +1885,9 @@
         bin = wallBins.get(key);
         if (!bin) wallBins.set(key, (bin = { type: T_WALL, n: 0, sd: 0, sx: 0 }));
       } else {
-        bin = objBins.get(hitId[i]);
-        if (!bin) objBins.set(hitId[i], (bin = { type: type[i], n: 0, sd: 0, sx: 0, enemy: circles[hitId[i]].enemy, warden: circles[hitId[i]].warden }));
+        const okey = circles[hitId[i]].door ? 'door' : hitId[i]; // (the gaol door's three parts ring once, as one door)
+        bin = objBins.get(okey);
+        if (!bin) objBins.set(okey, (bin = { type: type[i], n: 0, sd: 0, sx: 0, enemy: circles[hitId[i]].enemy, warden: circles[hitId[i]].warden }));
       }
       bin.n++;
       bin.sd += d;
@@ -1687,6 +1916,8 @@
     // it is one more flat thing on the floor, and the wave finds it or it does not.
     const fr = level.fragment;
     if (fr) flats.push({ x: fr.x, y: fr.y, r: fr.r, type: T_LORE, art: fr.kind === 'log' ? 'log' : 'note', lore: true });
+    // ...and level 14's key, the same: one more thing lying on the floor that a wave finds or does not
+    if (st && st.key && !st.key.taken) flats.push({ x: st.key.x, y: st.key.y, r: st.key.r, type: T_KEY, art: 'key', key: true });
     // (Anything behind a muffler is in its shadow, puddles, decoys and fragments included.)
     const shadowed = (px, py, d) => {
       for (const c of circles) {
@@ -1699,19 +1930,20 @@
     for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
       if (d > R || !hasLOS(ox, oy, p.x, p.y) || (d > 1 && shadowed(p.x, p.y, d))) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore });
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore, key: !!p.key, ambient });
       echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
     if (singerRp) echoes.length = 0; // a singer's wave makes no echo sounds of its own: its sung tone is played from where it stands
+    if (ambient) echoes.length = 0; // nor does a drop of water: it is not your sonar, and its plink is played where it lands
 
     // The echo monsters this wave's rays hit at the moment it was sent (they are in `echoes`).
     // Whether a monster is really TOUCHED - and so learns of you - is not decided here: it is
     // decided as the wavefront passes over wherever the monster is at that moment (touchMonsters).
     const seen = new Set();
-    for (const bin of objBins.keys()) if (circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy);
+    for (const bin of objBins.keys()) if (circles[bin] && circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy); // (circles[bin]: the door's bin is named, not numbered)
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6, singer: singerRp, hitPlayer: false });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6, singer: singerRp, hitPlayer: false, ambient, dim: ambient ? 0.62 : 1 });
   }
 
   /** Can the wave get from (ox,oy) to this monster? A wall, a boulder or another monster in the way stops it. */
@@ -1826,6 +2058,7 @@
       case T_SINGER: audio.echoSinger(ev.pan, vol, ev.d); break;
       case T_WARDEN: audio.echoWarden(ev.pan, vol, ev.d); break; // level 13: the wall that came back wrong
       case T_LORE: audio.echoLore(ev.pan, vol); break; // a lore fragment: paper
+      case T_KEY: audio.echoKey(ev.pan, vol); break; // level 14's key: a small bright tick of metal
     }
   }
 
@@ -1835,7 +2068,7 @@
       rp.t += dt;
       const after = Math.min(rp.t * RIPPLE_SPEED, rp.R);
       if (rp.singer) singerRippleHits(rp, before, after); // a singer's wave alerts no monster; it can only MARK you
-      else touchMonsters(rp, before, after);
+      else if (!rp.ambient) touchMonsters(rp, before, after); // (a drop of water's wave alerts nothing at all)
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
     }
     ripples = ripples.filter((rp) => rp.t < rp.life);
@@ -1846,7 +2079,13 @@
       // Crouching wipes `marks`, so a wave you crouched under never gets to read it: the same rule as the rest.
       if (m.lore && !m.fired && m.t >= 0) {
         m.fired = true;
-        if (!m.singer && state === 'play') readFragment();
+        if (!m.singer && !m.ambient && state === 'play') readFragment();
+      }
+      // Level 14's key, lit up - by your wave or by a drop's. The first time you can really see it from where
+      // you stand, the story gives it its moment (js/story.js onKeyLit).
+      if (m.key && !m.fired && m.t >= 0) {
+        m.fired = true;
+        if (!m.singer && state === 'play') story.onKeyLit();
       }
     }
     marks = marks.filter((m) => m.t < m.life);
@@ -1879,7 +2118,7 @@
 
   /** E: drop the decoy you are carrying where you stand. */
   function dropDecoy() {
-    if (state !== 'play' || !player.hasDecoy) return;
+    if (state !== 'play' || !player.hasDecoy || scriptLock) return;
     player.hasDecoy = false;
     decoys.push({ x: player.x, y: player.y, t: 0, phase: 'arming', tick: 0, hum: 0, ring: 0, lured: [] });
     EchoProfile.bump('decoys');
@@ -1899,6 +2138,7 @@
     // disguise on the spot, exactly as a ripple would, and the echo monster it becomes walks over with the rest.
     for (const e of enemies) {
       if (e.state === 'lured' || e.state === 'trapped') continue;
+      if (e.kind === 'warden') continue; // the Warden (levels 15-16) is never distracted - there is no decoy there, but if there were
       if (Math.hypot(e.x - d.x, e.y - d.y) > DECOY_RADIUS) continue;
       if (e.kind === 'mimic') revealMimic(e);
       if (lureEnemy(e, d.x, d.y)) d.lured.push(e);
@@ -1996,7 +2236,11 @@
     // is analog: any direction, speed from a crawl to the same 170 px/s. (0,0 unless a finger is pushing the stick.)
     let mvx = 0;
     let mvy = 0;
-    if (ix || iy) {
+    if (scriptLock) {
+      // levels 14-16: a scripted beat has the controls. The player stands still - or is walked, for a beat.
+      mvx = scriptWalk.x / WALK_SPEED;
+      mvy = scriptWalk.y / WALK_SPEED;
+    } else if (ix || iy) {
       const len = Math.hypot(ix, iy);
       mvx = ix / len;
       mvy = iy / len;
@@ -2051,7 +2295,8 @@
     beaconTimer -= dt;
     if (beaconTimer <= 0) {
       beaconTimer = 2.4;
-      chime(level.exit.x, level.exit.y);
+      // (level 15: the real way out cannot be heard while the passage to it is still sealed - js/story.js)
+      if (!(level.story && level.story.exitMuted)) chime(level.exit.x, level.exit.y);
       for (const e of enemies) if (e.kind === 'mimic') chime(e.x, e.y);
     }
 
@@ -2059,6 +2304,7 @@
     let dmin = Infinity;
     for (const e of enemies) {
       if (e.kind === 'mimic') continue;
+      if (e.kind === 'warden' && e.state !== 'hunt') continue; // (nor does a Warden still in the stone)
       const d = Math.hypot(e.x - player.x, e.y - player.y) * (isChasing(e) ? 1 : 1.35);
       if (d < dmin) dmin = d;
     }
@@ -2097,15 +2343,20 @@
     // Like the tutorial's prompts it reads where you are and writes to the screen and the speakers. The one
     // thing it ever takes is the controls, and only at the reveal - which is what the level is for.
     if (level.warden) warden.update(dt);
+    // LEVELS 14-16: their scripted beats (js/story.js) - the same kind of thing, and it may take the controls
+    // for a beat at a time (scriptLock), with the game still running underneath.
+    if (level.story) story.update(dt);
 
     // NEAR MISSES. Read-only, and last: every monster has already moved and the outcomes below decide the
     // level. All this does is notice that something came within a hair of you and did not get you.
     nearMiss = Math.max(0, nearMiss - dt / NEAR_MISS_SECONDS);
     for (const e of enemies) {
       if (e.kind === 'mimic') continue; // a disguised mimic gives nothing away, near miss or not
+      if (e.kind === 'warden' && e.state !== 'hunt') continue; // nor a Warden still asleep in the stone
       const d = Math.hypot(e.x - player.x, e.y - player.y);
       e.nmCd = Math.max(0, (e.nmCd || 0) - dt);
-      if (d < NEAR_MISS_DIST) {
+      // (a Warden is bigger than the other monsters: its margin is 1.5x ITS reach, the same rule)
+      if (d < (e.kind === 'warden' ? (e.r + PLAYER_R) * 1.5 : NEAR_MISS_DIST)) {
         e.nmIn = true; // inside the margin: wait and see whether it gets you
       } else if (e.nmIn) {
         e.nmIn = false;
@@ -2122,6 +2373,12 @@
       return onCaught('singer', 'marked'); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
     }
     for (const e of enemies) {
+      if (e.kind === 'warden') {
+        // Levels 15-16: the same rule as every monster - circles overlapping kills you - with its own circle,
+        // because it is bigger than they are. A Warden still asleep in the stone is solid, not deadly.
+        if (e.state === 'hunt' && Math.hypot(e.x - player.x, e.y - player.y) < e.r + PLAYER_R) return onCaught('warden', deathWhy(e));
+        continue;
+      }
       // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
       if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind, deathWhy(e));
     }
@@ -2129,7 +2386,13 @@
     // in front of it - walking into the great room is what ends that level, not touching the door.
     if (!level.warden && Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) {
       if (inTutorial()) onTutorialComplete();
+      else if (level.story) story.atExit(); // levels 14-16: the way out has a last beat of its own first
       else onLevelComplete();
+    }
+    // ...and when that beat is over, on to the next level (or the end). Last, once everything above is settled.
+    if (storyDone) {
+      storyDone = false;
+      onStoryCleared();
     }
   }
 
@@ -2160,13 +2423,26 @@
     o.seed = EchoArt.seedOf(c.x, c.y);
     o.tell = 'none';
     switch (c.type) {
-      case T_OBSTACLE: EchoArt.draw(ctx, EchoArt.obstacleKind(c.x, c.y), c.x, c.y, c.r, o); break;
+      case T_OBSTACLE: EchoArt.draw(ctx, c.bar ? 'bar' : EchoArt.obstacleKind(c.x, c.y), c.x, c.y, c.r, o); break; // (bar: level 14)
+      case T_WARDEN:
+        // levels 15-16: a hunting Warden, drawn as itself - level 13's stone, at the size of a corridor - facing
+        // the ripple, like every monster, never the way it is really going. (Level 13's great mass is drawn by
+        // js/warden.js itself and has no `enemy`.)
+        if (c.enemy) EchoWarden.drawHunter(ctx, c.x, c.y, c.r, { a: o.a, t: artT, h: o.h, variant: c.enemy.variant, reach: c.enemy.reach || 0, tx: player.x, ty: player.y });
+        break;
       case T_ENEMY: EchoArt.draw(ctx, 'echo', c.x, c.y, c.r, o); break;
       case T_SCENT: EchoArt.draw(ctx, 'scent', c.x, c.y, c.r, o); break;
       case T_STALKER: EchoArt.draw(ctx, 'stalker', c.x, c.y, c.r, o); break;
       case T_SINGER: EchoArt.draw(ctx, 'singer', c.x, c.y, c.r, o); break;
       case T_EXIT:
-        if (!c.mimic) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
+        if (c.door) {
+          // level 14: the gaol door - drawn once, from the middle of its three parts, swinging as it opens
+          if (c.doorArt) {
+            o.swing = c.door.swing;
+            EchoArt.draw(ctx, 'door', c.door.x, c.door.y, c.door.r, o);
+            o.swing = 0;
+          }
+        } else if (!c.mimic) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
         else {
           o.tell = MODES[mode].mimicTell; // a mimic melting into the monster starts from the look it was disguised with
           if (c.revealAt === undefined) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
@@ -2191,6 +2467,7 @@
   function drawRipple(rp) {
     const r = rp.t * RIPPLE_SPEED;
     const { x, y, dist, type, R } = rp;
+    if (rp.ambient) ctx.globalAlpha = rp.dim; // a drop of water's ripple is fainter than yours (levels 14 and 16)
     const tint = rp.singer ? singerRgb() : null; // a singer's own wave is magenta all through: front, walls, everything it finds
     for (let k = 1; k < NRAYTYPES; k++) {
       retBuckets[k].length = 0;
@@ -2273,6 +2550,7 @@
       const al = Math.exp(-(r - ob.dmin) / RIPPLE_SPEED / 1.3);
       if (al > 0.04) drawLit(rp, ob, al * Math.min(1, 0.4 + ob.n / 10) * (tint ? 0.75 : 1));
     }
+    if (rp.ambient) ctx.globalAlpha = 1;
   }
 
   /** Live ripples + bump flashes, in world coordinates (the caller sets the transform). */
@@ -2344,6 +2622,9 @@
     // wedge you could really see through the one gap in its wall, so it never shows a tile you could not have
     // seen. See js/warden.js and the note in CLAUDE.md.
     if (level.warden) warden.draw(ctx, artT);
+    // ...and the second exception, level 15's false light, held to exactly the same rule: it is clipped to what
+    // the player could really see from where they stand (js/story.js draw, and the note in CLAUDE.md).
+    if (level.story) story.draw(ctx, artT);
 
     // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically.
     // (Crouching wipes it - for the mimic too, or the difference would give it away - until your next ripple.)
@@ -2462,6 +2743,14 @@
       ctx.arc(player.x, player.y, 12, -Math.PI / 2, -Math.PI / 2 + TAU * p);
       ctx.stroke();
     }
+    if (player.hasKey) {
+      // level 14: the key you are carrying, small, at your side - so you can see that you have it
+      const o = artOpts;
+      o.a = 0.85;
+      o.t = artT;
+      o.tell = 'none';
+      EchoArt.draw(ctx, 'key', player.x + 13, player.y - 11, 6, o);
+    }
     if (player.smell > 0) {
       // smelly: a lime halo, and a ring that drains as you walk (it holds still while you stand still)
       const f = player.smell / cfg.smellSeconds;
@@ -2515,7 +2804,7 @@
 
     const s = viewScale * DPR;
     // level 13 adds its own tremor on top of the game's (and none at all in calm mode - see js/warden.js)
-    const sh = shake + (level.warden ? warden.shake() : 0);
+    const sh = shake + (level.warden ? warden.shake() : 0) + (level.story ? story.shake() : 0); // (and 14-16's, none in calm mode)
     const sx = (Math.random() - 0.5) * sh * DPR;
     const sy = (Math.random() - 0.5) * sh * DPR;
     ctx.setTransform(s, 0, 0, s, canvas.width / 2 - camX * s + sx, canvas.height / 2 - camY * s + sy);
@@ -2537,6 +2826,8 @@
     }
     // level 13: the dread vignette tightening, the reveal's flash, and the fade to black at the end of it
     if (level.warden) warden.veil(ctx, canvas.width, canvas.height);
+    // levels 14-16: the dark each one opens and closes in, and level 15's reveal
+    if (level.story) story.veil(ctx, canvas.width, canvas.height);
   }
 
   // -------------------------------------------------------------- UI / flow
@@ -2630,7 +2921,8 @@
     hudNumber('hud-level', inTutorial() ? 'Tutorial' : `Level ${levelNum} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
     hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
-    $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : '';
+    $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : player && player.hasKey ? 'Key' : '';
+    $('hud-item').classList.toggle('key', !!(player && player.hasKey)); // (level 14: in the key's own colour)
     $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
     $('hud-audio').textContent = [calm ? 'Calm' : '', visualCues ? 'Visual cues' : '', audio.muted ? 'Sound off' : ''].filter(Boolean).join(' · ');
   }
@@ -2654,6 +2946,11 @@
   function startLevel(n, retrying = false) {
     destroyVoices();
     warden.stop(); // level 13's drone, if the last level was it
+    story.stop(); // ...and levels 14-16's beats and sounds
+    scriptLock = false;
+    scriptWalk.x = 0;
+    scriptWalk.y = 0;
+    storyDone = false;
     wardenCleared = false;
     wardenSaved = false;
     if (!retrying) levelDeaths = 0;
@@ -2682,6 +2979,7 @@
       trailCd: 0, // seconds until a trail can make you smelly again (TRAIL_RESMELL_COOLDOWN)
       inPuddle: false,
       hasDecoy: false, // carrying a sonar decoy (level 9+): E drops it
+      hasKey: false, // level 14: carrying the gaol's key (js/story.js)
       crouching: false, // Shift held (see syncCrouch): silent, and cannot send a ripple
     };
     enemies = level.enemies.map(makeEnemy);
@@ -2711,15 +3009,18 @@
     $('hud').classList.remove('hidden');
     updateHud();
     // The tutorial has prompts of its own instead of a level banner, and they start the moment you can move.
-    if (inTutorial()) {
+    if (inTutorial() || level.story) {
+      // (levels 14-16 show their banner themselves, when their opening beat hands over the controls)
       clearTimeout(bannerTimer);
       $('banner').classList.remove('show'); // never leave a level's banner hanging over a tutorial prompt
-      tutorial.start();
+      if (inTutorial()) tutorial.start();
     } else showBanner(n);
     // Level 13: the dread starts with the level, and the capture plays IN FULL every time it is finished.
     // It is the one cutscene in the game that is not once-only (owner's instruction): the other seven are
     // somebody else's memory, and this one is what happens to you.
     if (level.warden) warden.start(level);
+    // Levels 14-16: each opens with its own beat in the dark (js/story.js), every time - like level 13's.
+    if (level.story) story.start(level);
   }
 
   // ----------------------------------------------------------- the tutorial
@@ -2873,6 +3174,7 @@
    */
   function deathWhy(e) {
     if (e.kind === 'mimic' || e.fromMimic) return 'any'; // a mimic is a mimic, disguised or not
+    if (e.kind === 'warden') return e.why || 'hunt'; // levels 15-16: it always knew - which one it was is the tip
     // a singer that has marked you: whether it lands on you or its body reaches you on the way, the song is why
     if (e.kind === 'singer' && (e.state === 'marked' || e.state === 'leap' || e.state === 'land')) return 'any';
     const chasing = e.state === 'hunt' || e.state === 'track' || e.state === 'follow' || e.state === 'search';
@@ -2892,10 +3194,13 @@
     EchoProfile.flush();
     touch.releaseAll();
     audio.caught();
+    if (cause === 'warden') audio.wardenGrab(); // levels 15-16: the same blow that ends level 13
     audio.stopAmbient();
     music.stop();
     destroyVoices();
     cues.clear();
+    story.stop(); // levels 14-16: their beats, their line on screen and their own sounds (Try again starts it all afresh)
+    scriptLock = false;
     flash = calm ? 0 : 1; // calm mode: no red flash or screen shake
     shake = calm ? 0 : 14;
     // a short buzz on a touch device (off in calm mode, like the flash and shake)
@@ -3062,24 +3367,38 @@
   }
 
   /**
-   * The capture is over. STUB: the area it takes you to has not been built yet, so the game ends on a short,
-   * deliberately temporary screen and goes back to the title. Replace all of this - the `#ending` overlay in
-   * index.html included - when the next area exists.
+   * The capture is over - and the story goes on (v14.0). Level 14 begins in the same black the capture ended
+   * in: the player wakes up in a cell (js/story.js). Nothing is written to `seen` here: the capture is not
+   * remembered, because it is not once-only - it plays in full every time level 13 is finished. The "Progress
+   * saved" from walking into the room waits for the first moment level 14 hands the controls back.
    */
   function onCaptured() {
+    savedPending = wardenSaved;
+    startLevel(WARDEN_LEVEL + 1);
+  }
+
+  /**
+   * THE END OF THE GAME SO FAR: level 16's way out. STUB - the area after it has not been built yet, so the game
+   * ends on a short, deliberately temporary screen and goes back to the title. (Until v14.0 this screen came
+   * straight after level 13's capture.) Replace this and the `#ending` overlay in index.html together when the
+   * next area exists.
+   */
+  function onStoryEnd(saved) {
     state = 'ending';
-    // Nothing is written to `seen` here: the capture is not remembered, because it is not once-only. It plays
-    // in full every time level 13 is finished (owner's instruction).
     touch.releaseAll();
     touch.setVisible(false);
     audio.stopAmbient();
     music.stop();
     destroyVoices();
     cues.clear();
+    story.stop();
+    scriptLock = false;
+    level = null; // nothing behind the last screen but the dark the level faded into
     $('hud').classList.add('hidden');
     $('banner').classList.remove('show');
     showOverlay('ending');
-    if (wardenSaved) showSaved(); // something really was written down back at the door; now is when it can be said
+    audio.levelComplete();
+    if (saved) showSaved();
   }
 
   function pause() {
@@ -3109,6 +3428,9 @@
     EchoProfile.flush();
     tutorial.stop(); // the tutorial's prompt, if one was up
     warden.stop(); // ...and level 13's drone
+    story.stop(); // ...and levels 14-16's beats and their sounds
+    scriptLock = false;
+    savedPending = false;
     state = 'title';
     level = null;
     music.start('title'); // the title has a mood of its own (nothing happens until there is an AudioContext)
@@ -3526,6 +3848,7 @@
     modeIds: () => MODE_ORDER,
     modeLabel: (m) => MODES[m || mode].label,
     campaignLevels: () => CAMPAIGN_LEVELS,
+    medalLevels: () => MEDAL_LEVELS, // the medal board counts these (it counted the whole campaign until v14.0)
   });
 
   function openSettings(from) {
@@ -3835,8 +4158,12 @@
 
     if (player && level && state !== 'title' && state !== 'cutscene') {
       const k = Math.min(1, dt * 9);
-      camX += (player.x - camX) * k;
-      camY += (player.y - camY) * k;
+      // (level 14: for one beat the camera leans towards the key - js/story.js camera())
+      const f = level.story ? story.camera() : null;
+      const tx = f ? player.x + (f.x - player.x) * f.k : player.x;
+      const ty = f ? player.y + (f.y - player.y) * f.k : player.y;
+      camX += (tx - camX) * k;
+      camY += (ty - camY) * k;
       if (state === 'play') {
         hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
         if (showTimer && scored()) hudNumber('hud-time', mmss(levelTime), false);
@@ -3850,7 +4177,7 @@
 
     // touch controls: shown only while playing (and released the moment they are not)
     if (touchOn && state === 'play' && window.innerHeight > window.innerWidth) pause(); // portrait: the "rotate your device" note is up
-    touch.setVisible(touchOn && state === 'play');
+    touch.setVisible(touchOn && state === 'play' && !scriptLock); // (not while a beat on 14-16 has the controls)
     if (touchOn && state === 'play') {
       touch.setCooldown(cfg.cooldown > 0 ? 1 - cooldown / cfg.cooldown : 1);
       touch.setItem(!!player.hasDecoy);
@@ -4061,6 +4388,20 @@
       readFragment: () => readFragment(),
       setLoreFound: (ids) => EchoLore.setFound(ids),
       showArchive: () => showArchive(),
+      // v14.0: levels 14-16 (js/story.js). go(14..16) plays them; step() drives them (the beats run inside play).
+      story,
+      storyState: () => story.state(),
+      scriptLock: () => ({ locked: scriptLock, walk: { ...scriptWalk } }),
+      hunter: () => {
+        const e = enemies.find((m) => m.kind === 'warden');
+        return e ? { x: e.x, y: e.y, r: e.r, state: e.state, variant: e.variant, speed: e.speed, hidden: !!e.hidden, held: !!e.held, why: e.why || null, abilities: e.abilities.length } : null;
+      },
+      // ?debug only, for the measured speed test: wake the Warden now, wherever it is
+      wakeHunter: () => {
+        const e = enemies.find((m) => m.kind === 'warden');
+        if (e) wakeWarden(e, levelNum === STORY_LAST ? 'upgraded' : 'hunt');
+        return !!e;
+      },
       // v12.0: level 13, the capture (js/warden.js). go(13) plays it; the hooks below drive and inspect it.
       warden,
       wardenState: () => warden.state(),
@@ -4141,10 +4482,12 @@
       musicState: () => music.state(),
       levelDeaths: () => levelDeaths,
       settings: () => ({
-        campaignLevels: CAMPAIGN_LEVELS, // 13 (the tutorial is level 0 and is not one of them)
-        medalLevels: MEDAL_LEVELS, // 12: level 13 is hand-drawn, has no cleared screen and takes no medals
+        campaignLevels: CAMPAIGN_LEVELS, // 16 (the tutorial is level 0 and is not one of them)
+        medalLevels: MEDAL_LEVELS, // 12: levels 13-16 are hand-drawn, have no cleared screen and take no medals
         // level 13 (js/warden.js): the fixed level, the one room that glows, and the capture
         warden: { level: WARDEN_LEVEL, insideX: EchoWarden.INSIDE_PX, waveFallback: EchoWarden.WAVE_FALLBACK, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
+        // levels 14-16 (js/story.js), and the two speeds of the Warden that hunts you on 15 and 16 (js/level.js)
+        story: { first: STORY_FIRST, last: STORY_LAST, walkSpeed: WALK_SPEED, wardenSpeed: WARDEN_SPEED, wardenUpgradedSpeed: WARDEN_UPGRADED_SPEED, at: level && level.story ? story.state() : null },
         lore: { total: EchoLore.TOTAL, found: EchoLore.count(), chance: EchoLore.CHANCE[mode], bonus: EchoLore.bonusUnlocked(), here: level && level.fragment ? level.fragment.id : null },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },

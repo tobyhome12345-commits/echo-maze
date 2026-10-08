@@ -30,6 +30,7 @@ const EchoMusic = (() => {
   const AEOLIAN = [0, 2, 3, 5, 7, 8, 10];
   const PHRYGIAN = [0, 1, 3, 5, 7, 8, 10];
   const WHOLE_TONE = [0, 2, 4, 6, 8, 10];
+  const MAJOR_PENT = [0, 2, 4, 7, 9]; // level 15's false hope, and nowhere else
 
   /**
    * One mood per stretch of the game. `root` is the key (Hz), `step` how long one step of the scheduler is,
@@ -48,10 +49,23 @@ const EchoMusic = (() => {
     // level 13: nothing hunts you here, so there is nothing for the score to swell at. It sits an octave lower
     // than anything else, on a tritone, and almost never plays a note - the drone of the room does the rest.
     warden: { root: 43.65, scale: PHRYGIAN, step: 3.4, density: 0.07, cut: 190, voices: [1, 1.414, 2.003], detune: 0.05, swell: 0, octaves: [1, 2], gain: 0.62 },
+    // LEVELS 14-16 (js/story.js). The gaol: cold, slow and almost empty - the drips are the music here.
+    gaol: { root: 41.2, scale: AEOLIAN, step: 3.8, density: 0.1, cut: 240, voices: [1, 1.5, 2.004], detune: 0.06, swell: 0, octaves: [2, 3], gain: 0.5 },
+    // level 15's false light, on purpose the warmest thing in the score: a major key, brighter, nothing in it
+    // that wants to resolve away. It is switched to when the light is first seen and cut when it goes out.
+    hope: { root: 55, scale: MAJOR_PENT, step: 2.6, density: 0.32, cut: 900, voices: [1, 1.26, 1.5], detune: 0.04, swell: 0, octaves: [3, 4], gain: 0.42 },
+    // the Warden coming for you (15 after the reveal, 16 after the release): the level-13 tritone, quicker,
+    // and the one mood besides the early ones that is allowed to swell on `danger` as hard as it likes
+    hunt: { root: 43.65, scale: PHRYGIAN, step: 1.15, density: 0.42, cut: 300, voices: [1, 1.414, 2.003], detune: 0.12, swell: 1.4, octaves: [1, 2], gain: 0.6 },
+    // level 16 before it breaks out: deep water, and very little else
+    cistern: { root: 38.89, scale: AEOLIAN, step: 3.1, density: 0.12, cut: 210, voices: [1, 1.5, 2.006], detune: 0.08, swell: 0.6, octaves: [1, 2], gain: 0.55 },
   };
 
-  /** Which mood a level plays in. */
+  /** Which mood a level plays in. (Levels 15 and 16 change mood partway through - js/story.js asks for it.) */
   function moodFor(level) {
+    if (level >= 16) return 'cistern';
+    if (level === 15) return 'warden';
+    if (level === 14) return 'gaol';
     if (level >= 13) return 'warden';
     if (level >= 12) return 'singer';
     if (level >= 11) return 'muffler';
@@ -191,12 +205,16 @@ const EchoMusic = (() => {
     function start(kind) {
       const c = ctx();
       if (!c) return; // no AudioContext yet: the game has not had its first click
-      const want = kind === 'title' ? 'title' : moodFor(kind | 0);
+      // a level number, 'title', or (levels 15 and 16 change partway through) the name of a mood itself
+      const named = typeof kind === 'string' && MOODS[kind];
+      const want = kind === 'title' ? 'title' : named ? kind : moodFor(kind | 0);
       if (running && key === want) return;
       stop();
       key = want;
       mood = MOODS[want];
-      rand = rng((kind === 'title' ? 7919 : (kind | 0) * 2654435761) >>> 0);
+      let seed = kind === 'title' ? 7919 : (kind | 0) * 2654435761;
+      if (named && kind !== 'title') for (let i = 0; i < kind.length; i++) seed = Math.imul(seed ^ kind.charCodeAt(i), 16777619) + 1;
+      rand = rng(seed >>> 0);
       const t = c.currentTime;
       out = c.createGain();
       out.gain.value = 0.0001;

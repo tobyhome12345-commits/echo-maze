@@ -33,7 +33,10 @@ const EchoPalette = (() => {
   // 'warden' is the level-13 warden (js/warden.js). It is deliberately NOT one of the RIPPLE_ROLES the
   // colour-blind checker compares nine ways: level 13 holds nothing else a ripple can light up, so it only
   // ever has to be told apart from the wall and the door - which is checked on its own (see CLAUDE.md).
-  const ROLES = RIPPLE_ROLES.concat(['muffler', 'heart', 'warden']);
+  // 'key' is level 14's key (js/story.js) and is kept out of the nine-way check for the same reason: the gaol
+  // holds walls, bars (obstacle), the door (exit) and the key, and nothing else - so the key is checked against
+  // exactly those, under every vision, on its own (see CLAUDE.md, v14.0).
+  const ROLES = RIPPLE_ROLES.concat(['muffler', 'heart', 'warden', 'key']);
 
   const PALETTES = {
     default: {
@@ -53,6 +56,7 @@ const EchoPalette = (() => {
         muffler: '205,220,238',
         heart: '255,132,150',
         warden: '255,232,224',
+        key: '235,210,135', // level 14's key: old brass (picked by tools/palette-check.js - see CLAUDE.md, v14.0)
       },
       // named so the default look is exactly what it was (elsewhere these are derived - see coreOf)
       core: {
@@ -89,6 +93,7 @@ const EchoPalette = (() => {
         muffler: '168,153,118',
         heart: '242,198,88',
         warden: '196,150,120',
+        key: '235,205,130',
       },
     },
     // Worst pair: 13.6 (under normal vision and tritanopia). Terrain is cool and green, monsters are warm -
@@ -111,6 +116,7 @@ const EchoPalette = (() => {
         muffler: '201,208,187',
         heart: '220,179,165',
         warden: '206,142,150',
+        key: '240,205,125',
       },
     },
     // Worst pair: 17.0 under normal vision, where the Default palette manages 11.9 - the same colour language
@@ -133,6 +139,7 @@ const EchoPalette = (() => {
         muffler: '226,241,255',
         heart: '255,127,144',
         warden: '255,232,224',
+        key: '215,220,175',
       },
     },
   };
@@ -184,6 +191,8 @@ const EchoPalette = (() => {
     root.style.setProperty('--singer-rgb', rgbOf('singer'));
     root.style.setProperty('--muffler-rgb', rgbOf('muffler'));
     root.style.setProperty('--lore-rgb', rgbOf('lore')); // the fragment line and the Fragments screen
+    root.style.setProperty('--key-rgb', rgbOf('key')); // "Key" in the HUD while you carry it (level 14)
+    root.style.setProperty('--warden-rgb', rgbOf('warden'));
     // the cue shapes in the title legend are inline SVG: each one carries the role it stands for
     const svgs = document.querySelectorAll('[data-cue]');
     for (let i = 0; i < svgs.length; i++) {

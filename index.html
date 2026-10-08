@@ -43,6 +43,12 @@
     <span id="lore-line"></span>
   </div>
 
+  <!-- levels 14-16 (js/story.js): what you say, typed out as your voice says it -->
+  <div id="say" aria-live="polite">
+    <span id="say-head"></span>
+    <span id="say-line"></span>
+  </div>
+
   <!-- Visual cues (accessibility): a short text caption for a loud sound, e.g. [monster screech] -->
   <div id="cue-caption" aria-live="polite"></div>
 
@@ -99,6 +105,8 @@
         <li><svg class="glyph line" data-cue="muffler" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="6" fill="none"/><path d="M-9.5,0 L9.5,0"/></svg>Muffler: hollow ring with a dash</li>
         <li><svg class="glyph line" data-cue="singer" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="3.6" fill="none"/><path class="arc" d="M-4.6,-6.2 A7.7,7.7 0 0 1 4.6,-6.2"/><path class="arc" d="M6.9,3.1 A7.7,7.7 0 0 1 2.4,7.3"/><path class="arc" d="M-2.4,7.3 A7.7,7.7 0 0 1 -6.9,3.1"/></svg>Singer: ring with three arcs</li>
         <li><svg class="glyph line" data-cue="heart" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="7" fill="none"/></svg>Heartbeat: ring</li>
+        <li><svg class="glyph" data-cue="wall" viewBox="-10 -10 20 20"><path d="M0,-8.8 C4.3,-2.8 6.4,1.5 0,6.7 C-6.4,1.5 -4.3,-2.8 0,-8.8 Z"/></svg>Dripping water: a drop</li>
+        <li><svg class="glyph" data-cue="warden" viewBox="-10 -10 20 20"><path d="M-6.7,-3.9 L-2.1,-7 L4.9,-5.7 L7.1,0.7 L3.9,6.7 L-3.5,6.3 L-7.1,1.8 Z"/></svg>Something heavy, coming: a block of stone</li>
       </ul>
 
       <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. <span class="kb-only">Hold Shift to crouch</span><span class="touch-only">Hold CROUCH to crouch</span>: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Later, some things are never seen &mdash; listen for them &mdash; and something sings: if its song marks you, keep moving. Find the green resonance and get out.</p>
@@ -301,15 +309,15 @@
   </section>
 
   <!--
-    STUB. What comes after level 13's capture has not been built yet, so the game stops here instead of
-    pretending otherwise. This whole overlay - and onCaptured() in js/game.js - is to be replaced when the
-    next area exists. (It took the place of the old "You finished the game" screen, which no longer plays:
-    clearing level 12 leads on to level 13, and a capture is not a finish.)
+    STUB. What comes after level 16 has not been built yet, so the game stops here instead of pretending
+    otherwise. This whole overlay - and onStoryEnd() in js/game.js - is to be replaced when the next area exists.
+    (v12.0-v13.0 showed it straight after level 13's capture; since v14.0 the capture leads on into levels 14-16,
+    and this comes at the end of 16.)
   -->
   <section id="ending" class="overlay hidden">
     <div class="panel small quiet">
       <h2 class="hush">&hellip;</h2>
-      <p id="ending-text">Not killed. Taken.</p>
+      <p id="ending-text">Behind you, the stone settles. Ahead, the dark goes on.</p>
       <p class="stub">This is as far as the maze goes for now. The next area is still being built.</p>
       <div class="buttons">
         <button id="btn-ending-title" class="primary">Back to title <span class="key">Enter</span></button>
@@ -343,6 +351,7 @@
   <script src="js/level.js"></script>
   <script src="js/tutorial.js"></script>
   <script src="js/warden.js"></script>
+  <script src="js/story.js"></script>
   <script src="js/lore.js"></script>
   <script src="js/wordmark.js"></script>
   <script src="js/feedback.js"></script>

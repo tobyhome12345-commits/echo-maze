@@ -16,6 +16,10 @@
  *   note          (paper)   a lore fragment (js/lore.js): a torn, dog-eared page with a few lines written on it
  *   log           (paper)   a lore recording: a cassette - two reels, a label, the head window. No antenna and
  *                           no ring, so it can never be mistaken for the sonar decoy, the other small device
+ *   key           (brass)   level 14: an old iron key - a ring bow with a hole through it, a straight shaft, two teeth
+ *   bar           (amber)   level 14: one iron bar of a cell front, seen from above (a row of them is the front)
+ *   door          (green)   level 14: the gaol door across its doorway - a slab, two bands, rivets, a keyhole;
+ *                           it swings back on its hinge (o.swing) once the key has turned
  *   wall          (blue)    stone joints and the odd crack, along the lit outline (see wallTexture)
  *
  * Rules this file keeps:
@@ -45,7 +49,7 @@ const EchoArt = (() => {
   // both "obstacle" - a palette has one colour for the pair, exactly as the ripple does.
   const RGB = {};
   const CORE = {};
-  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer', note: 'lore', log: 'lore' };
+  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer', note: 'lore', log: 'lore', key: 'key', bar: 'obstacle', door: 'exit' };
   EchoPalette.onChange((rgb, core) => {
     for (const k in ART_ROLE) {
       RGB[k] = rgb[ART_ROLE[k]];
@@ -619,8 +623,71 @@ const EchoArt = (() => {
     detail(ctx, CORE.log, a, w, 0.62);
   }
 
+  // ------------------------------------------------------- the gaol (level 14)
+  // THE KEY: an old iron key lying at a slant - a ring for a bow with a hole through it, a long straight shaft,
+  // and a bit with two teeth. Nothing else in the maze has a hole through it and a straight shaft.
+  const KEY_TILT = -0.62;
+  function key(ctx, a, w) {
+    ctx.rotate(KEY_TILT);
+    ctx.beginPath();
+    circle(ctx, -0.56, 0, 0.32); // the bow
+    paint(ctx, RGB.key, CORE.key, a, w, 0.16);
+    ctx.beginPath();
+    ctx.moveTo(-0.24, 0); // the shaft
+    ctx.lineTo(0.88, 0);
+    ctx.lineTo(0.88, 0.3); // and the bit, with its two teeth
+    ctx.lineTo(0.75, 0.3);
+    ctx.lineTo(0.75, 0.13);
+    ctx.lineTo(0.62, 0.13);
+    ctx.lineTo(0.62, 0.25);
+    ctx.lineTo(0.49, 0.25);
+    ctx.lineTo(0.49, 0);
+    paint(ctx, RGB.key, CORE.key, a, w, 0.1);
+    ctx.beginPath();
+    circle(ctx, -0.56, 0, 0.12); // the hole through the bow
+    ctx.moveTo(-0.3, -0.07); // a collar where the shaft meets it
+    ctx.lineTo(-0.3, 0.07);
+    detail(ctx, CORE.key, a, w, 0.62);
+  }
+
+  // AN IRON BAR, seen from above: a small round section with a bright edge. A row of them is a cell's front.
+  function bar(ctx, a, w) {
+    ctx.beginPath();
+    circle(ctx, 0, 0, 0.78);
+    paint(ctx, RGB.bar, CORE.bar, a, w * 0.8, 0.35);
+  }
+
+  // THE GAOL DOOR, seen from above across its doorway: a heavy slab with two iron bands, rivets and a keyhole.
+  // `o.swing` 0..1 swings it back on its hinge (the top end) once the key has turned. It is drawn in the exit's
+  // colour, because that is what it is: the way out, shut.
+  function door(ctx, a, w, o) {
+    const sw = o.swing || 0;
+    ctx.translate(0, -0.95);
+    ctx.rotate(-sw * Math.PI * 0.5);
+    ctx.translate(0, 0.95);
+    ctx.beginPath();
+    ctx.moveTo(-0.38, -0.95);
+    ctx.lineTo(0.38, -0.95);
+    ctx.lineTo(0.38, 0.95);
+    ctx.lineTo(-0.38, 0.95);
+    ctx.closePath();
+    paint(ctx, RGB.door, CORE.door, a, w, 0.2);
+    ctx.beginPath();
+    for (const y of [-0.5, 0.5]) {
+      ctx.moveTo(-0.38, y); // the bands
+      ctx.lineTo(0.38, y);
+    }
+    for (const y of [-0.72, -0.28, 0.28, 0.72]) circle(ctx, 0, y, 0.05); // rivets
+    circle(ctx, -0.2, 0, 0.09); // the keyhole, on the side you are standing on
+    ctx.moveTo(-0.2, 0.08);
+    ctx.lineTo(-0.2, 0.22);
+    ctx.moveTo(0, -0.95); // the hinge
+    ctx.lineTo(0, -1);
+    detail(ctx, CORE.door, a, w, 0.62);
+  }
+
   // ---------------------------------------------------------------- drawing
-  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log };
+  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log, key, bar, door };
   const NO = {};
 
   function draw(ctx, kind, x, y, r, o) {

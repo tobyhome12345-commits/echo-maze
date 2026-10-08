@@ -230,7 +230,7 @@ const EchoSettings = (() => {
       const h1 = document.createElement('h3');
       h1.textContent = `Medals · ${env.modeLabel()}`;
       box.appendChild(h1);
-      const sum = P.medalSummary(env.mode(), env.campaignLevels());
+      const sum = P.medalSummary(env.mode(), env.medalLevels()); // only the levels that take medals (1-12), not the whole campaign
       const mw = document.createElement('div');
       mw.className = 'medal-row';
       mw.append(
@@ -244,7 +244,7 @@ const EchoSettings = (() => {
 
       const grid = document.createElement('div');
       grid.className = 'medal-grid';
-      for (let n = 1; n <= env.campaignLevels(); n++) {
+      for (let n = 1; n <= env.medalLevels(); n++) {
         const rec = P.medalsFor(env.mode(), n);
         const cell = document.createElement('div');
         cell.className = `medal-cell${rec ? '' : ' none'}`;
@@ -282,7 +282,7 @@ const EchoSettings = (() => {
       const h3 = document.createElement('h3');
       h3.textContent = 'What killed you';
       box.appendChild(h3);
-      const names = { echo: 'Echo monster', scent: 'Scent monster', mimic: 'Mimic', stalker: 'Stalker', muffler: 'Muffler', singer: 'Singer' };
+      const names = { echo: 'Echo monster', scent: 'Scent monster', mimic: 'Mimic', stalker: 'Stalker', muffler: 'Muffler', singer: 'Singer', warden: 'Hunted down (levels 15-16)' }; // (the Warden is never named on screen)
       let any = false;
       for (const k of P.DEATH_KINDS) {
         if (!s.deathsBy[k]) continue;

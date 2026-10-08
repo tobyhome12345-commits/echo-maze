@@ -13,6 +13,8 @@
  *   singer (hum, sung tone, whoosh, landing)   magenta ring with three small arcs; while you are marked by it,
  *                                              a magenta ring that shrinks around you (setMark)
  *   heartbeat                                  a thin ring around the player, pulsing at the heartbeat's rate
+ *   the hunting Warden (levels 15-16: its voice, its steps)   a heavy uneven block with a seam across it
+ *   a drop of water (levels 14 and 16)         a falling drop, in the wall's colour
  *
  * Every cue has its own SHAPE as well as its colour, so colour alone is never needed.
  *
@@ -44,7 +46,8 @@ const EchoCues = (() => {
   // change with the palette - only these colours do - so a glyph always means the same thing.
   const RGB = {};
   EchoPalette.onChange((rgb) => {
-    for (const k of ['echo', 'scent', 'stalker', 'exit', 'decoy', 'heart', 'muffler', 'singer']) RGB[k] = rgb[k];
+    for (const k of ['echo', 'scent', 'stalker', 'exit', 'decoy', 'heart', 'muffler', 'singer', 'warden', 'key']) RGB[k] = rgb[k];
+    RGB.drip = rgb.wall; // a drop of water is the colour of the stone it lights
   });
 
   const smooth = (t) => {
@@ -280,6 +283,27 @@ const EchoCues = (() => {
           ctx.arc(0, 0, size * 1.22, a - 0.36, a + 0.36);
           ctx.stroke();
         }
+      } else if (kind === 'warden') {
+        // a heavy, uneven block of stone with one closed seam across it: the Warden (levels 15-16)
+        const B = [[-0.95, -0.55], [-0.3, -1.0], [0.7, -0.82], [1.02, 0.1], [0.55, 0.96], [-0.5, 0.9], [-1.02, 0.25]];
+        B.forEach(([bx, by], i) => (i ? ctx.lineTo(bx * size, by * size) : ctx.moveTo(bx * size, by * size)));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-0.15 * size, -0.32 * size);
+        ctx.lineTo(0.58 * size, -0.12 * size);
+        ctx.lineWidth = Math.max(1, size * 0.13);
+        ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, alpha * 0.7)})`; // (the cues draw additively: a seam of light)
+        ctx.stroke();
+      } else if (kind === 'drip') {
+        // a falling drop: water (levels 14 and 16), and on level 14 the drop that rings on the key
+        ctx.moveTo(0, -1.25 * size);
+        ctx.bezierCurveTo(0.62 * size, -0.4 * size, 0.92 * size, 0.22 * size, 0, 0.95 * size);
+        ctx.bezierCurveTo(-0.92 * size, 0.22 * size, -0.62 * size, -0.4 * size, 0, -1.25 * size);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
       } else if (kind === 'decoy') {
         // a four-point star inside a ring (the decoy's ring)
         for (let i = 0; i < 8; i++) {

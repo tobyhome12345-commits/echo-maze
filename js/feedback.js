@@ -87,6 +87,20 @@ const EchoFeedback = (() => {
       ],
       blind: ['You walked straight into it.', 'You touched the singer itself, not its song.'],
     },
+    // The Warden, hunting (levels 15 and 16). These say what it DOES - never what it is.
+    warden: {
+      hunt: [
+        'It always knew where you were. It is slower than you - it only needed you to stop.',
+        'Crouching, silence, the dark: none of it hides you from this one. Only distance does.',
+        'It does not search. It comes straight for you, so a dead end is a trap.',
+      ],
+      upgraded: [
+        'This one is faster than you. Every wrong turn and every pause is ground it takes back.',
+        'It gains a little every second. A dead end gave it the rest.',
+        'You cannot outrun it for long - only out-choose it. Follow the water and do not stop.',
+      ],
+      blind: ['You walked straight into it.'],
+    },
   };
 
   /** A small, stable hash of a string - not the game's random numbers, and nothing to do with them. */

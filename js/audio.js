@@ -45,6 +45,8 @@ class SoundEngine {
     this.ambVolume = 1; // Settings -> Audio -> Ambience
     this.muted = false;
     this.wardenDrone = null; // level 13's dread drone (js/warden.js), while that level is being played
+    this.daylight = null; // level 15's false light: the warm air and the chord under it (js/story.js)
+    this.cistern = null; // level 16's water under the floor
     this.active = 0; // live one-shot voices, used to cap polyphony
     // Calm mode: no heartbeat, and the startling sounds (screeches, growls,
     // the "caught" crash, the intro's lunge) are much quieter.
@@ -664,6 +666,7 @@ class SoundEngine {
     if (kind === 'stalker') return this._stalkerVoice(pitch);
     if (kind === 'muffler') return this._mufflerVoice(pitch);
     if (kind === 'singer') return this._singerVoice(pitch);
+    if (kind === 'warden') return this._wardenVoice(pitch);
     const c = this.ctx;
     const t = c.currentTime;
     const scent = kind === 'scent';
@@ -984,6 +987,18 @@ class SoundEngine {
       v.o2.frequency.setTargetAtTime(pf * 2.005, t, 0.15);
       v.o3.frequency.setTargetAtTime(pf * 1.498, t, 0.15);
       v.vib.frequency.setTargetAtTime(5 + mood * 3, t, 0.3); // the wavering quickens when it has you marked
+      return;
+    }
+    if (v.kind === 'warden') {
+      v.out.gain.setTargetAtTime(gain * 1.3 * (this.calm ? 0.6 : 1), t, 0.1);
+      if (v.pan) v.pan.pan.setTargetAtTime(pan, t, 0.06);
+      v.lp.frequency.setTargetAtTime((150 + mood * 230) * doppler, t, 0.15);
+      const pf = v.pitch * (1 + mood * 0.05) * doppler;
+      v.o1.frequency.setTargetAtTime(pf, t, 0.2);
+      v.o2.frequency.setTargetAtTime(pf * 1.414, t, 0.2);
+      v.o3.frequency.setTargetAtTime(pf * 2.003, t, 0.2);
+      v.ng.gain.setTargetAtTime(0.04 + mood * 0.09, t, 0.3); // it grinds harder while it is coming for you
+      v.lfo.frequency.setTargetAtTime(0.3 + mood * 0.5, t, 0.4);
       return;
     }
     const scent = v.kind === 'scent';
@@ -1917,6 +1932,478 @@ class SoundEngine {
     n.connect(bp);
     bp.connect(ng);
     this._route(ng, 0, 0.8);
+  }
+
+  // ------------------------------------------------- levels 14-16 (js/story.js)
+  /**
+   * WAKING UP in the gaol (level 14): a high ringing in the ears that fades away, and - unless calm mode is on,
+   * which never has a heartbeat - three slow, heavy heartbeats slowing down under it.
+   */
+  wakeUp() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const k = this.calm ? 0.6 : 1;
+    for (const [f, a] of [[3150, 0.03], [4725, 0.012]]) {
+      const o = this._osc('sine', f, t, 4.2);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(a * k, t + 0.4);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 4);
+      o.connect(g);
+      this._route(g, 0, 0.1);
+    }
+    if (!this.calm) [0.3, 1.45, 2.75].forEach((at, i) => {
+      const o = this._osc('sine', 62, t + at, 0.35);
+      o.frequency.exponentialRampToValueAtTime(36, t + at + 0.18);
+      const g = this._env(t + at, 0.008, 0.55 - i * 0.12, 0.2);
+      o.connect(g);
+      this._route(g, 0, 0.05);
+    });
+  }
+
+  /**
+   * One drop of water landing: a small plink that falls in pitch, in a lot of reverb (it is a stone room).
+   * `muffled` when a wall is in the way, like every other sound with a place in the maze.
+   */
+  drip(pan, gain, muffled = false) {
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 1500 + Math.random() * 300, t, 0.2);
+    o.frequency.exponentialRampToValueAtTime(520, t + 0.07);
+    const g = this._env(t, 0.003, 0.2 * gain, 0.13);
+    o.connect(g);
+    this._route(this._muffle(g, muffled), pan, 0.7);
+    this._track(o);
+  }
+
+  /** A drop landing on metal - the key (level 14): the plink, and a thin inharmonic ring that hangs a moment. */
+  dripMetal(pan, gain, muffled = false) {
+    if (this._busy(100) || gain < 0.01) return;
+    this.drip(pan, gain * 0.7, muffled);
+    const t = this.ctx.currentTime + 0.01;
+    [[2960, 0.11], [4310, 0.07], [6020, 0.04]].forEach(([f, a], i) => {
+      const o = this._osc('sine', f, t, 0.8);
+      const g = this._env(t, 0.002, a * gain, 0.55 - i * 0.12);
+      o.connect(g);
+      this._route(this._muffle(g, muffled), pan, 0.6);
+    });
+  }
+
+  /** The wave comes back off the key: a small, bright tick of metal - smaller than the exit's bell. */
+  echoKey(pan, vol) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    [[3100, 0.14], [4700, 0.08]].forEach(([f, a], i) => {
+      const o = this._osc('sine', f, t + i * 0.006, 0.4);
+      const g = this._env(t + i * 0.006, 0.002, a * vol, 0.26);
+      o.connect(g);
+      this._route(g, pan, 0.5);
+      if (!i) this._track(o);
+    });
+  }
+
+  /** You pick up the key: two clinks of iron and a rising pair of notes - clear, short and unmistakable. */
+  keyPickup() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [0, 0.07].forEach((dt, i) => {
+      [[2700, 0.16], [4050, 0.09], [5600, 0.05]].forEach(([f, a]) => {
+        const o = this._osc('sine', f * (i ? 1.06 : 1), t + dt, 0.5);
+        const g = this._env(t + dt, 0.002, a, 0.3);
+        o.connect(g);
+        this._route(g, 0, 0.45);
+      });
+    });
+    [587.33, 880].forEach((f, i) => {
+      const at = t + 0.12 + i * 0.1;
+      const o = this._osc('triangle', f, at, 0.6);
+      const g = this._env(at, 0.006, 0.2, 0.38);
+      o.connect(g);
+      this._route(g, 0, 0.4);
+    });
+  }
+
+  /** The gaol door, locked: a handle shaken three times against its bolt, iron on iron, and a dull thud each time. */
+  doorRattle(pan, gain) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [0, 0.1, 0.19].forEach((dt, i) => {
+      const n = this._noise(t + dt, 0.07);
+      const bp = this._filter('bandpass', 1150 - i * 90, 3);
+      const g = this._env(t + dt, 0.002, 0.3 * gain, 0.05);
+      n.connect(bp);
+      bp.connect(g);
+      this._route(g, pan, 0.35);
+      const o = this._osc('sine', 150, t + dt, 0.15);
+      o.frequency.exponentialRampToValueAtTime(90, t + dt + 0.08);
+      const og = this._env(t + dt, 0.003, 0.32 * gain, 0.09);
+      o.connect(og);
+      this._route(og, pan, 0.3);
+    });
+  }
+
+  /** The key going in and turning: a scrape, two clicks of the wards, and the bolt drawing back with a clunk. */
+  doorUnlock() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.3);
+    const bp = this._filter('bandpass', 3000, 2);
+    bp.frequency.setValueAtTime(3000, t);
+    bp.frequency.linearRampToValueAtTime(2100, t + 0.26);
+    const g = this._env(t, 0.03, 0.12, 0.22);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.3);
+    [0.45, 0.62].forEach((at) => {
+      const o = this._osc('square', 1300, t + at, 0.03);
+      const lp = this._filter('bandpass', 2400, 4);
+      const og = this._env(t + at, 0.001, 0.16, 0.025);
+      o.connect(lp);
+      lp.connect(og);
+      this._route(og, 0, 0.3);
+    });
+    const b = this._osc('sine', 120, t + 0.85, 0.4);
+    b.frequency.exponentialRampToValueAtTime(52, t + 1.05);
+    const bg = this._env(t + 0.85, 0.004, 0.6, 0.28);
+    b.connect(bg);
+    this._route(bg, 0, 0.5);
+    const bn = this._noise(t + 0.85, 0.12);
+    const blp = this._filter('lowpass', 700, 1);
+    const bng = this._env(t + 0.85, 0.002, 0.3, 0.1);
+    bn.connect(blp);
+    blp.connect(bng);
+    this._route(bng, 0, 0.5);
+  }
+
+  /** The heavy door swinging open: a low iron grind with a hinge complaining over the top of it. */
+  doorOpen() {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const k = this.calm ? 0.55 : 1;
+    const len = 1.7;
+    const o = this._osc('sawtooth', 47, t, len + 0.2);
+    o.frequency.linearRampToValueAtTime(40, t + len);
+    const bp = this._filter('bandpass', 260, 1.8);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.32 * k, t + 0.15);
+    g.gain.setValueAtTime(0.32 * k, t + len - 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.6);
+    const hinge = this._osc('sawtooth', 360, t + 0.1, len);
+    hinge.frequency.setValueAtTime(360, t + 0.1);
+    hinge.frequency.linearRampToValueAtTime(470, t + 0.6);
+    hinge.frequency.linearRampToValueAtTime(330, t + 1.2);
+    hinge.frequency.linearRampToValueAtTime(410, t + len);
+    const hb = this._filter('bandpass', 900, 9);
+    const hg = c.createGain();
+    hg.gain.setValueAtTime(0.0001, t + 0.1);
+    hg.gain.exponentialRampToValueAtTime(0.07 * k, t + 0.35);
+    hg.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    hinge.connect(hb);
+    hb.connect(hg);
+    this._route(hg, 0, 0.5);
+    const n = this._noise(t, len);
+    const lp = this._filter('lowpass', 220, 0.8);
+    const ng = this._env(t, 0.2, 0.25 * k, len - 0.2);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(ng, 0, 0.6);
+    this._track(o);
+  }
+
+  /** Cold air coming up the passage out of the gaol: a wash of wind that swells and slowly goes. */
+  draught() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 4);
+    const bp = this._filter('bandpass', 480, 0.7);
+    bp.frequency.setValueAtTime(420, t);
+    bp.frequency.linearRampToValueAtTime(820, t + 1.6);
+    bp.frequency.linearRampToValueAtTime(520, t + 3.8);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.11, t + 1.3);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.9);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, 0, 0.4);
+  }
+
+  /**
+   * THE FALSE LIGHT (level 15): the softest thing in the game, on purpose. Air moving as if there were sky
+   * above it, and a warm, major chord far under it - nothing like the cave. It grows as the light gets nearer
+   * (setDaylight) and is CUT dead the moment the light goes out (stopDaylight(true)). Ambience bus.
+   */
+  startDaylight() {
+    if (!this.ctx || this.daylight) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0.0001;
+    out.connect(this.amb);
+    const send = c.createGain();
+    send.gain.value = 0.3;
+    out.connect(send);
+    send.connect(this.reverbIn);
+    const noise = c.createBufferSource();
+    noise.buffer = this.noiseBuf;
+    noise.loop = true;
+    const air = this._filter('bandpass', 950, 0.55);
+    const ag = c.createGain();
+    ag.gain.value = 0.16;
+    noise.connect(air);
+    air.connect(ag);
+    ag.connect(out);
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.13;
+    const ld = c.createGain();
+    ld.gain.value = 0.07;
+    lfo.connect(ld);
+    ld.connect(ag.gain);
+    const lp = this._filter('lowpass', 900, 0.7);
+    lp.connect(out);
+    const oscs = [220, 277.18, 329.63, 440].map((f, i) => {
+      const o = c.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      o.detune.value = (i - 1.5) * 4;
+      const g = c.createGain();
+      g.gain.value = [0.05, 0.035, 0.04, 0.015][i];
+      o.connect(g);
+      g.connect(lp);
+      return o;
+    });
+    [noise, lfo, ...oscs].forEach((o) => o.start(t));
+    this.daylight = { out, lp, stoppers: [noise, lfo, ...oscs] };
+  }
+
+  setDaylight(k) {
+    const d = this.daylight;
+    if (!d || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const x = Math.max(0, Math.min(1, k));
+    d.out.gain.setTargetAtTime(0.0001 + 0.6 * x * (this.calm ? 0.8 : 1), t, 0.6);
+    d.lp.frequency.setTargetAtTime(600 + 1100 * x, t, 0.8);
+  }
+
+  stopDaylight(cut = false) {
+    const d = this.daylight;
+    if (!d || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.daylight = null;
+    d.out.gain.cancelScheduledValues(t);
+    d.out.gain.setTargetAtTime(0, t, cut ? 0.012 : 0.6);
+    d.stoppers.forEach((s) => {
+      try {
+        s.stop(t + (cut ? 0.3 : 3));
+      } catch (e) {
+        /* already stopped */
+      }
+    });
+  }
+
+  /** A bird, far off, through the light (level 15) - two quick rising chirps. There are no birds down here. */
+  birdChirp(pan, gain) {
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    [0, 0.13].forEach((dt, i) => {
+      const o = this._osc('sine', 2500 + i * 300, t + dt, 0.12);
+      o.frequency.exponentialRampToValueAtTime(3700 + i * 400, t + dt + 0.07);
+      const g = this._env(t + dt, 0.005, 0.045 * gain, 0.07);
+      o.connect(g);
+      this._route(g, pan, 0.7);
+      if (!i) this._track(o);
+    });
+  }
+
+  /** LEVEL 16's own air: water moving somewhere under the floor, low and slow. Ambience bus. */
+  startCistern() {
+    if (!this.ctx || this.cistern) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0;
+    out.gain.setTargetAtTime(1, t, 1.5);
+    out.connect(this.amb);
+    const noise = c.createBufferSource();
+    noise.buffer = this.noiseBuf;
+    noise.loop = true;
+    const lp = this._filter('lowpass', 260, 0.9);
+    const g = c.createGain();
+    g.gain.value = 0.07;
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.21;
+    const ld = c.createGain();
+    ld.gain.value = 0.03;
+    lfo.connect(ld);
+    ld.connect(g.gain);
+    noise.connect(lp);
+    lp.connect(g);
+    g.connect(out);
+    const trickle = c.createBufferSource();
+    trickle.buffer = this.noiseBuf;
+    trickle.loop = true;
+    const bp = this._filter('bandpass', 1400, 5);
+    const tg = c.createGain();
+    tg.gain.value = 0.012;
+    trickle.connect(bp);
+    bp.connect(tg);
+    tg.connect(out);
+    [noise, lfo, trickle].forEach((o) => o.start(t));
+    this.cistern = { out, stoppers: [noise, lfo, trickle] };
+  }
+
+  stopCistern() {
+    const d = this.cistern;
+    if (!d || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.cistern = null;
+    d.out.gain.cancelScheduledValues(t);
+    d.out.gain.setTargetAtTime(0, t, 0.4);
+    d.stoppers.forEach((s) => {
+      try {
+        s.stop(t + 2);
+      } catch (e) {
+        /* already stopped */
+      }
+    });
+  }
+
+  /** Stone shifting and grinding open (level 15's sealed passage): a low scrape with grit cracking off it. */
+  stoneGrind(pan, gain) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const k = gain * (this.calm ? 0.55 : 1);
+    const o = this._osc('sawtooth', 38, t, 1.4);
+    o.frequency.linearRampToValueAtTime(33, t + 1.2);
+    const lp = this._filter('lowpass', 160, 1.4);
+    const g = this._env(t, 0.12, 0.4 * k, 1.05);
+    o.connect(lp);
+    lp.connect(g);
+    this._route(g, pan, 0.6);
+    const n = this._noise(t, 1.3);
+    const bp = this._filter('bandpass', 330, 0.9);
+    const ng = this._env(t, 0.08, 0.32 * k, 1.1);
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, pan, 0.6);
+    [0.12, 0.31, 0.47, 0.72, 0.9].forEach((at, i) => {
+      const c = this._noise(t + at, 0.05);
+      const hp = this._filter('bandpass', 1600 + i * 230, 2);
+      const cg = this._env(t + at, 0.002, 0.14 * k, 0.04);
+      c.connect(hp);
+      hp.connect(cg);
+      this._route(cg, pan, 0.5);
+    });
+    this._track(o);
+  }
+
+  /** Stone SPLITTING (level 16's release): a crack like a shot, a boom under it, and the rubble settling. */
+  stoneSplit(pan, gain) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const k = gain * (this.calm ? 0.5 : 1);
+    const n = this._noise(t, 0.25);
+    const hp = this._filter('highpass', 1100, 0.7);
+    const ng = this._env(t, this.calm ? 0.04 : 0.002, 0.55 * k, 0.2);
+    n.connect(hp);
+    hp.connect(ng);
+    this._route(ng, pan, 0.7);
+    const o = this._osc('sine', 72, t, 1.4);
+    o.frequency.exponentialRampToValueAtTime(24, t + 0.9);
+    const og = this._env(t, 0.006, 0.9 * k, 1.1);
+    o.connect(og);
+    this._route(og, pan, 0.8);
+    this.stoneGrind(pan, gain * 0.7);
+  }
+
+  /**
+   * THE HUNTING WARDEN's voice (levels 15 and 16) - the level-13 drone, made into something that walks: the same
+   * unresolved tritone and the same noise pushed through a waveshaper until it grinds, but low enough to feel
+   * and close enough to place. Wall-muffled and Doppler-shifted like every monster's voice (_voiceOut).
+   */
+  _wardenVoice(pitch) {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const out = c.createGain();
+    out.gain.value = 0;
+    const swell = c.createGain();
+    swell.gain.value = 0.75;
+    const lp = this._filter('lowpass', 200, 1.6);
+    const mix = c.createGain();
+    mix.gain.value = 0.5;
+    const o1 = c.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.value = pitch;
+    const o2 = c.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.value = pitch * 1.414; // the tritone of level 13's drone
+    const o3 = c.createOscillator();
+    o3.type = 'triangle';
+    o3.frequency.value = pitch * 2.003;
+    const g2 = c.createGain();
+    g2.gain.value = 0.6;
+    const g3 = c.createGain();
+    g3.gain.value = 0.28;
+    o1.connect(mix);
+    o2.connect(g2);
+    g2.connect(mix);
+    o3.connect(g3);
+    g3.connect(mix);
+    mix.connect(lp);
+    lp.connect(swell);
+    swell.connect(out);
+    // the grind, as in startWardenDrone
+    const noise = c.createBufferSource();
+    noise.buffer = this.noiseBuf;
+    noise.loop = true;
+    const drive = c.createGain();
+    drive.gain.value = 8;
+    const shaper = c.createWaveShaper();
+    const curve = new Float32Array(257);
+    for (let i = 0; i < 257; i++) curve[i] = Math.tanh(((i / 128) - 1) * 3.2);
+    shaper.curve = curve;
+    const nlp = this._filter('lowpass', 420, 0.9);
+    const ng = c.createGain();
+    ng.gain.value = 0.05;
+    noise.connect(drive);
+    drive.connect(shaper);
+    shaper.connect(nlp);
+    nlp.connect(ng);
+    ng.connect(swell);
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.3;
+    const lfoDepth = c.createGain();
+    lfoDepth.gain.value = 0.22;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(swell.gain);
+    const { mf, mfg, pan } = this._voiceOut(out);
+    const oscs = [o1, o2, o3, lfo, noise];
+    oscs.forEach((o) => o.start(t));
+    return { out, mf, mfg, pan, lp, o1, o2, o3, lfo, ng, nlp, pitch, kind: 'warden', oscs };
+  }
+
+  /** One footstep of the hunting Warden: a weight coming down on stone. `heavy` for the upgraded one. */
+  wardenStep(pan, gain, muffled = false, heavy = false) {
+    if (this.calm) gain *= 0.7;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', heavy ? 62 : 74, t, 0.4);
+    o.frequency.exponentialRampToValueAtTime(heavy ? 26 : 32, t + 0.2);
+    const g = this._env(t, 0.004, (heavy ? 0.75 : 0.55) * gain, heavy ? 0.3 : 0.22);
+    o.connect(g);
+    this._route(this._muffle(g, muffled), pan, 0.4);
+    const n = this._noise(t, 0.12);
+    const lp = this._filter('lowpass', heavy ? 340 : 420, 1);
+    const ng = this._env(t, 0.003, (heavy ? 0.3 : 0.22) * gain, 0.09);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(this._muffle(ng, muffled), pan, 0.35);
+    this._track(o);
   }
 
   // ----------------------------------------------------------------- ambient

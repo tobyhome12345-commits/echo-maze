@@ -2448,3 +2448,60 @@ button.scene.fragment:focus-visible {
 #archive .buttons {
   margin-top: 18px;
 }
+
+/* ==========================================================================
+   v14.0: LEVELS 14-16 (js/story.js)
+   ========================================================================== */
+
+/* what you say: the cutscenes' subtitle on the lore line's plate, in the interface's own pale colour */
+#say {
+  position: fixed;
+  left: 50%;
+  bottom: 11%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  padding: 10px 22px 12px;
+  text-align: center;
+  background: rgba(3, 5, 8, 0.72);
+  border: 1px solid rgba(var(--ui-rgb), 0.22);
+  border-radius: 10px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity calc(var(--ui-fade) * 1.5) ease;
+  z-index: 6;
+}
+
+#say.show {
+  opacity: 1;
+}
+
+#say-head {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(var(--ui-rgb), 0.9);
+}
+
+#say-line {
+  display: block;
+  min-height: 1.4em;
+  font-size: clamp(17px, 2.3vw, 21px);
+  line-height: 1.4;
+  color: #f1f7fa;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+}
+
+/* touch: the bottom belongs to the joystick, as for the lore line and the tutorial's prompt */
+body.touch #say {
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  bottom: auto;
+  width: min(480px, calc(100vw - 170px));
+}
+
+/* carrying level 14's key: the HUD says so, in the key's own colour */
+#hud-item.key {
+  color: rgb(var(--key-rgb));
+  text-shadow: 0 0 10px rgba(var(--key-rgb), 0.45);
+}
