@@ -3181,11 +3181,21 @@
     return chasing && e.why ? e.why : 'blind';
   }
 
-  /** `cause` is what killed you ('echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer') - for the stats. */
+  /**
+   * The Caught screen's line under "Caught". Every monster is found by an echo or a sound - except the Warden on
+   * levels 15-16, which never needed one: it always knew where you were. (It says what it did, never what it is.)
+   */
+  const CAUGHT_TEXT = 'The echo found you.';
+  const CAUGHT_TEXT_WARDEN = 'It never lost you.';
+
+  /** `cause` is what killed you ('echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden') - for the stats. */
   function onCaught(cause, why = 'blind') {
     if (state !== 'play') return;
     state = 'caught';
     loreReader.hide(); // a fragment's line, if one was up (its find is already saved)
+    clearTimeout(bannerTimer); // ...and a banner (a level's hint, level 16's "Faster than you"): nothing sits on the Caught screen
+    $('banner').classList.remove('show');
+    $('caught-text').textContent = cause === 'warden' ? CAUGHT_TEXT_WARDEN : CAUGHT_TEXT;
     // one line saying what really happened, picked without touching the game's random numbers
     deathTip = EchoFeedback.tipFor(cause, why, levelNum, Math.round(levelTime * 1000));
     $('caught-tip').textContent = deathTip;
