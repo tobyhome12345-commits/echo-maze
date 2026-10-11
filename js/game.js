@@ -25,6 +25,10 @@
   // LEVEL 0 is the tutorial (js/tutorial.js). It is not part of the campaign: it counts for no progress, no
   // Continue, no medals, no stats and no "levels cleared". Everywhere that would score something asks `scored()`.
   const TUTORIAL_LEVEL = 0;
+  // A CUSTOM LEVEL (v15.0: made in the level editor, js/editor.js) has no number. While one is being played,
+  // levelNum is this - below the tutorial's 0, so `scored()` is false and it writes nothing at all: no progress,
+  // no medals, no stats, no fragments, no "levels cleared". Test-playing in the editor is exactly this.
+  const CUSTOM_LEVEL = -1;
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
   const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer' };
   const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12 };
@@ -36,6 +40,7 @@
   const VISUALCUES_KEY = 'echomaze.visualcues'; // '1' = the Visual cues accessibility option is on
   const TOUCH_KEY = 'echomaze.touch'; // '1' = touch controls forced on, '0' = forced off, unset = automatic (touch devices)
   const TUTORIAL_KEY = 'echomaze.tutorial'; // '1' = the tutorial has been finished or skipped (a save without it is simply "not yet")
+  const EDITOR_KEY = 'echomaze.editor'; // '1' = the level editor's spoiler warning was read and accepted (v15.0); the levels themselves are js/levelstore.js's
   // Doppler (audio only): a monster's voice is shifted by how fast it is closing on you or moving away, at most about +/-6%
   const DOPPLER_MAX = 0.06; // fractional pitch shift at the largest closing speed
   const DOPPLER_FULL_SPEED = 180; // px/s of change in distance that gives the full shift (exaggerated so it is audible)
@@ -115,11 +120,13 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending'];
+  const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'mylevels', 'editor'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
   //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after
-  //         level 16). (Levels 14-16's scripted beats are NOT a state of their own: they run inside 'play' and take
-  //         the controls with `scriptLock`, so pausing, ripples and the clock all carry on as normal.)
+  //         level 16) | editor (v15.0: the level editor's screens - its warning, My Levels, the editor itself; no
+  //         level is running). (Levels 14-16's scripted beats are NOT a state of their own: they run inside 'play' and
+  //         take the controls with `scriptLock`, so pausing, ripples and the clock all carry on as normal. Nor is
+  //         playing a custom level: that is 'play' with `customRun` set.)
 
   const audio = new SoundEngine();
   // the player's saved volumes, ready for when the AudioContext is created on the first click
@@ -336,6 +343,9 @@
   const scriptWalk = { x: 0, y: 0 }; // ...and while it has, the beat may walk the player (px/s)
   let storyDone = false; // the level's way out has been walked through and its last beat played
   let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
+  // ---- the level editor and custom levels (v15.0)
+  let customRun = null; // { doc, from: 'editor' | 'mylevels' } while a custom level is being played (levelNum is CUSTOM_LEVEL)
+  let editorScreen = null; // 'gate' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
   let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -371,7 +381,8 @@
   const act = (action) => down.apply(null, EchoProfile.keysFor(action));
   /**
    * Does what is happening right now count? The tutorial (level 0) never does: no stats, no medals, no
-   * progress, no "levels cleared". Everything that writes to the save asks this first.
+   * progress, no "levels cleared". Nor does a custom level (v15.0: CUSTOM_LEVEL, below 0) - test-playing one in
+   * the editor or playing one from My Levels. Everything that writes to the save asks this first.
    */
   const scored = () => levelNum > TUTORIAL_LEVEL;
   const inTutorial = () => levelNum === TUTORIAL_LEVEL;
@@ -708,7 +719,11 @@
    */
   function makeEnemy(spec) {
     const kind = spec.kind || 'echo';
-    const roamer = kind === 'scent' || kind === 'stalker' || kind === 'muffler' || kind === 'singer'; // these never stand about
+    // what kind of monster it is comes from the game's one list of them (MONSTER_TYPES, js/level.js - v15.0), which
+    // the level editor reads too: a new monster has to be there, and then it can be placed in the editor as well
+    const type = monsterType(kind);
+    if (!type) console.warn(`makeEnemy: '${kind}' is not in MONSTER_TYPES (js/level.js)`);
+    const roamer = !!(type && type.roams); // these never stand about (scent, stalker, muffler, singer)
     // the Warden that hunts you on levels 15 and 16: what kind of one it is lives in js/warden.js (VARIANTS)
     const isWarden = kind === 'warden';
     const wv = isWarden ? EchoWarden.variant(spec.variant) : null;
@@ -1014,7 +1029,7 @@
     e.tickCd = 0.55; // the first tick follows the sting
     audio.markSting(); // not spatial and not softened in calm mode
     cues.caption('[a sting - you are marked]');
-    EchoProfile.bump('marked');
+    if (scored()) EchoProfile.bump('marked'); // (v15.0: a custom level counts nothing - every scored level still does)
   }
 
   function updateSinger(e, dt) {
@@ -2121,7 +2136,7 @@
     if (state !== 'play' || !player.hasDecoy || scriptLock) return;
     player.hasDecoy = false;
     decoys.push({ x: player.x, y: player.y, t: 0, phase: 'arming', tick: 0, hum: 0, ring: 0, lured: [] });
-    EchoProfile.bump('decoys');
+    if (scored()) EchoProfile.bump('decoys'); // (v15.0: a custom level counts nothing)
     marks.push({ x: player.x, y: player.y, t: 0, life: 0.9, c: COLORS[T_DECOY], r: 26 });
     audio.decoyDrop();
     cues.pulse('decoy', player.x, player.y, 0.6, {}); // a cue at its drop spot (at your feet: it points the way you were facing)
@@ -2917,8 +2932,8 @@
   }
 
   function updateHud() {
-    // the tutorial is not a level and is the same in every mode, so it says neither
-    hudNumber('hud-level', inTutorial() ? 'Tutorial' : `Level ${levelNum} · ${MODES[mode].label}`);
+    // the tutorial is not a level and is the same in every mode, so it says neither; a custom level says its name
+    hudNumber('hud-level', inTutorial() ? 'Tutorial' : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${MODES[mode].label}` : `Level ${levelNum} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
     hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : player && player.hasKey ? 'Key' : '';
@@ -2935,6 +2950,15 @@
 
   function showBanner(n) {
     const el = $('banner');
+    if (n === CUSTOM_LEVEL && customRun) {
+      // a custom level (v15.0): its own title, and a reminder that nothing in it is kept
+      $('banner-title').textContent = customRun.from === 'editor' ? 'Test play' : customTitle();
+      $('banner-text').textContent = customRun.from === 'editor' ? 'Nothing you do here is saved. Esc to pause and go back to the editor.' : 'Made in the level editor. Nothing here counts towards your progress, medals or stats.';
+      el.classList.add('show');
+      clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => el.classList.remove('show'), 4500);
+      return;
+    }
     $('banner-title').textContent = `Level ${n}`;
     $('banner-text').textContent = hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]);
     el.classList.add('show');
@@ -2960,10 +2984,24 @@
       progress[mode] = 1;
       store.set(PROGRESS_KEY, JSON.stringify(progress));
     }
-    level = generateLevel(n, runSeed, mode);
-    // The level's lore fragment, if this maze has one (js/lore.js). Placed AFTER the level is finished, from
-    // its own random stream, reading the level and writing nothing to it - so it can move nothing else.
-    level.fragment = EchoLore.place(level, n, mode, runSeed);
+    if (n === CUSTOM_LEVEL) {
+      // A custom level (v15.0): built from its data by the engine's custom-level loader (buildCustomLevel, js/level.js),
+      // which reads it as untrusted and hands back the same shape as the hand-drawn levels 13-16 - so from here on it
+      // is played by exactly the same code. It never has a lore fragment. (playCustom has already checked it can be
+      // built; if it somehow cannot, nothing starts and the editor's screens come back with the reason.)
+      const built = customRun ? buildCustomLevel(customRun.doc, mode) : { error: 'There is no level to play.' };
+      if (!built.level) {
+        leaveCustom(built.error);
+        return;
+      }
+      level = built.level;
+      level.fragment = null;
+    } else {
+      level = generateLevel(n, runSeed, mode);
+      // The level's lore fragment, if this maze has one (js/lore.js). Placed AFTER the level is finished, from
+      // its own random stream, reading the level and writing nothing to it - so it can move nothing else.
+      level.fragment = EchoLore.place(level, n, mode, runSeed);
+    }
     loreReader.hide();
     cfg = level.cfg;
     player = {
@@ -2983,6 +3021,9 @@
       crouching: false, // Shift held (see syncCrouch): silent, and cannot send a ripple
     };
     enemies = level.enemies.map(makeEnemy);
+    // A custom level's Wardens (v15.0) have no story beat to wake them: they hunt from the moment it starts. What
+    // each one is (its speed, its look) is its variant's (js/warden.js), exactly as on levels 15 and 16.
+    if (level.custom) for (const e of enemies) if (e.kind === 'warden') wakeWarden(e, e.variant === 'regular' ? 'hunt' : e.variant);
     decoys = [];
     decoyBlipTimer = 1.5;
     singerLanded = false;
@@ -3003,8 +3044,9 @@
     camX = player.x;
     camY = player.y;
     state = 'play';
-    audio.startAmbient(n);
-    music.start(n); // the level's own mood (js/music.js); silent until the AudioContext exists
+    // (a custom level sounds like the level its tuning comes from - CUSTOM_CURVE_LEVEL, js/level.js)
+    audio.startAmbient(level.custom ? CUSTOM_CURVE_LEVEL : n);
+    music.start(level.custom ? CUSTOM_CURVE_LEVEL : n); // the level's own mood (js/music.js); silent until the AudioContext exists
     showOverlay(null);
     $('hud').classList.remove('hidden');
     updateHud();
@@ -3200,8 +3242,13 @@
     deathTip = EchoFeedback.tipFor(cause, why, levelNum, Math.round(levelTime * 1000));
     $('caught-tip').textContent = deathTip;
     levelDeaths++; // one death on this level means no Flawless medal for it, even if the retry goes perfectly
-    EchoProfile.addDeath(mode, cause);
-    EchoProfile.flush();
+    if (scored()) {
+      // (v15.0: behind scored() like every other write - a custom level is the only unscored level you can die on)
+      EchoProfile.addDeath(mode, cause);
+      EchoProfile.flush();
+    }
+    // the way out of the Caught screen: the title - or, from a custom level, back to where it was started from
+    $('btn-caught-title').textContent = customRun ? customBackLabel() : 'Title';
     touch.releaseAll();
     audio.caught();
     if (cause === 'warden') audio.wardenGrab(); // levels 15-16: the same blow that ends level 13
@@ -3223,7 +3270,8 @@
     }
     setTimeout(() => {
       if (state !== 'caught') return;
-      if (MODES[mode].oneLife) {
+      // (a custom level is not a run: even on Hardcore it simply offers Try again - v15.0)
+      if (MODES[mode].oneLife && !customRun) {
         // One life: the run is over. Back to the title screen - there is nothing to resume.
         const died = levelNum;
         const tip = deathTip;
@@ -3329,6 +3377,15 @@
     }, 900);
   }
 
+  /** The Level cleared screen's buttons: the campaign's Next level, or (v15.0) a custom level's own two. */
+  function completeButtons(custom) {
+    $('btn-next').classList.toggle('hidden', custom);
+    $('btn-custom-back').classList.toggle('hidden', !custom);
+    $('btn-custom-again').classList.toggle('hidden', !custom);
+    $('complete-note').classList.toggle('hidden', !custom);
+    $('complete-medals').classList.toggle('hidden', custom);
+  }
+
   function onLevelComplete() {
     if (state !== 'play') return;
     state = 'complete';
@@ -3338,6 +3395,20 @@
     music.stop();
     destroyVoices();
     cues.clear();
+    if (customRun) {
+      // A custom level (v15.0): nothing is written - no progress, no medals, no stats - and the way on is back to
+      // the editor (or My Levels), or the same level again.
+      clearTimeout(bannerTimer); // (a small test level can be done before its banner has gone: never under the panel)
+      $('banner').classList.remove('show');
+      audio.levelComplete();
+      $('complete-title').textContent = customRun.from === 'editor' ? 'Test complete' : `${customTitle()} cleared`;
+      $('complete-stats').textContent = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
+      $('custom-back-label').textContent = customBackLabel();
+      completeButtons(true);
+      setTimeout(() => state === 'complete' && showOverlay('complete'), 700);
+      return;
+    }
+    completeButtons(false);
     const newBest = saveBest(levelNum + 1);
     EchoProfile.addClear(mode);
     EchoProfile.flush();
@@ -3416,7 +3487,8 @@
     state = 'paused';
     touch.releaseAll(); // never carry a held finger across a screen change
     EchoProfile.flush(); // write the stats out now: the page may never come back
-    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : `${MODES[mode].label} · Level ${levelNum}`;
+    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : customRun ? `${MODES[mode].label} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · Level ${levelNum}`;
+    $('btn-quit').textContent = customRun ? customBackLabel() : 'Quit to title'; // (v15.0: a custom level goes back where it came from)
     $('btn-pause-skip-tut').classList.toggle('hidden', !inTutorial()); // the way out of the tutorial, for anyone who is done with it
     refreshOptionUi();
     showOverlay('pause');
@@ -3441,6 +3513,8 @@
     story.stop(); // ...and levels 14-16's beats and their sounds
     scriptLock = false;
     savedPending = false;
+    customRun = null; // (v15.0) no custom level is being played any more,
+    editorScreen = null; // ...and none of the editor's screens is up
     state = 'title';
     level = null;
     music.start('title'); // the title has a mood of its own (nothing happens until there is an AudioContext)
@@ -3718,6 +3792,149 @@
     go(() => startCutscene(kind));
   }
 
+  // ------------------------------------------------- the level editor (v15.0)
+  /**
+   * THE LEVEL EDITOR'S SCREENS: a warning the first time (#editor-gate), My Levels (js/mylevels.js) and the editor
+   * itself (js/editor.js). While one of them is up the state is 'editor' and no level is running. The editor and
+   * My Levels never touch the game: they save through js/levelstore.js and ask for a level to be played through
+   * playCustom - which plays it with the real engine, writes nothing to the save, and comes back to them after.
+   *
+   * Who can open it: anyone who has pressed "I understand" on its warning (EDITOR_KEY, kept for good) - and,
+   * without ever being asked, anyone who has finished the game on any difficulty. That is the very test the title
+   * screen uses to write "Finished" on a mode: isFinished(getBest(m)) - the best level kept for that mode in
+   * `echomaze.progress` is past the last one (CAMPAIGN_LEVELS), which only clearing level 16 can do.
+   */
+  const anyModeFinished = () => MODE_ORDER.some((m) => isFinished(getBest(m)));
+  const editorUnlocked = () => store.get(EDITOR_KEY) === '1' || anyModeFinished();
+  const customTitle = () => (customRun && customRun.doc ? customRun.doc.title : 'Custom level');
+  const customBackLabel = () => (customRun && customRun.from === 'editor' ? 'Back to the editor' : 'Back to My Levels');
+
+  const myLevels = EchoMyLevels.create({
+    el: { list: $('mylevels-list'), note: $('mylevels-note') },
+    store: EchoLevelStore,
+    dialog: EchoDialog,
+    click: () => audio.uiClick(),
+    modeLabel: () => MODES[mode].label,
+    play: (doc) => playCustom(doc, 'mylevels'),
+    edit: (doc) => openEditor(doc),
+  });
+
+  const editor = EchoEditor.create({
+    el: {
+      canvas: $('ed-canvas'),
+      stage: $('ed-stage'),
+      title: $('ed-title'),
+      size: $('ed-size'),
+      status: $('ed-status'),
+      tools: $('ed-tools'),
+      monsters: $('ed-monsters'),
+      hint: $('ed-hint'),
+      problems: $('ed-problems'),
+      undo: $('ed-undo'),
+      redo: $('ed-redo'),
+      del: $('ed-delete'),
+      clear: $('ed-clear'),
+      back: $('ed-back'),
+      save: $('ed-save'),
+      test: $('ed-test'),
+    },
+    store: EchoLevelStore,
+    dialog: EchoDialog,
+    click: () => audio.uiClick(),
+    visible: () => state === 'editor' && editorScreen === 'editor',
+    testPlay: (doc) => playCustom(doc, 'editor'),
+    back: () => showMyLevels(),
+  });
+
+  /** The title's Level Editor button: the warning the first time, My Levels after that. */
+  function openEditorScreens() {
+    if (state !== 'title') return;
+    audio.init();
+    audio.uiClick();
+    if (editorUnlocked()) showMyLevels();
+    else showGate();
+  }
+  function showGate() {
+    state = 'editor';
+    editorScreen = 'gate';
+    showOverlay('editor-gate');
+  }
+  /** "I understand": kept for good, so the warning never shows again. */
+  function acceptGate() {
+    if (editorScreen !== 'gate') return;
+    store.set(EDITOR_KEY, '1');
+    audio.uiClick();
+    showMyLevels();
+  }
+  function showMyLevels() {
+    state = 'editor';
+    editorScreen = 'list';
+    myLevels.render();
+    showOverlay('mylevels');
+  }
+  /** Edit a level (a doc from the store), or start a new one (null). */
+  function openEditor(doc) {
+    state = 'editor';
+    editorScreen = 'editor';
+    showOverlay('editor'); // (first: the editor measures its stage to lay the map out)
+    editor.open(doc ? EchoLevelFormat.copy(doc) : null);
+  }
+  function closeEditorScreens() {
+    audio.uiClick();
+    state = 'title';
+    editorScreen = null;
+    refreshTitle();
+    showOverlay('title');
+    wordmark.reveal(false);
+  }
+
+  /**
+   * Play a custom level - a test play from the editor, or one picked in My Levels. It is built by the engine's own
+   * loader first (buildCustomLevel, js/level.js: untrusted data, validated and clamped); if it cannot be played,
+   * nothing changes and the reason comes back as a sentence. Otherwise it fades in and plays with the real game,
+   * on the difficulty picked on the title screen. Nothing about it is saved: levelNum is CUSTOM_LEVEL the whole
+   * time, so every write to the save (all behind scored()) is skipped. -> null, or the reason it cannot be played.
+   */
+  function playCustom(doc, from) {
+    const built = buildCustomLevel(doc, mode);
+    if (!built.level) return built.error;
+    if (transitioning) return null;
+    audio.init(); // (in the click that asked for it)
+    go(() => startCustom(doc, from));
+    return null;
+  }
+  function startCustom(doc, from) {
+    customRun = { doc, from: from === 'editor' ? 'editor' : 'mylevels' };
+    startLevel(CUSTOM_LEVEL);
+  }
+
+  /** Out of a custom level, back where it was started from: the editor exactly as it was left, or My Levels. */
+  function leaveCustom(err) {
+    const from = customRun ? customRun.from : 'mylevels';
+    destroyVoices();
+    loreReader.hide();
+    story.stop();
+    audio.stopAmbient();
+    audio.resume();
+    cues.clear();
+    touch.releaseAll();
+    touch.setVisible(false);
+    customRun = null;
+    scriptLock = false;
+    level = null;
+    state = 'editor';
+    music.start('title');
+    clearTimeout(bannerTimer);
+    $('hud').classList.add('hidden');
+    $('banner').classList.remove('show');
+    if (from === 'editor' && editor.isOpen()) {
+      editorScreen = 'editor';
+      showOverlay('editor');
+      editor.resume();
+    } else showMyLevels();
+    if (err) EchoDialog.open({ title: "Couldn't play it", text: err, buttons: [{ id: 'ok', label: 'OK', primary: true }] });
+  }
+
   function setMode(m) {
     if (!MODES[m]) return;
     mode = m;
@@ -3873,6 +4090,11 @@
   const GAME_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
   window.addEventListener('keydown', (e) => {
+    // (v15.0) A question on screen (js/dialog.js) answers its own keys. And typing in a box - a level's title, the
+    // size list - is typing, not playing: no key pressed there means anything else (M must not mute mid-word).
+    if (EchoDialog.isOpen()) return;
+    const tgt = e.target;
+    if (tgt && (tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || (tgt.tagName === 'INPUT' && /^(text|search|number)$/i.test(tgt.type)))) return;
     // Settings -> Controls is waiting for a key to bind: it takes this one and nothing else sees it
     if (settings.captureKey(e)) {
       e.preventDefault();
@@ -3940,8 +4162,16 @@
           e.preventDefault();
           if (!$('complete').classList.contains('hidden')) {
             audio.uiClick();
-            go(() => advanceLevel());
+            go(() => (customRun ? leaveCustom() : advanceLevel())); // (a custom level goes back where it came from)
           }
+        }
+        break;
+      case 'editor':
+        // the level editor's screens (v15.0): Esc is a step back; the editor itself has a few shortcuts of its own
+        if (editorScreen === 'editor') editor.key(e);
+        else if (e.code === 'Escape') {
+          e.preventDefault();
+          closeEditorScreens();
         }
         break;
       case 'tutdone':
@@ -4068,7 +4298,7 @@
   );
   $('btn-caught-title').addEventListener('click', () => {
     click();
-    go(() => toTitle());
+    go(() => (customRun ? leaveCustom() : toTitle())); // (v15.0: from a custom level, back to the editor or My Levels)
   });
   // Every one of these makes its sound FIRST and only then asks for the fade, so the click that creates or
   // resumes the AudioContext is never waiting on an animation.
@@ -4112,7 +4342,7 @@
   });
   $('btn-quit').addEventListener('click', () => {
     click();
-    go(() => toTitle());
+    go(() => (customRun ? leaveCustom() : toTitle())); // (v15.0: from a custom level, back to the editor or My Levels)
   });
   $('btn-retry').addEventListener('click', () => {
     click();
@@ -4125,6 +4355,23 @@
   $('btn-ending-title').addEventListener('click', () => {
     click();
     go(() => toTitle());
+  });
+  // the level editor (v15.0)
+  $('btn-editor').addEventListener('click', openEditorScreens);
+  $('btn-gate-ok').addEventListener('click', acceptGate);
+  $('btn-gate-back').addEventListener('click', closeEditorScreens);
+  $('btn-mylevels-new').addEventListener('click', () => {
+    audio.uiClick();
+    openEditor(null);
+  });
+  $('btn-mylevels-back').addEventListener('click', closeEditorScreens);
+  $('btn-custom-back').addEventListener('click', () => {
+    click();
+    go(() => leaveCustom());
+  });
+  $('btn-custom-again').addEventListener('click', () => {
+    click();
+    go(() => retry()); // the same level from its start (a custom level keeps no medals, so a retry costs nothing)
   });
 
   // (the volume sliders live in Settings -> Audio now; js/settings.js owns them)
@@ -4230,6 +4477,7 @@
   }
 
   resize();
+  EchoDialog.init({ click: () => audio.uiClick() }); // the editor's and My Levels' questions (v15.0)
   EchoPalette.set(EchoPalette.id); // paint the saved palette into the art, the cues, the CSS and the legend
   drawLegend();
   settings.renderHowTo(); // the title / pause how-to, written with the player's own keys
@@ -4412,6 +4660,30 @@
         if (e) wakeWarden(e, levelNum === STORY_LAST ? 'upgraded' : 'hunt');
         return !!e;
       },
+      // v15.0: the level editor. openEditorScreens() is the title's button; playCustom(doc, from) starts a custom
+      // level at once (no fade) and returns null or the reason it cannot be played; leaveCustom() goes back.
+      editor,
+      myLevels,
+      levelStore: EchoLevelStore,
+      levelFormat: EchoLevelFormat,
+      levelCheck: EchoLevelCheck,
+      dialog: EchoDialog,
+      monsterChoices: () => monsterChoices(),
+      openEditorScreens: () => openEditorScreens(),
+      acceptGate: () => acceptGate(),
+      closeEditorScreens: () => closeEditorScreens(),
+      openEditor: (doc) => openEditor(doc || null),
+      editorUnlocked: () => editorUnlocked(),
+      editorScreen: () => editorScreen,
+      playCustom: (doc, from = 'editor') => {
+        const built = buildCustomLevel(doc, mode);
+        if (!built.level) return built.error;
+        audio.init();
+        startCustom(doc, from);
+        return null;
+      },
+      leaveCustom: () => leaveCustom(),
+      customRun: () => (customRun ? { from: customRun.from, title: customRun.doc.title } : null),
       // v12.0: level 13, the capture (js/warden.js). go(13) plays it; the hooks below drive and inspect it.
       warden,
       wardenState: () => warden.state(),
@@ -4499,6 +4771,8 @@
         // levels 14-16 (js/story.js), and the two speeds of the Warden that hunts you on 15 and 16 (js/level.js)
         story: { first: STORY_FIRST, last: STORY_LAST, walkSpeed: WALK_SPEED, wardenSpeed: WARDEN_SPEED, wardenUpgradedSpeed: WARDEN_UPGRADED_SPEED, at: level && level.story ? story.state() : null },
         lore: { total: EchoLore.TOTAL, found: EchoLore.count(), chance: EchoLore.CHANCE[mode], bonus: EchoLore.bonusUnlocked(), here: level && level.fragment ? level.fragment.id : null },
+        // the level editor (v15.0): open to this player? (accepted the warning, or finished a mode), and what is up
+        editor: { unlocked: editorUnlocked(), accepted: store.get(EDITOR_KEY) === '1', anyModeFinished: anyModeFinished(), screen: editorScreen, custom: customRun ? customRun.from : null, curveLevel: CUSTOM_CURVE_LEVEL, levels: EchoLevelStore.list().length },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,

@@ -143,6 +143,46 @@ const WARDEN_SPEED = 0.75; // level 15: the Warden - slower than you, so it only
 const WARDEN_UPGRADED_SPEED = 1.05; // level 16: the upgraded Warden - faster than you, so it gains a little all the time
 
 /**
+ * EVERY KIND OF MONSTER IN THE GAME (v15.0), in the order they arrive. This is the one list: js/game.js makes its
+ * monsters from it (makeEnemy reads `roams`, and warns about a kind that is not here), the custom-level loader
+ * below accepts exactly these kinds, and the level editor (js/editor.js) builds its palette from it - so a monster
+ * added to the game appears in the editor by being added here, and nowhere else.
+ *   kind      the id the game uses (enemy.kind)
+ *   name      what the editor calls it: the names the game already shows (the title legend, the Stats screen).
+ *             Nothing here says what any of them does.
+ *   roams     it never stands still (it patrols from the moment the level starts)
+ *   art       how the editor draws it: an EchoArt kind (js/art.js), 'mimic' (EchoArt's exit-to-monster morph,
+ *             half way), 'hunter' (EchoWarden.drawHunter), or null (never drawn in the game: a plain marker)
+ *   role      its colour in the palette (js/palette.js)
+ *   pitch     [lowest, spread] of its voice. A generated level draws it from the level's random numbers; a custom
+ *             level gives each one a pitch in this range worked out from where it stands (never a random number).
+ *   variants  (the Warden only) a function returning the kinds of it there are: js/warden.js VARIANTS, read when
+ *             asked, so a new variant appears in the editor too. Each has an `id` and a `label`.
+ */
+const MONSTER_TYPES = [
+  { kind: 'echo', name: 'Echo monster', roams: false, art: 'echo', role: 'echo', pitch: [44, 22] },
+  { kind: 'scent', name: 'Scent monster', roams: true, art: 'scent', role: 'scent', pitch: [70, 20] },
+  { kind: 'mimic', name: 'Mimic', roams: false, art: 'mimic', role: 'exit', pitch: [50, 10] },
+  { kind: 'stalker', name: 'Stalker', roams: true, art: 'stalker', role: 'stalker', pitch: [60, 12] },
+  { kind: 'muffler', name: 'Muffler', roams: true, art: null, role: 'muffler', pitch: [46, 8] },
+  { kind: 'singer', name: 'Singer', roams: true, art: 'singer', role: 'singer', pitch: [200, 40] },
+  { kind: 'warden', name: null, roams: false, art: 'hunter', role: 'warden', variants: () => (typeof EchoWarden === 'undefined' ? [] : Object.keys(EchoWarden.VARIANTS).map((id) => EchoWarden.VARIANTS[id])) },
+];
+const monsterType = (kind) => MONSTER_TYPES.find((t) => t.kind === kind) || null;
+/**
+ * Everything that can be placed, one entry per thing a player would pick: a kind, or each variant of a kind that
+ * has them. { kind, variant (or null), label, art, role }.
+ */
+function monsterChoices() {
+  const out = [];
+  for (const t of MONSTER_TYPES) {
+    if (t.variants) for (const v of t.variants()) out.push({ kind: t.kind, variant: v.id, label: v.label || `${t.kind} (${v.id})`, art: t.art, role: t.role });
+    else out.push({ kind: t.kind, variant: null, label: t.name || t.kind, art: t.art, role: t.role });
+  }
+  return out;
+}
+
+/**
  * The monsters on each level of the game - EXACT (the number never varies from run to run; the modes differ in
  * speed, hearing, ripples and so on - and, from level 9, in Easy having one fewer). The game ends after level 12.
  *
@@ -265,6 +305,93 @@ function storyConfig(n, modeId) {
     mufflers: 0,
     singers: 0,
   };
+}
+
+/**
+ * CUSTOM LEVELS (v15.0: made in the level editor, or - later - from anywhere else). They have no level number of
+ * their own, so they are tuned like one fixed level of the ordinary curve, in whatever difficulty mode the player
+ * has picked: CUSTOM_CURVE_LEVEL, the last generated level, where every monster in the game has its tuning. That
+ * gives the ripple's range and recharge and every monster's speed and hearing; every generated monster, puddle and
+ * decoy is zeroed, as on levels 13-16 - the level's own data says what is in it. Nothing here is reached by any
+ * numbered level, so levels 0-16 are untouched.
+ */
+const CUSTOM_CURVE_LEVEL = 12;
+function customConfig(modeId) {
+  const base = levelConfig(CUSTOM_CURVE_LEVEL, modeId, true);
+  return {
+    ...base,
+    custom: true,
+    rooms: 0,
+    obstacles: 0,
+    enemies: 0,
+    scentMonsters: 0,
+    puddles: 0,
+    puddlesDrawn: 0,
+    mimics: 0,
+    decoy: false,
+    stalkers: 0,
+    mufflers: 0,
+    singers: 0,
+  };
+}
+
+/**
+ * THE ENGINE'S CUSTOM-LEVEL LOADER. `data` is a level in the saved format (js/levelformat.js, docs/level-format.md)
+ * from ANY source, and it is treated as untrusted: it is read through EchoLevelFormat.normalise (which never
+ * throws, clamps every number, drops what it does not understand and ignores unknown fields) and checked by
+ * EchoLevelCheck; anything that cannot be played comes back as { error } instead of a level, and nothing here
+ * throws. What it returns is the same shape generateLevel returns for the hand-drawn levels 13-16 (js/story.js
+ * build), plus `custom`, so it plays through exactly the same engine.
+ *   -> { level } or { error: 'a sentence the player can read' }
+ */
+function buildCustomLevel(data, modeId = 'normal') {
+  try {
+    const read = EchoLevelFormat.normalise(data);
+    if (!read.doc) return { error: read.error || 'This level could not be read.' };
+    const doc = read.doc;
+    const verdict = EchoLevelCheck.check(doc);
+    if (!verdict.playable) return { error: verdict.errors.length ? verdict.errors[0].text : 'This level is not finished yet.' };
+    const cfg = customConfig(modeId);
+    const W = doc.size.w;
+    const H = doc.size.h;
+    const walls = EchoLevelFormat.wallGrid(doc);
+    const blocked = walls.slice();
+    const c = (t) => (t + 0.5) * TILE;
+    const enemies = doc.enemies.map((m, i) => {
+      const type = monsterType(m.kind);
+      // its voice: a variant has its own (js/warden.js); any other kind gets one from its range, picked by where it
+      // stands - so the same level always sounds the same, and no random number is drawn
+      const spread = ((((m.x * 73856093) ^ (m.y * 19349663) ^ (i * 83492791)) >>> 0) % 1000) / 1000;
+      const pitch = type.variants ? EchoWarden.variant(m.variant).pitch : type.pitch[0] + type.pitch[1] * spread;
+      return { kind: m.kind, variant: m.variant || undefined, tx: m.x, ty: m.y, x: c(m.x), y: c(m.y), sleeper: false, pitch };
+    });
+    const sIdx = doc.start.y * W + doc.start.x;
+    const eIdx = doc.exit.y * W + doc.exit.x;
+    const d = bfsDist(blocked, W, H, sIdx);
+    return {
+      level: {
+        cfg,
+        W,
+        H,
+        walls,
+        blocked,
+        roomTiles: [],
+        obstacles: [],
+        puddles: [],
+        decoy: null,
+        trails: [],
+        enemies,
+        start: { x: c(doc.start.x), y: c(doc.start.y) },
+        exit: { x: c(doc.exit.x), y: c(doc.exit.y), r: EXIT_R },
+        pathTiles: d[eIdx],
+        pxW: W * TILE,
+        pxH: H * TILE,
+        custom: { id: doc.id, title: doc.title },
+      },
+    };
+  } catch (e) {
+    return { error: 'This level could not be read.' };
+  }
 }
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */

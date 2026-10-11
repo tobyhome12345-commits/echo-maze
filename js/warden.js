@@ -394,18 +394,24 @@ const EchoWarden = (() => {
    * variant's `abilities`; nothing else changes.
    */
   const ABILITIES = {};
+  // (v15.0) `label` is what the level editor calls each one - by the level it comes from, never by what it is -
+  // and `pitch` its voice when a custom level places one (levels 15 and 16 give theirs the same in js/story.js)
   const VARIANTS = {
     regular: {
       id: 'regular',
+      label: 'Level 15 monster',
       speed: WARDEN_SPEED, // x the player's walking speed
       r: 18, // px: as big as a 40 px corridor allows (a monster is 14, you are 9)
+      pitch: 46.25,
       abilities: [],
       look: { seam: 0, core: 1 }, // how far its seam stands open (0 = sealed), and how bright its edges are
     },
     upgraded: {
       id: 'upgraded',
+      label: 'Level 16 monster',
       speed: WARDEN_UPGRADED_SPEED,
       r: 18,
+      pitch: 41.2,
       abilities: [],
       // Another one, and a harder one. It LOOKS harder too - its seam stands a little open and its edges are
       // brighter - but that is drawing only: what makes it stronger is `speed` and nothing else.

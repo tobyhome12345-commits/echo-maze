@@ -2505,3 +2505,429 @@ body.touch #say {
   color: rgb(var(--key-rgb));
   text-shadow: 0 0 10px rgba(var(--key-rgb), 0.45);
 }
+
+/* ==========================================================================
+   v15.0: THE LEVEL EDITOR - its warning (#editor-gate), My Levels, the editor
+   itself and the small questions it asks (#dialog). The same panels, buttons
+   and glow as every other screen; the editor fills the whole window instead
+   of sitting in a panel, because the map needs the room.
+   ========================================================================== */
+
+input[type='text'] {
+  user-select: text;
+}
+
+/* -- My Levels ------------------------------------------------------------ */
+#mylevels .panel {
+  width: min(700px, calc(100vw - 32px));
+}
+
+body.touch #mylevels p.touch-only {
+  display: block;
+}
+
+.lv-list {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 6px;
+  text-align: left;
+}
+
+.lv-empty {
+  text-align: center;
+  color: var(--dim);
+  font-size: 14px;
+  margin: 10px 0;
+}
+
+.lv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid rgba(var(--ui-rgb), 0.2);
+  border-radius: 10px;
+  background: rgba(var(--ui-rgb), 0.035);
+}
+
+.lv-row.unfinished {
+  border-style: dashed;
+}
+
+.lv-row.damaged {
+  border-color: rgba(var(--danger-rgb), 0.35);
+}
+
+.lv-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lv-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lv-head b {
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-tag {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid currentColor;
+}
+
+.lv-row.playable .lv-tag {
+  color: rgb(var(--exit-rgb));
+}
+
+.lv-row.unfinished .lv-tag {
+  color: rgb(var(--key-rgb, 235, 210, 135));
+}
+
+.lv-row.damaged .lv-tag {
+  color: var(--danger);
+}
+
+.lv-info small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.lv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.lv-actions button {
+  padding: 7px 12px;
+  font-size: 11px;
+}
+
+.lv-actions button.primary {
+  padding: 7px 16px;
+}
+
+/* -- the editor ------------------------------------------------------------ */
+#editor {
+  background: var(--bg);
+  backdrop-filter: none;
+}
+
+.ed-shell {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  padding: 12px 16px 14px;
+}
+
+.ed-top {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
+.ed-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.ed-title {
+  flex: 1 1 280px;
+}
+
+.ed-field input,
+.ed-field select {
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink);
+  background: rgba(var(--ui-rgb), 0.06);
+  border: 1px solid rgba(var(--ui-rgb), 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.ed-title input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ed-field input:focus,
+.ed-field select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(var(--ui-rgb), 0.25);
+}
+
+.ed-field select option {
+  background: #06101a;
+  color: var(--ink);
+}
+
+.ed-status {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 99px;
+  border: 1px solid rgba(var(--key-rgb, 235, 210, 135), 0.5);
+  color: rgb(var(--key-rgb, 235, 210, 135));
+  white-space: nowrap;
+}
+
+.ed-status.ok {
+  border-color: rgba(var(--exit-rgb), 0.5);
+  color: rgb(var(--exit-rgb));
+}
+
+.ed-side {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.ed-side h3 {
+  margin: 8px 0 2px;
+  text-align: left;
+}
+
+.ed-side h3:first-child {
+  margin-top: 0;
+}
+
+.ed-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+button.ed-tool {
+  padding: 8px 10px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.ed-monsters {
+  display: grid;
+  gap: 5px;
+}
+
+button.ed-monster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 6px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  text-align: left;
+}
+
+button.ed-monster canvas {
+  flex: none;
+}
+
+button.ed-tool.on,
+button.ed-monster.on {
+  background: rgba(var(--ui-rgb), 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 18px rgba(var(--ui-rgb), 0.3), inset 0 0 0 1px rgba(var(--ui-rgb), 0.5);
+}
+
+.ed-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ed-row button {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+button.ed-wide {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.ed-stage {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(var(--ui-rgb), 0.12);
+  border-radius: 10px;
+}
+
+.ed-stage canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+.ed-bottom {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.ed-info {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.ed-hint {
+  margin: 0 0 4px;
+  min-height: 1.5em;
+  font-size: 13px;
+  color: #a9c2ce;
+}
+
+.ed-problems {
+  max-height: 4.6em;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.ed-problems p {
+  margin: 0;
+  line-height: 1.5;
+  color: rgb(var(--key-rgb, 235, 210, 135));
+}
+
+.ed-problems p::before {
+  content: '\2022\00a0';
+}
+
+.ed-problems p.ok {
+  color: rgb(var(--exit-rgb));
+}
+
+.ed-problems p.warn {
+  color: var(--dim);
+}
+
+.ed-problems.flash p:not(.ok):not(.warn) {
+  animation: ed-flash 0.9s ease-out;
+}
+
+@keyframes ed-flash {
+  0%,
+  45% {
+    color: var(--ink);
+    text-shadow: 0 0 12px rgba(var(--danger-rgb), 0.9);
+  }
+}
+
+.ed-bottom .buttons {
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+.ed-bottom button {
+  padding: 10px 18px;
+  font-size: 13px;
+}
+
+#ed-test.not-ready {
+  opacity: 0.55;
+}
+
+/* -- the questions it asks ------------------------------------------------- */
+#dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(1, 2, 6, 0.62);
+  opacity: 0;
+  transition: opacity var(--ui-fade) ease-in-out;
+}
+
+#dialog.in {
+  opacity: 1;
+}
+
+#dialog-input {
+  width: 100%;
+  margin: 4px 0 16px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: rgba(var(--ui-rgb), 0.06);
+  border: 1px solid rgba(var(--ui-rgb), 0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+#dialog-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(var(--ui-rgb), 0.25);
+}
+
+button.primary.danger {
+  color: #1a0208;
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 30px rgba(var(--danger-rgb), 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+button.primary.danger:hover,
+button.primary.danger:focus-visible {
+  background: #ff6b85;
+  box-shadow: 0 0 46px rgba(var(--danger-rgb), 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+@media (max-height: 560px) {
+  .ed-shell {
+    gap: 6px 10px;
+    padding: 8px 10px;
+  }
+
+  .ed-problems {
+    max-height: 3em;
+  }
+}

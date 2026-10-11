@@ -136,6 +136,7 @@
         <button id="btn-tutorial" class="quiet">Tutorial</button>
         <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
         <button id="btn-archive" class="quiet hidden">Fragments</button>
+        <button id="btn-editor" class="quiet">Level Editor</button>
         <button id="btn-settings" class="quiet">Settings</button>
       </div>
       <p id="title-medals" class="medal-summary hidden"></p>
@@ -171,6 +172,67 @@
       <div class="buttons">
         <button id="btn-archive-back" class="primary">Back <span class="key">Esc</span></button>
       </div>
+    </div>
+  </section>
+
+  <!-- the level editor (v15.0): the warning before it is first opened, the list of your levels, and the editor -->
+  <section id="editor-gate" class="overlay hidden">
+    <div class="panel small">
+      <h2>Level Editor</h2>
+      <p>The level editor lets you place every monster and use every mechanic in the game &mdash; including ones you may not have met yet.</p>
+      <p>If you would rather find them by playing, go back for now. This is only asked once.</p>
+      <div class="buttons dock">
+        <button id="btn-gate-ok" class="primary">I understand</button>
+        <button id="btn-gate-back">Back <span class="key">Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="mylevels" class="overlay hidden">
+    <div class="panel">
+      <h2>My Levels</h2>
+      <p class="mode-desc">Levels you have made. Play them, change them, or make a new one.</p>
+      <p class="fine touch-only">The editor needs a mouse for now. Touch support is on its way; your levels can still be played here.</p>
+      <div id="mylevels-list" class="lv-list"></div>
+      <p id="mylevels-note" class="fine"></p>
+      <div class="buttons dock">
+        <button id="btn-mylevels-new" class="primary">New level</button>
+        <button id="btn-mylevels-back">Back <span class="key">Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="editor" class="overlay hidden" aria-label="Level editor">
+    <div class="ed-shell">
+      <header class="ed-top">
+        <label class="ed-field ed-title"><span>Title</span><input id="ed-title" type="text" maxlength="48" spellcheck="false" autocomplete="off"></label>
+        <label class="ed-field"><span>Size</span><select id="ed-size"></select></label>
+        <span id="ed-status" class="ed-status" aria-live="polite"></span>
+      </header>
+      <aside class="ed-side">
+        <h3>Tools</h3>
+        <div id="ed-tools" class="ed-tools" role="group" aria-label="Tools"></div>
+        <h3>Monsters</h3>
+        <div id="ed-monsters" class="ed-monsters" role="group" aria-label="Monster to place"></div>
+        <div class="ed-row">
+          <button id="ed-undo" type="button" title="Ctrl+Z">Undo</button>
+          <button id="ed-redo" type="button" title="Ctrl+Y">Redo</button>
+        </div>
+        <button id="ed-delete" type="button" class="ed-wide" title="Delete">Delete</button>
+        <button id="ed-clear" type="button" class="quiet ed-wide">Clear all</button>
+      </aside>
+      <div id="ed-stage" class="ed-stage"><canvas id="ed-canvas" aria-label="The level"></canvas></div>
+      <footer class="ed-bottom">
+        <div class="ed-info">
+          <p id="ed-hint" class="ed-hint"></p>
+          <div id="ed-problems" class="ed-problems" aria-live="polite"></div>
+        </div>
+        <div class="buttons">
+          <button id="ed-back" type="button">My Levels</button>
+          <button id="ed-save" type="button">Save</button>
+          <button id="ed-test" type="button" class="primary">Test play</button>
+        </div>
+      </footer>
     </div>
   </section>
 
@@ -302,8 +364,12 @@
       <h2 id="complete-title">Level cleared</h2>
       <p id="complete-stats"></p>
       <div id="complete-medals" class="medal-list"></div>
+      <!-- a level made in the editor (v15.0): no medals, nothing saved, and back to where it was started from -->
+      <p id="complete-note" class="fine hidden">Nothing here counts towards your progress, medals or stats.</p>
       <div class="buttons">
         <button id="btn-next" class="primary">Next level <span class="key">Enter</span></button>
+        <button id="btn-custom-back" class="primary hidden"><span id="custom-back-label">Back to the editor</span> <span class="key">Enter</span></button>
+        <button id="btn-custom-again" class="hidden">Play again</button>
       </div>
     </div>
   </section>
@@ -324,6 +390,16 @@
       </div>
     </div>
   </section>
+
+  <!-- a question in the middle of the screen (js/dialog.js): "are you sure?", "what should it be called?" -->
+  <div id="dialog" class="hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <div class="panel small">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-text"></p>
+      <input id="dialog-input" type="text" class="hidden" maxlength="48" spellcheck="false" autocomplete="off">
+      <div id="dialog-buttons" class="buttons"></div>
+    </div>
+  </div>
 
   <!-- On-screen touch controls (js/touch.js). Shown only while playing, and only on touch devices or when switched on in the pause menu. -->
   <div id="touch" class="hidden" aria-hidden="true">
@@ -360,6 +436,12 @@
   <script src="js/cues.js"></script>
   <script src="js/touch.js"></script>
   <script src="js/settings.js"></script>
+  <script src="js/levelformat.js"></script>
+  <script src="js/levelcheck.js"></script>
+  <script src="js/levelstore.js"></script>
+  <script src="js/dialog.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/mylevels.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>
