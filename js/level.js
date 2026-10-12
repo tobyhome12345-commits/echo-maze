@@ -309,18 +309,59 @@ function storyConfig(n, modeId) {
 
 /**
  * CUSTOM LEVELS (v15.0: made in the level editor, or - later - from anywhere else). They have no level number of
- * their own, so they are tuned like one fixed level of the ordinary curve, in whatever difficulty mode the player
- * has picked: CUSTOM_CURVE_LEVEL, the last generated level, where every monster in the game has its tuning. That
- * gives the ripple's range and recharge and every monster's speed and hearing; every generated monster, puddle and
- * decoy is zeroed, as on levels 13-16 - the level's own data says what is in it. Nothing here is reached by any
- * numbered level, so levels 0-16 are untouched.
+ * their own, so they are tuned like one fixed level of the ordinary curve: CUSTOM_CURVE_LEVEL, the last generated
+ * level, where every monster in the game has its tuning. That gives the ripple's range and recharge and every
+ * monster's speed and hearing; every generated monster, puddle and decoy is zeroed, as on levels 13-16 - the
+ * level's own data says what is in it. Nothing here is reached by any numbered level, so levels 0-16 are untouched.
+ *
+ * WHOSE DIFFICULTY (v15.1): THE LEVEL'S. A level carries its own `difficulty` (js/levelformat.js): a rating that
+ * is one of the game's modes - and then it is tuned exactly as that mode tunes level 12, for every player, whatever
+ * mode they have picked on the title screen - or 'custom', which is Normal with three scales on top (monster speed,
+ * the ripple's range, monster hearing). The player's own mode does not change a custom level at all, so what its
+ * maker tested is what everyone plays. (In v15.0 there was no rating and the player's mode was used; a v15.0 level
+ * is read as Normal.) Calm mode, Visual cues and the rest of the player's own settings apply as everywhere else.
+ *
+ * The scales are clamped (TUNING in js/levelformat.js), and on top of that every monster but the hunters stays
+ * below your walking speed, as the game's own rule has it (CUSTOM_MONSTER_TOP), and a hunter - the Level 15 / 16
+ * monster, which follows its own rule (a fraction of your speed: WARDEN_SPEED / WARDEN_UPGRADED_SPEED) - is
+ * scaled by the same monster-speed setting but never past CUSTOM_WARDEN_TOP times your speed.
  */
 const CUSTOM_CURVE_LEVEL = 12;
-function customConfig(modeId) {
+const CUSTOM_MONSTER_TOP = 169; // px/s: below the player's 170, like every monster in the game
+const CUSTOM_WARDEN_TOP = 1.25; // x the player's walking speed: the most a hunter in a custom level can ever have
+/** The game mode a custom level's rating is tuned as ('custom' is Normal, with its scales on top). */
+const ratingMode = (rating) => (MODES[rating] ? rating : 'normal');
+function customConfig(difficulty) {
+  // (v15.0 passed a mode id: it reads as that rating)
+  const d = EchoLevelFormat.difficulty(typeof difficulty === 'string' ? { rating: difficulty } : difficulty);
+  const modeId = ratingMode(d.rating);
   const base = levelConfig(CUSTOM_CURVE_LEVEL, modeId, true);
+  const fast = (v) => Math.min(v * d.monsterSpeed, CUSTOM_MONSTER_TOP);
+  const ear = (v) => Math.round(v * d.hearing);
+  const footstepRadius = ear(base.footstepRadius);
   return {
     ...base,
     custom: true,
+    mode: modeId,
+    rating: d.rating,
+    difficulty: d,
+    mimicTell: MODES[modeId].mimicTell,
+    // monster speed (the hunters' is worked out by wardenSpeedFraction below, from the same scale)
+    speedScale: d.monsterSpeed,
+    enemySpeed: fast(base.enemySpeed),
+    scentSpeed: fast(base.scentSpeed),
+    stalkerSpeed: fast(base.stalkerSpeed),
+    mufflerSpeed: fast(base.mufflerSpeed),
+    singerSpeed: fast(base.singerSpeed),
+    // hearing and smelling
+    footstepRadius,
+    presenceRadius: Math.min(ear(base.presenceRadius), footstepRadius - 1),
+    mufflerFootstepRadius: ear(base.mufflerFootstepRadius),
+    mufflerPresenceRadius: ear(base.mufflerPresenceRadius),
+    mufflerCrouchRadius: ear(base.mufflerCrouchRadius),
+    smellRange: ear(base.smellRange),
+    // the ripple
+    rippleRadius: base.rippleRadius * d.rippleRange,
     rooms: 0,
     obstacles: 0,
     enemies: 0,
@@ -334,6 +375,12 @@ function customConfig(modeId) {
     singers: 0,
   };
 }
+/** A hunter's speed in a custom level, as a fraction of the player's walking speed (see customConfig). */
+function wardenSpeedFraction(variant, difficulty) {
+  const d = EchoLevelFormat.difficulty(difficulty);
+  const v = typeof EchoWarden !== 'undefined' ? EchoWarden.variant(variant) : { speed: WARDEN_UPGRADED_SPEED };
+  return Math.min(v.speed * d.monsterSpeed, CUSTOM_WARDEN_TOP);
+}
 
 /**
  * THE ENGINE'S CUSTOM-LEVEL LOADER. `data` is a level in the saved format (js/levelformat.js, docs/level-format.md)
@@ -342,16 +389,23 @@ function customConfig(modeId) {
  * EchoLevelCheck; anything that cannot be played comes back as { error } instead of a level, and nothing here
  * throws. What it returns is the same shape generateLevel returns for the hand-drawn levels 13-16 (js/story.js
  * build), plus `custom`, so it plays through exactly the same engine.
+ *
+ * v15.1 adds to that shape, for custom levels only (the game reads each with a fallback, so nothing numbered sees
+ * them): `exits` (every way out; `exit` is the first, for anything that only knows one), a LOCKED way out's tile
+ * blocked in `blocked` until the key opens it (as level 14's gaol door is), `puddles` and `decoy` in exactly the
+ * shapes the generator makes them, `key` (level 14's, as story.js makes it), `notes` (the player's own lore
+ * fragments) and `effects` (the zones, in tiles - js/effects.js draws them). Its difficulty is its own: see
+ * customConfig. (`_modeId` is what v15.0 tuned it by; it is no longer read.)
  *   -> { level } or { error: 'a sentence the player can read' }
  */
-function buildCustomLevel(data, modeId = 'normal') {
+function buildCustomLevel(data, _modeId) {
   try {
     const read = EchoLevelFormat.normalise(data);
     if (!read.doc) return { error: read.error || 'This level could not be read.' };
     const doc = read.doc;
     const verdict = EchoLevelCheck.check(doc);
     if (!verdict.playable) return { error: verdict.errors.length ? verdict.errors[0].text : 'This level is not finished yet.' };
-    const cfg = customConfig(modeId);
+    const cfg = customConfig(doc.difficulty);
     const W = doc.size.w;
     const H = doc.size.h;
     const walls = EchoLevelFormat.wallGrid(doc);
@@ -365,9 +419,14 @@ function buildCustomLevel(data, modeId = 'normal') {
       const pitch = type.variants ? EchoWarden.variant(m.variant).pitch : type.pitch[0] + type.pitch[1] * spread;
       return { kind: m.kind, variant: m.variant || undefined, tx: m.x, ty: m.y, x: c(m.x), y: c(m.y), sleeper: false, pitch };
     });
-    const sIdx = doc.start.y * W + doc.start.x;
-    const eIdx = doc.exit.y * W + doc.exit.x;
-    const d = bfsDist(blocked, W, H, sIdx);
+    // the ways out - only the ones that can be reached are any use, but every one is there and chimes
+    const exits = doc.exits.map((e, i) => ({ x: c(e.x), y: c(e.y), r: EXIT_R, tx: e.x, ty: e.y, n: i + 1, locked: !!e.locked, opening: -1, swing: 0, rattleCd: 0 }));
+    for (const e of exits) if (e.locked) blocked[e.ty * W + e.tx] = 1; // a shut door: nothing walks through it (level 14's rule)
+    const reachable = exits.filter((e, i) => verdict.reach && verdict.reach[i]);
+    const obj = (kind) => doc.objects.filter((o) => o.kind === kind);
+    const one = (kind) => obj(kind)[0] || null;
+    const dc = one('decoy');
+    const ky = one('key');
     return {
       level: {
         cfg,
@@ -377,22 +436,28 @@ function buildCustomLevel(data, modeId = 'normal') {
         blocked,
         roomTiles: [],
         obstacles: [],
-        puddles: [],
-        decoy: null,
+        puddles: obj('puddle').map((p) => ({ x: c(p.x), y: c(p.y), r: PUDDLE_R, tx: p.x, ty: p.y })),
+        decoy: dc ? { x: c(dc.x), y: c(dc.y), r: DECOY_PICKUP_R, tx: dc.x, ty: dc.y, taken: false } : null,
+        key: ky ? { x: c(ky.x), y: c(ky.y), r: CUSTOM_KEY_R, taken: false } : null,
+        notes: obj('note').map((n) => ({ x: c(n.x), y: c(n.y), r: CUSTOM_NOTE_R, kind: n.style === 'recording' ? 'log' : 'note', text: n.text, read: false })),
+        effects: doc.effects.map((f) => ({ ...f })),
         trails: [],
         enemies,
         start: { x: c(doc.start.x), y: c(doc.start.y) },
-        exit: { x: c(doc.exit.x), y: c(doc.exit.y), r: EXIT_R },
-        pathTiles: d[eIdx],
+        exits,
+        exit: reachable[0] || exits[0],
+        pathTiles: verdict.pathTiles,
         pxW: W * TILE,
         pxH: H * TILE,
-        custom: { id: doc.id, title: doc.title },
+        custom: { id: doc.id, title: doc.title, card: doc.titleCard, rating: doc.difficulty.rating, palette: doc.palette, warnings: verdict.warnings.map((w) => w.text) },
       },
     };
   } catch (e) {
     return { error: 'This level could not be read.' };
   }
 }
+const CUSTOM_KEY_R = 11; // px: level 14's key (js/story.js KEY_R)
+const CUSTOM_NOTE_R = 11; // px: a lore fragment (js/lore.js R)
 
 /** Difficulty curve. Everything scales with the level number n (1-based) and the mode. */
 function levelConfig(n, modeId = 'normal', raw = false) {

@@ -1,0 +1,13 @@
+{
+  "folders": [
+    { "id": "sample-folder-showcase", "name": "Showcase" },
+    { "id": "sample-folder-puzzles", "name": "Puzzles" }
+  ],
+  "levels": {
+    "sample-many-doors": "sample-folder-showcase",
+    "sample-lanterns": "sample-folder-showcase",
+    "sample-all-of-it": "sample-folder-showcase",
+    "sample-the-key": "sample-folder-puzzles",
+    "sample-quick-feet": "sample-folder-puzzles"
+  }
+}

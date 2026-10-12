@@ -2931,3 +2931,429 @@ button.primary.danger:focus-visible {
     max-height: 3em;
   }
 }
+
+/* ==========================================================================
+   v15.1: THE LEVEL EDITOR, part 2 - the touch warning (#editor-touch, the
+   same panel as the spoiler warning), a custom level's title card (#card),
+   folders and pictures in My Levels, and the editor's new panels: what the
+   Exit / Object / Effect tools place, the picked thing's properties, and the
+   Level settings tab. The same panels, buttons and glow as everywhere else.
+   ========================================================================== */
+
+/* -- the title card ---------------------------------------------------------- */
+#card {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 12;
+  width: min(620px, calc(100vw - 32px));
+  transform: translate(-50%, calc(-50% + var(--ui-lift)));
+  padding: 26px 30px 22px;
+  text-align: center;
+  background: rgba(3, 8, 14, 0.72);
+  border: 1px solid rgba(var(--ui-rgb), 0.25);
+  border-radius: 14px;
+  box-shadow: 0 0 60px rgba(var(--ui-rgb), 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ui-fade) ease, transform var(--ui-fade) var(--ui-ease);
+}
+
+#card.show {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+#card h2 {
+  margin: 6px 0 10px;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  overflow-wrap: anywhere;
+}
+
+.card-kicker,
+.card-diff,
+.card-hint {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.card-diff {
+  margin-top: 14px;
+  color: var(--accent);
+}
+
+.card-line {
+  margin: 0 auto;
+  max-width: 34em;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.card-hint {
+  margin-top: 16px;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+
+/* -- My Levels: folders, sorting, pictures ---------------------------------- */
+#mylevels .panel {
+  width: min(820px, calc(100vw - 32px));
+}
+
+.lv-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lv-chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+button.lv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  max-width: 220px;
+}
+
+button.lv-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.lv-chip small {
+  flex: none;
+  min-width: 1.6em;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(var(--ui-rgb), 0.12);
+  color: var(--dim);
+  font-size: 11px;
+}
+
+button.lv-chip.on {
+  background: rgba(var(--ui-rgb), 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 18px rgba(var(--ui-rgb), 0.3), inset 0 0 0 1px rgba(var(--ui-rgb), 0.5);
+}
+
+.lv-sort {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.lv-sort select,
+.ed-prop select,
+.ed-prop input,
+.ed-prop textarea,
+#dialog-select {
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink);
+  background: rgba(var(--ui-rgb), 0.06);
+  border: 1px solid rgba(var(--ui-rgb), 0.3);
+  border-radius: 8px;
+  padding: 6px 8px;
+  outline: none;
+}
+
+.lv-sort select option,
+.ed-prop select option,
+#dialog-select option {
+  background: #06101a;
+  color: var(--ink);
+}
+
+.lv-sort select:focus,
+.ed-prop select:focus,
+.ed-prop input:focus,
+.ed-prop textarea:focus,
+#dialog-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(var(--ui-rgb), 0.25);
+}
+
+.lv-folderbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--ui-rgb), 0.18);
+  border-radius: 10px;
+  background: rgba(var(--ui-rgb), 0.04);
+}
+
+.lv-folderbar .lv-folder-name {
+  flex: 1;
+  min-width: 140px;
+  text-align: left;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
+.lv-folderbar button {
+  padding: 7px 12px;
+  font-size: 11px;
+}
+
+canvas.lv-thumb {
+  flex: none;
+  border-radius: 6px;
+  background: rgba(1, 2, 6, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(var(--ui-rgb), 0.14);
+}
+
+.lv-head .lv-diff {
+  color: var(--dim);
+}
+
+.lv-head .lv-diff.diff-custom {
+  color: rgb(var(--singer-rgb));
+}
+
+.lv-actions {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  max-width: 270px;
+}
+
+/* -- the editor's side panel: tabs, the lists, the picked thing -------------- */
+.ed-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.ed-tabs button {
+  padding: 7px 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.ed-tabs button.on {
+  background: rgba(var(--ui-rgb), 0.18);
+  border-color: var(--accent);
+}
+
+.ed-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ed-pane h3 {
+  margin: 8px 0 2px;
+  text-align: left;
+}
+
+.ed-pane h3:first-child {
+  margin-top: 0;
+}
+
+button.ed-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 6px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  text-align: left;
+}
+
+button.ed-choice canvas {
+  flex: none;
+  border-radius: 4px;
+}
+
+button.ed-choice.on,
+button.ed-shape.on {
+  background: rgba(var(--ui-rgb), 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 18px rgba(var(--ui-rgb), 0.3), inset 0 0 0 1px rgba(var(--ui-rgb), 0.5);
+}
+
+.ed-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+button.ed-shape {
+  padding: 6px 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.ed-inspector {
+  margin-top: 6px;
+  padding: 8px 10px 10px;
+  border: 1px solid rgba(var(--ui-rgb), 0.22);
+  border-radius: 10px;
+  background: rgba(var(--ui-rgb), 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.ed-inspector h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ed-inspector .fine,
+.ed-pane .fine {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.ed-prop {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  text-align: left;
+}
+
+.ed-prop textarea {
+  resize: vertical;
+  min-height: 3.6em;
+  line-height: 1.4;
+}
+
+.ed-prop.ed-check {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.ed-dims {
+  margin-top: 0;
+}
+
+.ed-dims .ed-prop {
+  flex: 1;
+  min-width: 0;
+}
+
+.ed-dims input {
+  width: 100%;
+}
+
+.ed-tuning {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ed-tune {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.ed-tune input[type='range'] {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.ed-tune-val {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.ed-tune.off {
+  opacity: 0.45;
+}
+
+#dialog-select {
+  width: 100%;
+  margin: 4px 0 16px;
+  padding: 10px 12px;
+  font-size: 15px;
+}
+
+/* -- touch (best effort): the map takes the finger, and small screens get a narrower panel */
+#ed-canvas {
+  touch-action: none;
+}
+
+body.touch .ed-shell {
+  grid-template-columns: 196px minmax(0, 1fr);
+}
+
+body.touch button.ed-tool,
+body.touch button.ed-choice,
+body.touch button.ed-monster {
+  min-height: 40px;
+}
+
+@media (max-width: 760px) {
+  .ed-shell {
+    grid-template-columns: 172px minmax(0, 1fr);
+    gap: 6px 8px;
+    padding: 6px 8px;
+  }
+
+  .ed-top {
+    gap: 6px 10px;
+  }
+
+  .ed-bottom button {
+    padding: 8px 12px;
+  }
+
+  .lv-bar {
+    flex-direction: column;
+  }
+
+  .lv-actions {
+    grid-template-columns: repeat(2, auto);
+  }
+
+  canvas.lv-thumb {
+    display: none;
+  }
+}

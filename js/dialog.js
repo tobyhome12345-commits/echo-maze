@@ -4,8 +4,10 @@
  * A SMALL QUESTION IN THE MIDDLE OF THE SCREEN (v15.0): "are you sure?", "what should it be called?". The level
  * editor and My Levels use it instead of the browser's own confirm()/prompt(), so it looks like the rest of the
  * game and never blocks the page. One at a time; Enter presses the main button and Esc the cancelling one.
- *   open({ title, text, input: { value, max, label }, buttons: [{ id, label, primary, danger }], cancel })
- *     -> a Promise of { id, value }  (id: the button pressed - or `cancel` for Esc; value: the input's text)
+ *   open({ title, text, input: { value, max, label }, select: { options: [{ value, label }], value, label },
+ *          buttons: [{ id, label, primary, danger }], cancel })
+ *     -> a Promise of { id, value }  (id: the button pressed - or `cancel` for Esc; value: the input's text, or the
+ *        option picked in the list (v15.1) when there is a list instead)
  *   isOpen()
  */
 const EchoDialog = (() => {
@@ -45,7 +47,7 @@ const EchoDialog = (() => {
     if (!current) return;
     const c = current;
     current = null;
-    const value = c.input ? $('dialog-input').value : undefined;
+    const value = c.input ? $('dialog-input').value : c.select ? $('dialog-select').value : undefined;
     el.classList.remove('in');
     el.classList.add('hidden');
     if (lastFocus && lastFocus.focus && document.body.contains(lastFocus)) {
@@ -63,7 +65,7 @@ const EchoDialog = (() => {
     if (current) finish(current.cancel); // a new question replaces one left open (never two at once)
     const buttons = opts.buttons && opts.buttons.length ? opts.buttons : [{ id: 'ok', label: 'OK', primary: true }];
     return new Promise((resolve) => {
-      current = { resolve, buttons, cancel: opts.cancel || buttons[buttons.length - 1].id, input: !!opts.input };
+      current = { resolve, buttons, cancel: opts.cancel || buttons[buttons.length - 1].id, input: !!opts.input, select: !opts.input && !!opts.select };
       lastFocus = document.activeElement;
       $('dialog-title').textContent = opts.title || '';
       $('dialog-text').textContent = opts.text || '';
@@ -74,6 +76,20 @@ const EchoDialog = (() => {
         input.value = opts.input.value || '';
         input.maxLength = opts.input.max || 48;
         input.setAttribute('aria-label', opts.input.label || opts.title || 'Text');
+      }
+      // (v15.1) a list to pick one from - which folder to move a level to
+      const sel = $('dialog-select');
+      sel.classList.toggle('hidden', !current.select);
+      sel.textContent = '';
+      if (current.select) {
+        for (const o of opts.select.options || []) {
+          const op = document.createElement('option');
+          op.value = o.value;
+          op.textContent = o.label;
+          sel.appendChild(op);
+        }
+        if (opts.select.value !== undefined) sel.value = opts.select.value;
+        sel.setAttribute('aria-label', opts.select.label || opts.title || 'Choose');
       }
       const row = $('dialog-buttons');
       row.textContent = '';
@@ -93,7 +109,7 @@ const EchoDialog = (() => {
       el.classList.remove('hidden');
       void el.offsetWidth; // laid out first, so it fades in (the overlays do the same)
       el.classList.add('in');
-      const focusOn = opts.input ? input : row.querySelector('button.primary') || row.querySelector('button');
+      const focusOn = opts.input ? input : current.select ? sel : row.querySelector('button.primary') || row.querySelector('button');
       if (focusOn) {
         focusOn.focus({ preventScroll: true });
         if (opts.input) input.select();

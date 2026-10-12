@@ -37,6 +37,15 @@
     <div id="banner-text"></div>
   </div>
 
+  <!-- (v15.1) a custom level's title card: the level waits under it until a key, a click or a few seconds -->
+  <div id="card" class="hidden" aria-live="polite">
+    <p id="card-kicker" class="card-kicker"></p>
+    <h2 id="card-title"></h2>
+    <p id="card-line" class="card-line"></p>
+    <p id="card-diff" class="card-diff"></p>
+    <p id="card-hint" class="card-hint"></p>
+  </div>
+
   <!-- a lore fragment your wave has just found (js/lore.js): a note, or a recording typed out as it plays -->
   <div id="lore" aria-live="polite">
     <span id="lore-head"></span>
@@ -188,15 +197,33 @@
     </div>
   </section>
 
+  <!-- (v15.1) shown every time the editor is opened from the title while touch controls are on -->
+  <section id="editor-touch" class="overlay hidden">
+    <div class="panel small">
+      <h2>Level Editor</h2>
+      <p>The level editor isn't suitable for mobile or touch controls. It works best with a mouse and keyboard.</p>
+      <p class="fine">You can still use it: tap to place, drag to draw or move, and use Erase or Delete where a mouse would right-click.</p>
+      <div class="buttons dock">
+        <button id="btn-touchgate-ok" class="primary">I understand</button>
+        <button id="btn-touchgate-back">Back <span class="key">Esc</span></button>
+      </div>
+    </div>
+  </section>
+
   <section id="mylevels" class="overlay hidden">
     <div class="panel">
       <h2>My Levels</h2>
       <p class="mode-desc">Levels you have made. Play them, change them, or make a new one.</p>
-      <p class="fine touch-only">The editor needs a mouse for now. Touch support is on its way; your levels can still be played here.</p>
+      <div class="lv-bar">
+        <div id="mylevels-folders" class="lv-chips" role="group" aria-label="Folders"></div>
+        <label class="lv-sort"><span>Sort</span><select id="mylevels-sort"><option value="recent">Recently edited</option><option value="name">Name</option></select></label>
+      </div>
+      <div id="mylevels-folderbar" class="lv-folderbar hidden"></div>
       <div id="mylevels-list" class="lv-list"></div>
       <p id="mylevels-note" class="fine"></p>
       <div class="buttons dock">
         <button id="btn-mylevels-new" class="primary">New level</button>
+        <button id="btn-mylevels-folder">New folder</button>
         <button id="btn-mylevels-back">Back <span class="key">Esc</span></button>
       </div>
     </div>
@@ -210,16 +237,42 @@
         <span id="ed-status" class="ed-status" aria-live="polite"></span>
       </header>
       <aside class="ed-side">
-        <h3>Tools</h3>
-        <div id="ed-tools" class="ed-tools" role="group" aria-label="Tools"></div>
-        <h3>Monsters</h3>
-        <div id="ed-monsters" class="ed-monsters" role="group" aria-label="Monster to place"></div>
-        <div class="ed-row">
-          <button id="ed-undo" type="button" title="Ctrl+Z">Undo</button>
-          <button id="ed-redo" type="button" title="Ctrl+Y">Redo</button>
+        <div class="ed-tabs" role="tablist">
+          <button id="ed-tab-build" type="button" role="tab" class="on">Build</button>
+          <button id="ed-tab-settings" type="button" role="tab">Level settings</button>
         </div>
-        <button id="ed-delete" type="button" class="ed-wide" title="Delete">Delete</button>
-        <button id="ed-clear" type="button" class="quiet ed-wide">Clear all</button>
+        <div id="ed-pane-build" class="ed-pane">
+          <h3>Tools</h3>
+          <div id="ed-tools" class="ed-tools" role="group" aria-label="Tools"></div>
+          <h3 id="ed-choices-head" class="hidden"></h3>
+          <div id="ed-choices" class="ed-monsters hidden" role="group" aria-label="What to place"></div>
+          <div id="ed-inspector" class="ed-inspector hidden" aria-live="polite"></div>
+          <div class="ed-row">
+            <button id="ed-undo" type="button" title="Ctrl+Z">Undo</button>
+            <button id="ed-redo" type="button" title="Ctrl+Y">Redo</button>
+          </div>
+          <button id="ed-delete" type="button" class="ed-wide" title="Delete">Delete</button>
+          <button id="ed-clear" type="button" class="quiet ed-wide">Clear all</button>
+          <h3>Monsters</h3>
+          <div id="ed-monsters" class="ed-monsters" role="group" aria-label="Monster to place"></div>
+        </div>
+        <div id="ed-pane-settings" class="ed-pane hidden">
+          <h3>Size</h3>
+          <div class="ed-row ed-dims">
+            <label class="ed-prop"><span>Width</span><input id="ed-w" type="number" inputmode="numeric"></label>
+            <label class="ed-prop"><span>Height</span><input id="ed-h" type="number" inputmode="numeric"></label>
+          </div>
+          <h3>Title card</h3>
+          <label class="ed-prop"><span>A line shown under the title when the level starts</span><input id="ed-card" type="text" spellcheck="false" autocomplete="off"></label>
+          <h3>Colours</h3>
+          <label class="ed-prop"><span>Palette</span><select id="ed-palette"></select></label>
+          <p class="fine">Used only for players on the Default colours: anyone who picked a palette for their eyes keeps theirs.</p>
+          <h3>Difficulty</h3>
+          <label class="ed-prop"><span>Rating</span><select id="ed-rating"></select></label>
+          <p class="fine">Everyone plays this level at this difficulty, whatever they picked on the title screen. Custom is Normal, tuned below.</p>
+          <div id="ed-tuning" class="ed-tuning"></div>
+          <button id="ed-tune-reset" type="button" class="quiet ed-wide">Reset to defaults</button>
+        </div>
       </aside>
       <div id="ed-stage" class="ed-stage"><canvas id="ed-canvas" aria-label="The level"></canvas></div>
       <footer class="ed-bottom">
@@ -368,6 +421,7 @@
       <p id="complete-note" class="fine hidden">Nothing here counts towards your progress, medals or stats.</p>
       <div class="buttons">
         <button id="btn-next" class="primary">Next level <span class="key">Enter</span></button>
+        <button id="btn-custom-next" class="primary hidden">Next level <span class="key">Enter</span></button>
         <button id="btn-custom-back" class="primary hidden"><span id="custom-back-label">Back to the editor</span> <span class="key">Enter</span></button>
         <button id="btn-custom-again" class="hidden">Play again</button>
       </div>
@@ -397,6 +451,7 @@
       <h2 id="dialog-title"></h2>
       <p id="dialog-text"></p>
       <input id="dialog-input" type="text" class="hidden" maxlength="48" spellcheck="false" autocomplete="off">
+      <select id="dialog-select" class="hidden"></select>
       <div id="dialog-buttons" class="buttons"></div>
     </div>
   </div>
@@ -440,6 +495,7 @@
   <script src="js/levelcheck.js"></script>
   <script src="js/levelstore.js"></script>
   <script src="js/dialog.js"></script>
+  <script src="js/effects.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/mylevels.js"></script>
   <script src="js/game.js"></script>

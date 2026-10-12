@@ -14,7 +14,8 @@
                     real game's save (a browser shares localStorage between all local copies of the game)
     * test-save.js       - generated: marks every level of every mode cleared, every cutscene seen and every lore
                            fragment found (the ids are read from js\lore.js), unlocks the level editor and adds the
-                           sample levels in tools\sample-levels.json to My Levels (once)
+                           sample levels in tools\sample-levels.json to My Levels, and the folders in
+                           tools\sample-folders.json (once)
     * READ ME - test copy.txt - generated
   Everything else (style.css, README.md, the game code) is copied unchanged. The script checks all of this
   when it is done and stops with an error if anything did not come out as expected.
@@ -85,7 +86,21 @@ $samples = @($parsed)
 if ($samples.Count -lt 2) { Fail "tools\sample-levels.json should hold at least two sample levels" }
 foreach ($s in $samples) { if ($s.format -ne 'echo-maze-level' -or $s.id -notmatch '^[A-Za-z0-9_-]{1,64}$') { Fail "a sample level in tools\sample-levels.json is not in the level format (format / id)" } }
 $sampleTitles = ($samples | ForEach-Object { $_.title }) -join ', '
-$samplesJs = ($samplesText -replace "`r`n", "`n") -replace "`n", "`n    "
+$samplesJs = ($samplesText -replace "`r`n", "`n") -replace "`n", "`n      "
+# v15.1: folders for some of them. Which folder a level is in is kept apart from the levels (js\levelstore.js FOLDERS_KEY)
+if ((Get-Text $storeJs) -notmatch "const FOLDERS_KEY = 'echomaze\.test\.folders';") { Fail "js\levelstore.js no longer keeps folders under 'echomaze.folders' - update test-save.js's sample folders" }
+$foldersPath = Join-Path $PSScriptRoot 'sample-folders.json'
+if (-not (Test-Path $foldersPath)) { Fail "tools\sample-folders.json is missing" }
+$foldersText = (Get-Text $foldersPath).Trim()
+try { $folderData = ConvertFrom-Json -InputObject $foldersText } catch { Fail "tools\sample-folders.json is not valid JSON: $_" }
+$sampleIds = @($samples | ForEach-Object { $_.id })
+foreach ($p in $folderData.levels.PSObject.Properties) {
+  if ($sampleIds -notcontains $p.Name) { Fail "tools\sample-folders.json files '$($p.Name)', which is not a sample level" }
+  if (@($folderData.folders | Where-Object { $_.id -eq $p.Value }).Count -ne 1) { Fail "tools\sample-folders.json files '$($p.Name)' in '$($p.Value)', which is not one of its folders" }
+}
+$folderNames = (@($folderData.folders) | ForEach-Object { $_.name }) -join ', '
+$foldersJs = ($foldersText -replace "`r`n", "`n") -replace "`n", "`n        "
+$oldFormat = @($samples | Where-Object { $_.schemaVersion -eq 1 }).Count
 
 # ---- what "finished" means for THIS version of the game
 # (up to v13.0 CAMPAIGN_LEVELS was a number in game.js; from v14.0 it is STORY_LAST, the last of the hand-drawn
@@ -140,8 +155,10 @@ $save = @"
  *     the Levels & cutscenes screen lets you pick any level, and Hardcore shows a finished high score)
  *   - every story cutscene already seen (so all of them can be replayed)
  *   - every lore fragment already found (so the Fragments screen is full, the bonus one included)
- *   - the Level Editor already unlocked (no spoiler warning), with sample levels in My Levels (v15.0) -
- *     added once only, so a sample you delete or change stays that way until the copy's storage is cleared
+ *   - the Level Editor already unlocked (no spoiler warning), with sample levels in My Levels (v15.0) and
+ *     sample folders holding some of them (v15.1) - added once only, so a sample or folder you delete or
+ *     change stays that way until the copy's storage is cleared. Some samples are kept in the older v15.0
+ *     format on purpose, so the copy also shows them being read by this version.
  *
  * This copy uses its OWN save slot (keys start with "echomaze.test."), so it never
  * touches the save of your real game. It only ever raises progress, never lowers it,
@@ -164,10 +181,17 @@ $save = @"
     localStorage.setItem(P + 'seen', JSON.stringify($seenJs));
     localStorage.setItem(P + 'lore', JSON.stringify($loreJson)); // every lore fragment found (v13.0)
     localStorage.setItem(P + 'editor', '1'); // the Level Editor's warning already accepted (v15.0)
-    if (!localStorage.getItem(P + 'samples')) {
+    // (v15.1: 'samples2' - a copy that already had v15.0's samples gets the new ones and the folders, once)
+    if (!localStorage.getItem(P + 'samples2')) {
       const SAMPLES = $samplesJs;
       for (const lv of SAMPLES) if (!localStorage.getItem(P + 'level.' + lv.id)) localStorage.setItem(P + 'level.' + lv.id, JSON.stringify(lv));
+      if (!localStorage.getItem(P + 'folders')) {
+        const FOLDERS = $foldersJs;
+        const now = new Date().toISOString();
+        localStorage.setItem(P + 'folders', JSON.stringify({ schemaVersion: 1, folders: FOLDERS.folders.map((f) => ({ id: f.id, name: f.name, createdAt: now, updatedAt: now })), levels: FOLDERS.levels }));
+      }
       localStorage.setItem(P + 'samples', '1');
+      localStorage.setItem(P + 'samples2', '1');
     }
   } catch (e) {
     /* storage is blocked: this copy then just behaves like a fresh game */
@@ -195,7 +219,9 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     and Hard) or rewatch any cutscene, without playing through anything first
   * the Level Editor is already unlocked (no spoiler warning), and My Levels
     starts with $($samples.Count) sample levels: $sampleTitles
-    (the last one is unfinished on purpose, to show how a draft looks).
+    ("Half Built" is unfinished on purpose, to show how a draft looks; $oldFormat of
+    them are saved in the older v15.0 format on purpose, to show they still load),
+    and the folders $folderNames holding some of them.
     They are added only once: delete or change one and it stays that way.
 
 To play it: double-click index.html (or the shortcut "Play Echo Maze (test - finished)"
@@ -243,5 +269,6 @@ if ($problems) { Fail ($problems -join '; ') }
 "  cutscenes marked seen: $($scenes -join ', ')"
 "  lore fragments marked found: $($fragments.Count)"
 "  level editor unlocked, sample levels: $sampleTitles"
+"  sample folders: $folderNames"
 "  save-slot names changed: $slotCount"
 "  checks passed. Still open the copy once and look at it (see CLAUDE.md)."

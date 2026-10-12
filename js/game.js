@@ -120,7 +120,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'mylevels', 'editor'];
+  const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'editor-touch', 'mylevels', 'editor'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
   //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after
   //         level 16) | editor (v15.0: the level editor's screens - its warning, My Levels, the editor itself; no
@@ -344,8 +344,13 @@
   let storyDone = false; // the level's way out has been walked through and its last beat played
   let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
   // ---- the level editor and custom levels (v15.0)
-  let customRun = null; // { doc, from: 'editor' | 'mylevels' } while a custom level is being played (levelNum is CUSTOM_LEVEL)
-  let editorScreen = null; // 'gate' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
+  let customRun = null; // { doc, from: 'editor' | 'mylevels', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
+  let editorScreen = null; // 'gate' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
+  // ---- custom levels, v15.1
+  let fxZones = []; // the level's light / glow zones, ready to draw (js/effects.js)
+  let cardTimer = 0; // seconds the title card has left (state 'card'): the level waits underneath it
+
+  let paletteBorrowed = false; // a custom level is showing in its own palette (the player's is put back after)
   let debugShowMuffler = false; // ?debug only: draw the (never otherwise drawn) muffler dimly, for testing
   let levelTime = 0;
   let ripplesUsed = 0;
@@ -386,6 +391,18 @@
    */
   const scored = () => levelNum > TUTORIAL_LEVEL;
   const inTutorial = () => levelNum === TUTORIAL_LEVEL;
+  /**
+   * Every way out of the level. A generated or hand-drawn level has exactly one (`level.exit`); a custom level
+   * (v15.1) may have up to eight (`level.exits`), and reaching any of them ends it. Everything that used to read
+   * `level.exit` - the ripple, the wave's line, the chime, the glimmer, the finish - reads this instead, so one
+   * exit or eight go through the very same code.
+   */
+  const exitsOf = () => level.exits || [level.exit];
+  /** How a disguised mimic gives itself away in this mode (MODES.mimicTell) - a custom level's own difficulty's (v15.1). */
+  const mimicTell = () => (cfg && cfg.mimicTell) || MODES[mode].mimicTell;
+  /** The difficulty to SHOW: a custom level's own rating (v15.1), or the mode picked on the title. */
+  const modeLabel = () => (customRun && cfg && cfg.custom ? EchoLevelFormat.ratingLabel(cfg.rating) : MODES[mode].label);
+  const LOCKED_EXIT_ART_R = 18; // px: a custom level's locked way out, drawn as level 14's door (a little smaller than the gaol's 20)
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -563,6 +580,21 @@
       // anyone can tell - are solid. (A Warden that is hunting is a monster like any other: touching it kills.)
       if (level.story) {
         for (const c of storySolids()) {
+          const ddx = e.x - c.x;
+          const ddy = e.y - c.y;
+          const d = Math.hypot(ddx, ddy);
+          if (d >= e.r + c.r || d < 1e-6) continue;
+          const pen = e.r + c.r - d;
+          e.x += (ddx / d) * pen;
+          e.y += (ddy / d) * pen;
+          pushed = true;
+          contact = { x: c.x + (ddx / d) * c.r, y: c.y + (ddy / d) * c.r };
+        }
+      }
+      // CUSTOM LEVELS (v15.1): a locked way out is a shut door, solid like level 14's, until the key opens it
+      if (level.exits) {
+        for (const c of level.exits) {
+          if (!c.locked) continue;
           const ddx = e.x - c.x;
           const ddy = e.y - c.y;
           const d = Math.hypot(ddx, ddy);
@@ -1841,8 +1873,11 @@
         if (Math.hypot(q.x - ox, q.y - oy) < R + q.r) circles.push({ x: q.x, y: q.y, r: q.r, type: T_EXIT, door: st.door, doorArt: i === 1 });
       });
     }
-    const ex = level.exit;
-    if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push({ x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
+    // The way out - every one of them on a custom level (v15.1); a LOCKED one is a door, drawn as level 14's
+    // gaol door (`lockedExit`), in the way out's colour and with its bell, until the key opens it.
+    for (const ex of exitsOf()) {
+      if (Math.hypot(ex.x - ox, ex.y - oy) < R + ex.r) circles.push(ex.locked ? { x: ex.x, y: ex.y, r: ex.r, type: T_EXIT, lockedExit: ex } : { x: ex.x, y: ex.y, r: ex.r, type: T_EXIT });
+    }
 
     const dist = new Float32Array(RAYS);
     const type = new Uint8Array(RAYS);
@@ -1933,6 +1968,10 @@
     if (fr) flats.push({ x: fr.x, y: fr.y, r: fr.r, type: T_LORE, art: fr.kind === 'log' ? 'log' : 'note', lore: true });
     // ...and level 14's key, the same: one more thing lying on the floor that a wave finds or does not
     if (st && st.key && !st.key.taken) flats.push({ x: st.key.x, y: st.key.y, r: st.key.r, type: T_KEY, art: 'key', key: true });
+    // ...and on a custom level (v15.1) its key and its notes, the same two things found the same way (a custom key
+    // has no story beat, so it is not `key: true`; a note carries itself, to be read when the wave reaches it)
+    if (level.key && !level.key.taken) flats.push({ x: level.key.x, y: level.key.y, r: level.key.r, type: T_KEY, art: 'key' });
+    if (level.notes) for (const n of level.notes) flats.push({ x: n.x, y: n.y, r: n.r, type: T_LORE, art: n.kind === 'log' ? 'log' : 'note', lore: true, note: n });
     // (Anything behind a muffler is in its shadow, puddles, decoys and fragments included.)
     const shadowed = (px, py, d) => {
       for (const c of circles) {
@@ -1945,7 +1984,7 @@
     for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
       if (d > R || !hasLOS(ox, oy, p.x, p.y) || (d > 1 && shadowed(p.x, p.y, d))) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore, key: !!p.key, ambient });
+      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore, key: !!p.key, note: p.note || null, ambient });
       echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
@@ -1988,8 +2027,10 @@
           const t = rayCircle(ox, oy, vx, vy, o.x, o.y, o.r);
           if (t >= 0 && t < dd) { clear = false; break; }
         }
-        const t = rayCircle(ox, oy, vx, vy, level.exit.x, level.exit.y, level.exit.r); // the exit blocks the wave too
-        if (clear && t >= 0 && t < dd) clear = false;
+        for (const ex of exitsOf()) {
+          const t = rayCircle(ox, oy, vx, vy, ex.x, ex.y, ex.r); // the exit blocks the wave too (every one of them)
+          if (clear && t >= 0 && t < dd) clear = false;
+        }
       }
       if (clear) return true;
     }
@@ -2094,7 +2135,10 @@
       // Crouching wipes `marks`, so a wave you crouched under never gets to read it: the same rule as the rest.
       if (m.lore && !m.fired && m.t >= 0) {
         m.fired = true;
-        if (!m.singer && !m.ambient && state === 'play') readFragment();
+        if (!m.singer && !m.ambient && state === 'play') {
+          if (m.note) readNote(m.note); // (v15.1: a note a custom level's maker wrote)
+          else readFragment();
+        }
       }
       // Level 14's key, lit up - by your wave or by a drop's. The first time you can really see it from where
       // you stand, the story gives it its moment (js/story.js onKeyLit).
@@ -2117,6 +2161,70 @@
     $('banner').classList.remove('show');
     loreReader.show(EchoLore.byId(fr.id), info);
   }
+
+  /**
+   * CUSTOM LEVELS (v15.1): a note its maker wrote, reached by your wave. Read exactly as a lore fragment is - the
+   * same reader, the same paper or recording - once per attempt, and NOTHING is kept: it is not one of the game's
+   * fragments, so the Fragments screen and `echomaze.lore` never hear of it. Its words were cleaned when the level
+   * was read (js/levelformat.js) and are only ever put on screen as plain text.
+   */
+  function readNote(n) {
+    if (!n || n.read) return;
+    n.read = true;
+    clearTimeout(bannerTimer);
+    $('banner').classList.remove('show');
+    loreReader.show({ id: 'custom-note', kind: n.kind === 'log' ? 'log' : 'note', text: n.text, voice: n.kind === 'log' ? { pitch: 1.05, shake: 0.04, cps: 19, vol: 0.85 } : undefined }, null);
+  }
+
+  // ------------------------------------------------- custom levels: the key and the locked ways out (v15.1)
+  /** Walk onto a custom level's key to take it (as on level 14). One key opens every locked way out. */
+  function collectKey() {
+    const k = level.key;
+    if (!k || k.taken || Math.hypot(k.x - player.x, k.y - player.y) > k.r + PLAYER_R + 4) return;
+    k.taken = true;
+    player.hasKey = true;
+    audio.keyPickup();
+    cues.caption('[you take the key]');
+    updateHud();
+    notify('Key', 'It opens the locked ways out.', 4000);
+  }
+
+  /** You are against a locked way out: with the key it opens (as level 14's door does); without, it rattles. */
+  function lockedExitTouched(ex) {
+    if (ex.opening >= 0) return; // already opening
+    const sp = spatial(ex.x, ex.y, 600);
+    if (player.hasKey) {
+      ex.opening = 0;
+      audio.doorUnlock();
+      cues.caption('[the key turns]');
+      return;
+    }
+    if (ex.rattleCd > 0) return;
+    ex.rattleCd = 1.5;
+    audio.doorRattle(sp.pan, 0.9);
+    cues.pulse('exit', ex.x, ex.y, 0.9, { key: ex, sub: 'rattle' });
+    cues.caption('[the door rattles: locked]');
+    notify('Locked', level.key ? 'This way out needs the key.' : 'This way out is locked.', 3500);
+  }
+
+  /** The doors opening: the key turns, then it grinds open and swings back - and it is a way out like any other. */
+  function updateLockedExits(dt) {
+    if (!level.exits) return;
+    for (const ex of level.exits) {
+      ex.rattleCd = Math.max(0, ex.rattleCd - dt);
+      if (ex.opening < 0) continue;
+      const before = ex.opening;
+      ex.opening += dt;
+      if (before < UNLOCK_SECONDS && ex.opening >= UNLOCK_SECONDS) {
+        audio.doorOpen();
+        cues.caption('[the door grinds open]');
+        ex.locked = false; // a way out from now on: no longer solid, and reaching it ends the level
+        level.blocked[ex.ty * level.W + ex.tx] = 0;
+      }
+      if (ex.opening >= UNLOCK_SECONDS) ex.swing = Math.min(1, ex.swing + dt / 1.1);
+    }
+  }
+  const UNLOCK_SECONDS = 0.9; // from the key turning to the door giving way (level 14's is a scripted 2 s beat)
 
   // ------------------------------------------------- sonar decoy (level 8+)
   /** Pick up the decoy lying on the floor by walking onto it (you can only carry one). */
@@ -2300,6 +2408,10 @@
 
     collectDecoy();
     updateDecoys(dt);
+    if (level.custom) {
+      collectKey(); // (v15.1: a custom level's key, and its locked ways out opening)
+      updateLockedExits(dt);
+    }
 
     // --- world
     for (const e of enemies) updateEnemy(e, dt);
@@ -2311,7 +2423,7 @@
     if (beaconTimer <= 0) {
       beaconTimer = 2.4;
       // (level 15: the real way out cannot be heard while the passage to it is still sealed - js/story.js)
-      if (!(level.story && level.story.exitMuted)) chime(level.exit.x, level.exit.y);
+      if (!(level.story && level.story.exitMuted)) for (const ex of exitsOf()) chime(ex.x, ex.y); // (a custom level may have several - each chimes)
       for (const e of enemies) if (e.kind === 'mimic') chime(e.x, e.y);
     }
 
@@ -2399,10 +2511,20 @@
     }
     // The way out. Level 13 has no way out: its door chimes and lights up like any other, and the warden is
     // in front of it - walking into the great room is what ends that level, not touching the door.
-    if (!level.warden && Math.hypot(level.exit.x - player.x, level.exit.y - player.y) < level.exit.r + 10) {
-      if (inTutorial()) onTutorialComplete();
-      else if (level.story) story.atExit(); // levels 14-16: the way out has a last beat of its own first
-      else onLevelComplete();
+    // (v15.1: a custom level can have several ways out, and reaching ANY one of them is the end - unless it is a
+    // locked one and you have no key: then it is a door, and it rattles. See lockedExitTouched.)
+    if (!level.warden) {
+      for (const ex of exitsOf()) {
+        if (Math.hypot(ex.x - player.x, ex.y - player.y) >= ex.r + 10) continue;
+        if (ex.locked) {
+          lockedExitTouched(ex);
+          continue;
+        }
+        if (inTutorial()) onTutorialComplete();
+        else if (level.story) story.atExit(); // levels 14-16: the way out has a last beat of its own first
+        else onLevelComplete();
+        break;
+      }
     }
     // ...and when that beat is over, on to the next level (or the end). Last, once everything above is settled.
     if (storyDone) {
@@ -2457,9 +2579,14 @@
             EchoArt.draw(ctx, 'door', c.door.x, c.door.y, c.door.r, o);
             o.swing = 0;
           }
+        } else if (c.lockedExit && c.lockedExit.swing < 1) {
+          // (v15.1) a custom level's locked way out: level 14's door, swinging back as the key opens it
+          o.swing = c.lockedExit.swing;
+          EchoArt.draw(ctx, 'door', c.x, c.y, LOCKED_EXIT_ART_R, o);
+          o.swing = 0;
         } else if (!c.mimic) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
         else {
-          o.tell = MODES[mode].mimicTell; // a mimic melting into the monster starts from the look it was disguised with
+          o.tell = mimicTell(); // a mimic melting into the monster starts from the look it was disguised with
           if (c.revealAt === undefined) EchoArt.draw(ctx, 'exit', c.x, c.y, c.r, o);
           else EchoArt.mimicMorph(ctx, c.x, c.y, c.r, (artT - c.revealAt) / EchoArt.MORPH_SECONDS, o);
         }
@@ -2640,6 +2767,12 @@
     // ...and the second exception, level 15's false light, held to exactly the same rule: it is clipped to what
     // the player could really see from where they stand (js/story.js draw, and the note in CLAUDE.md).
     if (level.story) story.draw(ctx, artT);
+    // ...and a custom level's own light and red glow zones (v15.1), held to the same rule: clipped to what you could
+    // see from where you stand, stone and floor only - never a monster, an object or a way out (js/effects.js)
+    if (fxZones.length) {
+      EchoEffects.draw(ctx, fxZones, { x: player.x, y: player.y, t: artT, calm, still: EchoWordmark.reduceMotion(), visible: () => visibleFrom(player.x, player.y), view: Math.max(W, H) / viewScale });
+      ctx.globalCompositeOperation = 'lighter';
+    }
 
     // the exit only glimmers when you are practically on top of it - and a disguised mimic glimmers identically.
     // (Crouching wipes it - for the mimic too, or the difference would give it away - until your next ripple.)
@@ -2663,8 +2796,31 @@
       o.tell = tell;
       EchoArt.draw(ctx, 'exit', x, y, r, o);
     };
-    glimmerExit(level.exit.x, level.exit.y, level.exit.r, 'none');
-    for (const e of enemies) if (e.kind === 'mimic') glimmerExit(e.x, e.y, e.r, MODES[mode].mimicTell);
+    // (v15.1) a custom level's locked way out glimmers too - as the door it is, by the same rule as the exit's
+    const glimmerDoor = (ex) => {
+      if (glimmerOff) return;
+      const de = Math.hypot(ex.x - player.x, ex.y - player.y);
+      if (de >= 130) return;
+      const g = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, 46);
+      g.addColorStop(0, `rgba(${COLORS[T_EXIT]},${(1 - de / 130) * 0.3})`);
+      g.addColorStop(1, `rgba(${COLORS[T_EXIT]},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(ex.x, ex.y, 46, 0, TAU);
+      ctx.fill();
+      const o = artOpts;
+      o.a = Math.min(1, (1 - de / 130) * 0.95);
+      o.t = artT;
+      o.tell = 'none';
+      o.swing = ex.swing;
+      EchoArt.draw(ctx, 'door', ex.x, ex.y, LOCKED_EXIT_ART_R, o);
+      o.swing = 0;
+    };
+    for (const ex of exitsOf()) {
+      if (ex.locked) glimmerDoor(ex); // (v15.1: a locked way out glimmers as the door it is)
+      else glimmerExit(ex.x, ex.y, ex.r, 'none');
+    }
+    for (const e of enemies) if (e.kind === 'mimic') glimmerExit(e.x, e.y, e.r, mimicTell());
 
     // sonar decoys glimmer pink when you are close: the one lying on the floor, and any you have dropped
     const glimmerDecoy = (x, y, pulse) => {
@@ -2933,7 +3089,7 @@
 
   function updateHud() {
     // the tutorial is not a level and is the same in every mode, so it says neither; a custom level says its name
-    hudNumber('hud-level', inTutorial() ? 'Tutorial' : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${MODES[mode].label}` : `Level ${levelNum} · ${MODES[mode].label}`);
+    hudNumber('hud-level', inTutorial() ? 'Tutorial' : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `Level ${levelNum} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
     hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : player && player.hasKey ? 'Key' : '';
@@ -2989,14 +3145,20 @@
       // which reads it as untrusted and hands back the same shape as the hand-drawn levels 13-16 - so from here on it
       // is played by exactly the same code. It never has a lore fragment. (playCustom has already checked it can be
       // built; if it somehow cannot, nothing starts and the editor's screens come back with the reason.)
-      const built = customRun ? buildCustomLevel(customRun.doc, mode) : { error: 'There is no level to play.' };
+      const built = customRun ? buildCustomLevel(customRun.doc) : { error: 'There is no level to play.' };
       if (!built.level) {
         leaveCustom(built.error);
         return;
       }
       level = built.level;
       level.fragment = null;
+      // (v15.1) its own colours - but only over the game's Default palette: a player who has picked a palette for
+      // their eyes (colour-blind, high contrast) keeps it everywhere, custom levels included
+      borrowPalette(level.custom.palette);
+      fxZones = EchoEffects.prepare(level.effects, level.walls, level.W, level.H, TILE);
     } else {
+      fxZones = [];
+      returnPalette();
       level = generateLevel(n, runSeed, mode);
       // The level's lore fragment, if this maze has one (js/lore.js). Placed AFTER the level is finished, from
       // its own random stream, reading the level and writing nothing to it - so it can move nothing else.
@@ -3023,7 +3185,14 @@
     enemies = level.enemies.map(makeEnemy);
     // A custom level's Wardens (v15.0) have no story beat to wake them: they hunt from the moment it starts. What
     // each one is (its speed, its look) is its variant's (js/warden.js), exactly as on levels 15 and 16.
-    if (level.custom) for (const e of enemies) if (e.kind === 'warden') wakeWarden(e, e.variant === 'regular' ? 'hunt' : e.variant);
+    // (v15.1: at its variant's speed scaled by the level's own monster-speed setting, never past CUSTOM_WARDEN_TOP)
+    if (level.custom) {
+      for (const e of enemies) {
+        if (e.kind !== 'warden') continue;
+        e.speed = wardenSpeedFraction(e.variant, cfg.difficulty) * WALK_SPEED;
+        wakeWarden(e, e.variant === 'regular' ? 'hunt' : e.variant);
+      }
+    }
     decoys = [];
     decoyBlipTimer = 1.5;
     singerLanded = false;
@@ -3051,7 +3220,10 @@
     $('hud').classList.remove('hidden');
     updateHud();
     // The tutorial has prompts of its own instead of a level banner, and they start the moment you can move.
-    if (inTutorial() || level.story) {
+    // (v15.1: a custom level opens on its title card - the first time only, not on a Try again - and its banner
+    // comes when the card goes.)
+    if (level.custom && !retrying) startCard();
+    else if (inTutorial() || level.story) {
       // (levels 14-16 show their banner themselves, when their opening beat hands over the controls)
       clearTimeout(bannerTimer);
       $('banner').classList.remove('show'); // never leave a level's banner hanging over a tutorial prompt
@@ -3063,6 +3235,63 @@
     if (level.warden) warden.start(level);
     // Levels 14-16: each opens with its own beat in the dark (js/story.js), every time - like level 13's.
     if (level.story) story.start(level);
+  }
+
+  // ------------------------------------------------- custom levels: the title card (v15.1)
+  /**
+   * A custom level opens on a card: its title, the line its maker wrote for it (if any) and its difficulty. While
+   * it is up the level WAITS - state 'card', nothing simulates, nothing can find you - and any key, click or tap
+   * (or a few seconds) takes it away and the level begins. Its words are plain text: they were cleaned when the
+   * level was read (js/levelformat.js) and are only ever set with textContent.
+   */
+  const CARD_SECONDS = 2.4; // with no line of its own
+  const CARD_SECONDS_LINE = 3.6; // with one, to read it
+  function startCard() {
+    const c = level.custom;
+    state = 'card';
+    cardTimer = c.card ? CARD_SECONDS_LINE : CARD_SECONDS;
+    clearTimeout(bannerTimer);
+    $('banner').classList.remove('show');
+    const q = customRun && customRun.queue;
+    $('card-kicker').textContent = customRun && customRun.from === 'editor' ? 'Test play' : q ? `${q.name} · ${q.index + 1} of ${q.ids.length}` : 'My Levels';
+    $('card-title').textContent = c.title;
+    $('card-line').textContent = c.card || '';
+    $('card-line').classList.toggle('hidden', !c.card);
+    $('card-diff').textContent = `Difficulty: ${EchoLevelFormat.ratingLabel(c.rating)}`;
+    $('card-hint').textContent = touchOn ? 'Tap to begin' : 'Press any key to begin';
+    const el = $('card');
+    el.classList.remove('hidden');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+  function endCard() {
+    if (state !== 'card') return;
+    state = 'play';
+    cardTimer = 0;
+    const el = $('card');
+    el.classList.remove('show');
+    setTimeout(() => !el.classList.contains('show') && el.classList.add('hidden'), fadeMs());
+    showBanner(levelNum);
+  }
+  function hideCard() {
+    cardTimer = 0;
+    $('card').classList.remove('show');
+    $('card').classList.add('hidden');
+  }
+
+  /** (v15.1) A custom level's palette over the player's Default one - put back the moment it is over. */
+  function borrowPalette(id) {
+    const own = EchoProfile.getPalette();
+    const want = id && (own === 'default' || !own) && EchoLevelFormat.paletteIds().includes(id) ? id : null;
+    if (want && EchoPalette.id !== want) {
+      EchoPalette.set(want);
+      paletteBorrowed = true;
+    } else if (!want) returnPalette();
+  }
+  function returnPalette() {
+    if (!paletteBorrowed) return;
+    paletteBorrowed = false;
+    EchoPalette.set(EchoProfile.getPalette());
   }
 
   // ----------------------------------------------------------- the tutorial
@@ -3378,8 +3607,13 @@
   }
 
   /** The Level cleared screen's buttons: the campaign's Next level, or (v15.0) a custom level's own two. */
+  const COMPLETE_NOTE = 'Nothing here counts towards your progress, medals or stats.'; // (a custom level's Complete screen)
   function completeButtons(custom) {
     $('btn-next').classList.toggle('hidden', custom);
+    const onward = custom && !!queueAfter(); // (v15.1: a folder played in order - then Next level is the main button)
+    $('btn-custom-next').classList.toggle('hidden', !onward);
+    $('btn-custom-back').classList.toggle('primary', !onward);
+    $('btn-custom-back').querySelector('.key').classList.toggle('hidden', onward);
     $('btn-custom-back').classList.toggle('hidden', !custom);
     $('btn-custom-again').classList.toggle('hidden', !custom);
     $('complete-note').classList.toggle('hidden', !custom);
@@ -3402,6 +3636,9 @@
       $('banner').classList.remove('show');
       audio.levelComplete();
       $('complete-title').textContent = customRun.from === 'editor' ? 'Test complete' : `${customTitle()} cleared`;
+      // (v15.1) a folder being played in order: where you are in it, and whether that was the last
+      const q = customRun.queue;
+      $('complete-note').textContent = q ? (queueAfter() ? `${q.name}: ${q.index + 1} of ${q.ids.length} done.` : `That was the last level in ${q.name}.`) : COMPLETE_NOTE;
       $('complete-stats').textContent = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
       $('custom-back-label').textContent = customBackLabel();
       completeButtons(true);
@@ -3487,7 +3724,7 @@
     state = 'paused';
     touch.releaseAll(); // never carry a held finger across a screen change
     EchoProfile.flush(); // write the stats out now: the page may never come back
-    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : customRun ? `${MODES[mode].label} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · Level ${levelNum}`;
+    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : customRun ? `${modeLabel()} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · Level ${levelNum}`;
     $('btn-quit').textContent = customRun ? customBackLabel() : 'Quit to title'; // (v15.0: a custom level goes back where it came from)
     $('btn-pause-skip-tut').classList.toggle('hidden', !inTutorial()); // the way out of the tutorial, for anyone who is done with it
     refreshOptionUi();
@@ -3515,6 +3752,9 @@
     savedPending = false;
     customRun = null; // (v15.0) no custom level is being played any more,
     editorScreen = null; // ...and none of the editor's screens is up
+    hideCard(); // (v15.1: nor its title card, its zones or its colours)
+    fxZones = [];
+    returnPalette();
     state = 'title';
     level = null;
     music.start('title'); // the title has a mood of its own (nothing happens until there is an AudioContext)
@@ -3809,14 +4049,29 @@
   const customTitle = () => (customRun && customRun.doc ? customRun.doc.title : 'Custom level');
   const customBackLabel = () => (customRun && customRun.from === 'editor' ? 'Back to the editor' : 'Back to My Levels');
 
+  /**
+   * (v15.1) Where a NEW level is filed when it is first saved: the folder My Levels had open when New level was
+   * pressed. A level saved before stays where it is. The store does the filing - which folder a level is in is
+   * never part of the level itself (js/levelstore.js).
+   */
+  let newLevelFolder = null;
+  const editorStore = {
+    save(doc) {
+      const isNew = !EchoLevelStore.get(doc.id);
+      const res = EchoLevelStore.save(doc);
+      if (res.ok && isNew && newLevelFolder) EchoLevelStore.moveLevel(res.doc.id, newLevelFolder);
+      return res;
+    },
+  };
+
   const myLevels = EchoMyLevels.create({
-    el: { list: $('mylevels-list'), note: $('mylevels-note') },
+    el: { list: $('mylevels-list'), note: $('mylevels-note'), folders: $('mylevels-folders'), sort: $('mylevels-sort'), folderBar: $('mylevels-folderbar'), newFolder: $('btn-mylevels-folder') },
     store: EchoLevelStore,
     dialog: EchoDialog,
     click: () => audio.uiClick(),
-    modeLabel: () => MODES[mode].label,
     play: (doc) => playCustom(doc, 'mylevels'),
-    edit: (doc) => openEditor(doc),
+    playQueue: (queue) => playQueue(queue),
+    edit: (doc, folder) => openEditor(doc, folder),
   });
 
   const editor = EchoEditor.create({
@@ -3828,6 +4083,9 @@
       status: $('ed-status'),
       tools: $('ed-tools'),
       monsters: $('ed-monsters'),
+      choices: $('ed-choices'),
+      choicesHead: $('ed-choices-head'),
+      inspector: $('ed-inspector'),
       hint: $('ed-hint'),
       problems: $('ed-problems'),
       undo: $('ed-undo'),
@@ -3837,22 +4095,41 @@
       back: $('ed-back'),
       save: $('ed-save'),
       test: $('ed-test'),
+      // (v15.1) the Level settings tab
+      tabBuild: $('ed-tab-build'),
+      tabSettings: $('ed-tab-settings'),
+      paneBuild: $('ed-pane-build'),
+      paneSettings: $('ed-pane-settings'),
+      width: $('ed-w'),
+      height: $('ed-h'),
+      card: $('ed-card'),
+      palette: $('ed-palette'),
+      rating: $('ed-rating'),
+      tuning: $('ed-tuning'),
+      tuneReset: $('ed-tune-reset'),
     },
-    store: EchoLevelStore,
+    store: editorStore,
     dialog: EchoDialog,
     click: () => audio.uiClick(),
     visible: () => state === 'editor' && editorScreen === 'editor',
     testPlay: (doc) => playCustom(doc, 'editor'),
     back: () => showMyLevels(),
+    touch: () => touchOn, // (v15.1: its hints for a finger instead of a mouse)
   });
 
-  /** The title's Level Editor button: the warning the first time, My Levels after that. */
+  /**
+   * The title's Level Editor button. In this order, each only when it applies: the spoiler warning (until it has
+   * been accepted once), then - v15.1 - the touch warning (every time, while touch controls are on: the editor
+   * works best with a mouse, but it does work), then My Levels. Coming back from a test play goes straight back to
+   * the editor: neither warning is in that way.
+   */
   function openEditorScreens() {
     if (state !== 'title') return;
     audio.init();
     audio.uiClick();
-    if (editorUnlocked()) showMyLevels();
-    else showGate();
+    if (!editorUnlocked()) showGate();
+    else if (touchOn) showTouchGate();
+    else showMyLevels();
   }
   function showGate() {
     state = 'editor';
@@ -3864,6 +4141,18 @@
     if (editorScreen !== 'gate') return;
     store.set(EDITOR_KEY, '1');
     audio.uiClick();
+    if (touchOn) showTouchGate();
+    else showMyLevels();
+  }
+  /** (v15.1) The touch warning: the editor is made for a mouse and a keyboard. Never remembered - asked each time. */
+  function showTouchGate() {
+    state = 'editor';
+    editorScreen = 'touch';
+    showOverlay('editor-touch');
+  }
+  function acceptTouchGate() {
+    if (editorScreen !== 'touch') return;
+    audio.uiClick();
     showMyLevels();
   }
   function showMyLevels() {
@@ -3872,10 +4161,11 @@
     myLevels.render();
     showOverlay('mylevels');
   }
-  /** Edit a level (a doc from the store), or start a new one (null). */
-  function openEditor(doc) {
+  /** Edit a level (a doc from the store), or start a new one (null) - filed in `folder` when it is first saved. */
+  function openEditor(doc, folder) {
     state = 'editor';
     editorScreen = 'editor';
+    newLevelFolder = doc ? null : folder || null;
     showOverlay('editor'); // (first: the editor measures its stage to lay the map out)
     editor.open(doc ? EchoLevelFormat.copy(doc) : null);
   }
@@ -3892,20 +4182,49 @@
    * Play a custom level - a test play from the editor, or one picked in My Levels. It is built by the engine's own
    * loader first (buildCustomLevel, js/level.js: untrusted data, validated and clamped); if it cannot be played,
    * nothing changes and the reason comes back as a sentence. Otherwise it fades in and plays with the real game,
-   * on the difficulty picked on the title screen. Nothing about it is saved: levelNum is CUSTOM_LEVEL the whole
-   * time, so every write to the save (all behind scored()) is skipped. -> null, or the reason it cannot be played.
+   * at the level's OWN difficulty (v15.1). Nothing about it is saved: levelNum is CUSTOM_LEVEL the whole time, so
+   * every write to the save (all behind scored()) is skipped. -> null, or the reason it cannot be played.
+   * `queue` (v15.1): a folder being played through in order - { name, ids, index }.
    */
-  function playCustom(doc, from) {
-    const built = buildCustomLevel(doc, mode);
+  function playCustom(doc, from, queue) {
+    const built = buildCustomLevel(doc);
     if (!built.level) return built.error;
     if (transitioning) return null;
     audio.init(); // (in the click that asked for it)
-    go(() => startCustom(doc, from));
+    go(() => startCustom(doc, from, queue));
     return null;
   }
-  function startCustom(doc, from) {
-    customRun = { doc, from: from === 'editor' ? 'editor' : 'mylevels' };
+  function startCustom(doc, from, queue) {
+    customRun = { doc, from: from === 'editor' ? 'editor' : 'mylevels', queue: queue || null };
     startLevel(CUSTOM_LEVEL);
+  }
+
+  /**
+   * (v15.1) Play a folder through, in the order My Levels lists it. Levels that cannot be played (unfinished,
+   * damaged) are stepped over. -> null, or why nothing could be played.
+   */
+  function queueNext(queue, from) {
+    for (let i = from; i < queue.ids.length; i++) {
+      const got = EchoLevelStore.get(queue.ids[i]);
+      if (got && got.doc && buildCustomLevel(got.doc).level) return { index: i, doc: got.doc };
+    }
+    return null;
+  }
+  function playQueue(queue) {
+    const first = queueNext(queue, 0);
+    if (!first) return 'None of the levels in this folder can be played yet.';
+    const q = { name: queue.name, ids: queue.ids.slice(), index: first.index };
+    return playCustom(first.doc, 'mylevels', q);
+  }
+  /** The next level of the folder being played through, if there is one. */
+  const queueAfter = () => (customRun && customRun.queue ? queueNext(customRun.queue, customRun.queue.index + 1) : null);
+  /** Complete screen: on to the next level of the folder - or, at its end, back to My Levels. */
+  function customAdvance() {
+    const next = queueAfter();
+    if (!next) return leaveCustom();
+    const q = customRun.queue;
+    q.index = next.index;
+    startCustom(next.doc, 'mylevels', q);
   }
 
   /** Out of a custom level, back where it was started from: the editor exactly as it was left, or My Levels. */
@@ -3919,6 +4238,9 @@
     cues.clear();
     touch.releaseAll();
     touch.setVisible(false);
+    hideCard();
+    returnPalette(); // (v15.1: the player's own colours back)
+    fxZones = [];
     customRun = null;
     scriptLock = false;
     level = null;
@@ -4126,6 +4448,10 @@
       case 'paused':
         if (e.code === 'Escape' || a === 'pause') unpause();
         break;
+      case 'card':
+        // (v15.1) a custom level's title card: any key and the level begins
+        endCard();
+        break;
       case 'title':
         if (!$('replay').classList.contains('hidden')) {
           // the replay screen is open: Esc goes back; Enter just presses the focused button
@@ -4162,7 +4488,7 @@
           e.preventDefault();
           if (!$('complete').classList.contains('hidden')) {
             audio.uiClick();
-            go(() => (customRun ? leaveCustom() : advanceLevel())); // (a custom level goes back where it came from)
+            go(() => (customRun ? customAdvance() : advanceLevel())); // (a custom level goes back where it came from - or on through its folder, v15.1)
           }
         }
         break;
@@ -4284,6 +4610,10 @@
   }
   window.addEventListener('orientationchange', resize);
   // in a cutscene, a tap anywhere skips it (skip() itself ignores the first 0.6 s)
+  // (v15.1) a custom level's title card: a click or a tap anywhere and the level begins
+  window.addEventListener('pointerdown', () => {
+    if (state === 'card') endCard();
+  });
   $('cutscene').addEventListener('pointerdown', () => {
     if (touchOn && state === 'cutscene') cutscene.skip();
   });
@@ -4360,14 +4690,20 @@
   $('btn-editor').addEventListener('click', openEditorScreens);
   $('btn-gate-ok').addEventListener('click', acceptGate);
   $('btn-gate-back').addEventListener('click', closeEditorScreens);
+  $('btn-touchgate-ok').addEventListener('click', acceptTouchGate); // (v15.1)
+  $('btn-touchgate-back').addEventListener('click', closeEditorScreens);
   $('btn-mylevels-new').addEventListener('click', () => {
     audio.uiClick();
-    openEditor(null);
+    openEditor(null, myLevels.folder()); // (v15.1: a new level is filed in the folder that is open)
   });
   $('btn-mylevels-back').addEventListener('click', closeEditorScreens);
   $('btn-custom-back').addEventListener('click', () => {
     click();
     go(() => leaveCustom());
+  });
+  $('btn-custom-next').addEventListener('click', () => {
+    click();
+    go(() => customAdvance()); // (v15.1) the next level of the folder being played in order
   });
   $('btn-custom-again').addEventListener('click', () => {
     click();
@@ -4390,6 +4726,10 @@
 
     if (state === 'play') {
       updatePlay(dt);
+    } else if (state === 'card') {
+      // (v15.1) a custom level's title card is up: the level waits underneath it, and only the card's clock runs
+      cardTimer -= dt;
+      if (cardTimer <= 0) endCard();
     } else if (state === 'cutscene') {
       if (!debugFrozen) cutscene.update(dt);
     } else if (state === 'caught' || state === 'complete') {
@@ -4672,18 +5012,48 @@
       openEditorScreens: () => openEditorScreens(),
       acceptGate: () => acceptGate(),
       closeEditorScreens: () => closeEditorScreens(),
-      openEditor: (doc) => openEditor(doc || null),
+      openEditor: (doc, folder) => openEditor(doc || null, folder || null),
       editorUnlocked: () => editorUnlocked(),
       editorScreen: () => editorScreen,
-      playCustom: (doc, from = 'editor') => {
-        const built = buildCustomLevel(doc, mode);
+      // (v15.1: the title card is taken away at once unless { card: true } - the v15.0 tests expect to be playing)
+      playCustom: (doc, from = 'editor', opts = {}) => {
+        const built = buildCustomLevel(doc);
         if (!built.level) return built.error;
         audio.init();
-        startCustom(doc, from);
+        startCustom(doc, from, opts.queue || null);
+        if (!opts.card) endCard();
         return null;
       },
       leaveCustom: () => leaveCustom(),
-      customRun: () => (customRun ? { from: customRun.from, title: customRun.doc.title } : null),
+      customRun: () => (customRun ? { from: customRun.from, title: customRun.doc.title, queue: customRun.queue ? { ...customRun.queue } : null } : null),
+      // v15.1: the touch warning, the title card, folders played in order, and what a custom level holds
+      acceptTouchGate: () => acceptTouchGate(),
+      endCard: () => endCard(),
+      card: () => (state === 'card' ? { left: +cardTimer.toFixed(2), kicker: $('card-kicker').textContent, title: $('card-title').textContent, line: $('card-line').textContent, diff: $('card-diff').textContent } : null),
+      playQueue: (queue) => playQueue(queue),
+      customAdvance: () => customAdvance(),
+      queueAfter: () => {
+        const n = queueAfter();
+        return n ? { index: n.index, title: n.doc.title } : null;
+      },
+      customState: () =>
+        level && level.custom
+          ? {
+              exits: level.exits.map((e) => ({ x: e.x, y: e.y, tx: e.tx, ty: e.ty, locked: e.locked, opening: e.opening, swing: e.swing })),
+              key: level.key ? { x: level.key.x, y: level.key.y, taken: level.key.taken } : null,
+              hasKey: !!player.hasKey,
+              notes: level.notes.map((n) => ({ x: n.x, y: n.y, kind: n.kind, text: n.text, read: n.read })),
+              puddles: level.puddles.length,
+              decoy: level.decoy ? { taken: level.decoy.taken } : null,
+              zones: fxZones.length,
+              palette: EchoPalette.id,
+              paletteBorrowed,
+              rating: cfg.rating,
+              cfg: { enemySpeed: cfg.enemySpeed, scentSpeed: cfg.scentSpeed, stalkerSpeed: cfg.stalkerSpeed, mufflerSpeed: cfg.mufflerSpeed, singerSpeed: cfg.singerSpeed, footstepRadius: cfg.footstepRadius, presenceRadius: cfg.presenceRadius, smellRange: cfg.smellRange, rippleRadius: cfg.rippleRadius, mimicTell: cfg.mimicTell },
+              wardens: enemies.filter((e) => e.kind === 'warden').map((e) => ({ variant: e.variant, speed: e.speed })),
+            }
+          : null,
+      fxZones: () => fxZones,
       // v12.0: level 13, the capture (js/warden.js). go(13) plays it; the hooks below drive and inspect it.
       warden,
       wardenState: () => warden.state(),

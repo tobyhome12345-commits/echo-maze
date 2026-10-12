@@ -18,7 +18,7 @@ Also there: `Test - everything finished\` and its shortcut `Play Echo Maze (test
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\update-test-copy.ps1
 ```
 
-It rebuilds the test copy from the newest version folder (nothing is deleted, the version folders are only read). It reads `CAMPAIGN_LEVELS` and the cutscene lists (`SCENE_LEADS_TO`, `SCENES`) from `js/game.js`, so new levels and new cutscenes are marked finished/seen automatically, and it stops with an error if the version folder holds a file it does not know or `index.html`/`game.js` changed shape - then fix the script rather than the copy by hand. Since v15.0 it also unlocks the level editor (`echomaze.test.editor`) and puts the sample levels from `tools/sample-levels.json` into My Levels - **once** (`echomaze.test.samples`), so a tester's deletes and edits stick until the storage is cleared. After it runs, open the copy once (preview config on the test folder, audio muted, do not click Begin), check the title says "Finished" in all four modes, that the replay screen lists every level and cutscene, and that **Level Editor** opens straight onto My Levels with the samples (two Playable, "Half Built" Unfinished), then clear its `echomaze.test.*` storage, close the tab and stop the server. Never put a version number in the game files; the READ ME the script writes may say which version the copy was built from.
+It rebuilds the test copy from the newest version folder (nothing is deleted, the version folders are only read). It reads `CAMPAIGN_LEVELS` and the cutscene lists (`SCENE_LEADS_TO`, `SCENES`) from `js/game.js`, so new levels and new cutscenes are marked finished/seen automatically, and it stops with an error if the version folder holds a file it does not know or `index.html`/`game.js` changed shape - then fix the script rather than the copy by hand. Since v15.0 it also unlocks the level editor (`echomaze.test.editor`) and puts the sample levels from `tools/sample-levels.json` into My Levels - and since v15.1 the folders in `tools/sample-folders.json` (`echomaze.test.folders`) - **once** (`echomaze.test.samples2`; v15.0's flag was `samples`), so a tester's deletes and edits stick until the storage is cleared. Three of the samples are kept in the **v15.0 format (schema 1) on purpose**, so the copy shows old levels being read. After it runs, open the copy once (preview config on the test folder, audio muted, do not click Begin), check the title says "Finished" in all four modes, that the replay screen lists every level and cutscene, and that **Level Editor** opens straight onto My Levels with the samples (all Playable but "Half Built", Unfinished) and the folders Showcase (3) and Puzzles (2), then clear its `echomaze.test.*` storage, close the tab and stop the server. Never put a version number in the game files; the READ ME the script writes may say which version the copy was built from.
 
 The owner wants old versions preserved, **never overwritten**. Whenever the game itself changes (doc-only edits don't count), after committing and pushing:
 
@@ -68,7 +68,8 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v13.0 | 9cdaa90 | MAJOR: LORE FRAGMENTS (`js/lore.js`). One note or recording per level on 1-12, off the route (a dead end, 13-19 tiles out of the way on average), lit by a ripple through the SAME `flats` path as puddles and decoys and read the moment your own wave reaches it; recordings speak in the cutscenes' formant voice (`audio.speak`); present 100 / 80 / 50 / 0 % on Easy / Normal / Hard / Hardcore; kept for good (`echomaze.lore`) and listed on a new Fragments screen built like the replay screen, with a thirteenth once all twelve are found. Placed after generation from its own stream, so levels 1-12 are byte-identical (`9097b344`, and identity games that really read fragments match v11.6). A tenth palette role, `lore`, that made no palette harder to read. Also: the v12.2/v12.3 generator fingerprint was found to have been hashing nothing - corrected, and the harness is now `tools/generator-fingerprint.js` |
 | v14.0 | 795ba51 | MAJOR: LEVELS 14-16 (`js/story.js`), hand-drawn like 13 and following straight on from the capture. **14, the gaol**: no enemies; a scripted wake-up, iron bars a ripple sees through, drips that are small ripples of their own, a KEY found like any floor object (`T_KEY`, brass), a locked door that rattles until it turns, a walk out. **15, the false exit**: warm light at the end of a passage (the second "seen without a ripple" exception, clipped to the player's own line of sight - 0 leaks over every tile) that turns out to be a Warden; it wakes, a sealed passage cracks open and it hunts you at `WARDEN_SPEED` 0.75 x your walking speed. **16**: another, sealed behind you, faster - `WARDEN_UPGRADED_SPEED` 1.05 - in galleries with water dripping along the way out (a clean run arrives 560 px of path ahead; ~3 s of hesitation in all catches you). The Warden always knows where you are, kills on touch by the usual rule, and has no abilities yet (`js/warden.js` `VARIANTS` / `ABILITIES`, hooks ready). The capture now leads into 14 and the ending stub moved to after 16; no medals for 13-16; the Settings medal board fixed to "of 36". Levels 1-12 byte-identical (`9097b344`, eleven identity games = v13.0) |
 | v14.1 | 0526a11 | MINOR: being caught by the Warden (levels 15-16) now says **"It never lost you."** under *Caught* instead of "The echo found you." (every other death unchanged), and a banner still on screen when you are caught is cleared so nothing sits on the Caught panel |
-| v15.0 | 50d5f8c | MAJOR: THE LEVEL EDITOR, part 1 of 3 (`js/editor.js`, `js/mylevels.js`, `js/levelformat.js`, `js/levelcheck.js`, `js/levelstore.js`, `js/dialog.js`; format in `docs/level-format.md`). A **Level Editor** button on the title; a one-time spoiler warning (I understand / Back), skipped for anyone who has finished a mode; **My Levels** (play, edit, rename, delete - asks first; unfinished drafts listed but not playable); the editor - walls draw / erase / box-select-and-move, start, exit, every monster from the game's own `MONSTER_TYPES` (the Wardens as "Level 15 / 16 monster"), title, size, undo/redo, clear all (asks first); live, worded validation; **Test play** with the real engine and back to the editor intact. Custom levels play through the same path as 13-16 (`buildCustomLevel`, untrusted data), tuned like level 12 in the picked mode, and **write nothing** (levelNum -1, `scored()` false). Private only: no sharing, export, codes, network or accounts. Levels 0-16 byte-identical (`9097b344`, eleven identity games and story-bot = v14.1) (latest) |
+| v15.0 | 50d5f8c | MAJOR: THE LEVEL EDITOR, part 1 of 3 (`js/editor.js`, `js/mylevels.js`, `js/levelformat.js`, `js/levelcheck.js`, `js/levelstore.js`, `js/dialog.js`; format in `docs/level-format.md`). A **Level Editor** button on the title; a one-time spoiler warning (I understand / Back), skipped for anyone who has finished a mode; **My Levels** (play, edit, rename, delete - asks first; unfinished drafts listed but not playable); the editor - walls draw / erase / box-select-and-move, start, exit, every monster from the game's own `MONSTER_TYPES` (the Wardens as "Level 15 / 16 monster"), title, size, undo/redo, clear all (asks first); live, worded validation; **Test play** with the real engine and back to the editor intact. Custom levels play through the same path as 13-16 (`buildCustomLevel`, untrusted data), tuned like level 12 in the picked mode, and **write nothing** (levelNum -1, `scored()` false). Private only: no sharing, export, codes, network or accounts. Levels 0-16 byte-identical (`9097b344`, eleven identity games and story-bot = v14.1) |
+| v15.1 | PENDING | MINOR (the owner's number): THE LEVEL EDITOR, part 2 of 3. Schema 2 (`exits`, `objects`, `effects`, `titleCard`, `palette`, `difficulty`; v15.0 levels migrated, an `exit` mirror still written for them); a **touch warning** every time the editor is opened with touch controls on; **up to 8 exits**, any one finishes, each can be **locked** (level 14's door; one key opens them all); **floor objects** - puddles, the sonar decoy, the key, **notes** in the player's own words (nothing kept); **light / red glow zones** (drawing only, clipped to sight, never a monster); **Level settings** - exact size, a **title card**, a palette (over Default only), and **each level's own difficulty** (a rating, or Custom with three clamped scales and Reset; hunters capped; a check refuses impossible levels); **folders** (kept apart from the levels; delete keeps levels unless asked twice; sort; **play in order**), **duplicate**, **thumbnails**; touch editing best effort (`js/effects.js`, `tools/editor-test-2.js`). Levels 0-16 byte-identical (`9097b344`, eleven identity games, levels 0 / 13-16 and story-bot = v15.0) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -89,7 +90,7 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 16 since v14.0: levels 1-16). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
 - **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **first deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
 - **Levels 14-16** (`js/story.js`, v14.0) are hand-drawn in the same way, take no medals, and hand straight on to one another; the end-of-game stub comes after 16. Level 15's false light is the **second deliberate exception**, held to the same rule (clipped to the player's own line of sight). The Warden that hunts on 15-16 is tuned by exactly two numbers, `WARDEN_SPEED` / `WARDEN_UPGRADED_SPEED` in `js/level.js` (fractions of the player's walking speed), and has **no abilities until the owner names them** - add one as an entry in `ABILITIES` in `js/warden.js` and its name in a variant's list; never by rewriting the hunt. **Prove 16 is still fair after any change near it** with `tools/story-bot.js` (a clean run, wrong turns, pauses - see v14.0).
-- **The level editor and custom levels** (v15.0, see its section): a custom level is played with `levelNum` = `CUSTOM_LEVEL` (-1), so **`scored()` is false and it must write nothing** - no progress, medals, stats, fragments, seen, "levels cleared". **Every write to the save goes behind `scored()`** (v15.0 had to gate three that were not: `bump('marked')`, `bump('decoys')`, `addDeath`); `tools/editor-test.js` `noWrites()` proves it - run it after touching any save code. **`MONSTER_TYPES` in `js/level.js` is the one list of monsters**: a new monster goes there (with `name`, `roams`, `art`, `role`, `pitch`), and the editor, the loader and `makeEnemy` all pick it up; a Warden variant needs a `label` and a `pitch` in `js/warden.js` `VARIANTS`. **The saved format is written down in `docs/level-format.md`** - change it and `js/levelformat.js` together, never one without the other. Part 1 of 3: **no sharing, no import/export UI, no level codes, no network, no accounts, no lighting/glow, no floor objects, no thumbnails, no touch editing** until the owner asks for parts 2 and 3.
+- **The level editor and custom levels** (v15.0, see its section): a custom level is played with `levelNum` = `CUSTOM_LEVEL` (-1), so **`scored()` is false and it must write nothing** - no progress, medals, stats, fragments, seen, "levels cleared". **Every write to the save goes behind `scored()`** (v15.0 had to gate three that were not: `bump('marked')`, `bump('decoys')`, `addDeath`); `tools/editor-test.js` `noWrites()` proves it - run it after touching any save code. **`MONSTER_TYPES` in `js/level.js` is the one list of monsters**: a new monster goes there (with `name`, `roams`, `art`, `role`, `pitch`), and the editor, the loader and `makeEnemy` all pick it up; a Warden variant needs a `label` and a `pitch` in `js/warden.js` `VARIANTS`. **The saved format is written down in `docs/level-format.md`** - change it and `js/levelformat.js` together, never one without the other. Parts 1 and 2 of 3 are built (v15.0, v15.1): **no sharing, no import/export UI, no level codes, no network, no accounts** until the owner asks for part 3. Since v15.1: **every read of the way out goes through `exitsOf()`** in game.js (a custom level has `level.exits`, up to 8; every other level has `level.exit` alone, and the code it runs is unchanged); **a custom level's difficulty is its own** (`customConfig(difficulty)`, the player's title-screen mode is not read - see v15.1); **effect zones are drawing only, clipped to the player's line of sight, under the ripples, and never draw a monster, object or way out** (js/effects.js); **a custom note is read through the lore reader and nothing about it is kept**; **folders are never inside a level** (js/levelstore.js keeps them in `echomaze.folders`); and **editor text names a monster, never says what it does** (the hunter check says "too close to the way out").
 - **Lore fragments** (`js/lore.js`, v13.0) are the one thing added TO levels 1-12 since they were built, at the owner's request. They must stay unable to move anything else: placed AFTER `generateLevel` from their own random stream, never drawing from the generator's sequence or `Math.random`, never blocking movement or a ripple, never read by anything that decides an outcome. **Prove it after any change near them** with `tools/generator-fingerprint.js` (`9097b344` as of v13.0) and `tools/identity-test.js` runs that use `visit`/`at` so a fragment is really read.
 
 ## Ripple range (owner's request; tools will build on it later)
@@ -1318,7 +1319,7 @@ mechanic in the game - including ones you may not have met yet").
   in-game art (the mimic half way through its morph; the Muffler, never drawn in the game, as its cue's ring-and-dash).
 - **Keys** are shortcuts only (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z, Delete, Esc); everything is on the mouse. Typing in
   the title or a dialog never reaches the game's keys (`keydown` ignores text inputs, selects and open dialogs).
-- **Touch**: not supported (part 2). On a touch device My Levels says so; levels can still be played there.
+- **Touch**: not supported (part 2). On a touch device My Levels says so; levels can still be played there. (v15.1: replaced by the touch warning and touch editing - see v15.1.)
 
 ### Saved data and the future
 
@@ -1367,12 +1368,197 @@ four calls, `EchoLevelStore.register(source)`.
 
 ### Lessons
 
-1. **The Write tool turns ` ` in source text into the real character** - a line terminator inside a regex
+1. **The Write tool turns `\u2028` in source text into the real character** - a line terminator inside a regex
    literal, which killed the whole script. Check new files for raw U+2028/2029 (`perl -ne 'print if /\xe2\x80[\xa8\xa9]/'`).
 2. **Round trips find the bugs.** `normalise(normalise(x).doc)` marked every level "foreign", because a read level's
    own in-memory holders (`extra`, `extraEnemies`) looked like unknown fields. Test read -> write -> read, not just read.
 3. **Screenshots of a hidden pane are clipped to the pane's real width** (559 px here at DPR 1.5): emulate a viewport
    that fits (836x522) or the picture is a corner of the page.
+
+## v15.1: the level editor, part 2 of 3 (owner's brief, MINOR by the owner's own number)
+
+Owner: extend the editor (build on v15.0, do not rewrite it); still **no sharing, export/import UI, codes, network or
+accounts**; levels 0-16 and the generator unchanged. Schema bump with a migration (v15.0's single exit -> a list),
+untrusted loading kept, **folders out of the level data**. New: a **touch warning** before the editor; **several
+exits** (any one finishes; each can be locked); **light and red glow zones**; **floor objects** (puddles, decoys, the
+key and locked exit, notes with the player's own words); **level settings** (size, a title card line, a palette);
+**each level's own difficulty** (a rating + tuning for Custom, Reset, clamps, no impossible levels); **folders**
+(create, rename, delete with a choice, move, counts, sort, optionally play in order); **duplicate** and **thumbnails**;
+**touch editing** best effort; new samples and sample folders in the test copy. The owner called it v15.1, so MINOR.
+
+### Where it lives
+
+| File | What changed |
+| --- | --- |
+| `js/levelformat.js` | `SCHEMA_VERSION` 2; `MIGRATIONS[1]` (exit -> exits); `exits`, `objects`, `effects`, `titleCard`, `palette`, `difficulty` read and clamped; `OBJECTS`, `EFFECTS`, `SHAPES`, `INTENSITIES`, `RATINGS`, `TUNING`; `extraObjects` / `extraEffects` kept aside like `extraEnemies`; `exit` written as a mirror for v15.0 (`LEGACY`); `shownText` cleans typed words; `difficulty()`, `ratingLabel()`, `cleanNote`, `cleanCard` |
+| `js/levelcheck.js` | several exits (named "Exit 2" when there are more than one), locked exits + key (reachability with shut doors), objects in walls, shared tiles (warning), the **hunter check**, `reach[]` per exit |
+| `js/level.js` | `customConfig(difficulty)` (the level's rating; Custom = Normal x scales), `CUSTOM_MONSTER_TOP` 169, `CUSTOM_WARDEN_TOP` 1.25, `wardenSpeedFraction`, `ratingMode`; `buildCustomLevel` adds `exits`, `key`, `notes`, `effects`, `puddles`, `decoy`, `custom.card/rating/palette` |
+| `js/levelstore.js` | folders (`echomaze.folders`, read as untrusted), `duplicate`, summaries with `rating`, `exits`, `folder`, `preview` |
+| `js/effects.js` (new) | `EchoEffects`: the zones' colours, `prepare` (the stone faces each zone lights, once), `draw` (clipped to the line of sight) |
+| `js/editor.js` | tools Exit (many) / Object / Effect, the lists for them, a **picked thing** (`pick`) with its **inspector** panel, the **Level settings** tab, touch input, touch hint wording |
+| `js/mylevels.js` | folder chips with counts, sort, the folder bar (Play in order / Rename / Delete), Duplicate, Move, thumbnails, rating tags |
+| `js/dialog.js` | a `select` list (Move to folder) |
+| `js/game.js` | `exitsOf()`, locked exits, the custom key, notes, zones, the title card (state `'card'`), the palette, the rating labels, the touch warning (`editor-touch`), folders played in order, `editorStore` (files new levels), debug hooks |
+| `index.html`, `style.css` | `#editor-touch`, `#card`, the My Levels bar, the editor's tabs and panels, `#btn-custom-next`, `#dialog-select` |
+| `docs/level-format.md` | rewritten for schema 2 (and folders) |
+| `tools/editor-test-2.js` (new), `tools/sample-folders.json` (new), `tools/sample-levels.json` (+5), `tools/update-test-copy.ps1`, `tools/editor-test.js` | tests, samples, test copy |
+
+### Schema 2 and the migration (the owner asked for v15.0 levels to load and play unchanged)
+
+A version 1 level's `exit` becomes a one-item `exits` list; everything else new starts empty; walls, start, monsters,
+title and size read exactly as before, **with no repair notes** (tested on the three v15.0 samples: version 2, the
+exit in the list, nothing repaired, not foreign, the same playable verdicts, First Steps cleared by the bot, saved
+back as version 2). Every save also writes **`exit` = the first open way out**, a mirror for older version folders
+(the owner keeps them, and every `file://` copy shares one localStorage): v15.0 itself was checked to read all five
+new samples as foreign, play them (with what it understands - a locked exit is just an exit to it) and rename them
+keeping `exits`, `objects`, `effects` and `difficulty` byte for byte. `exit` is never read when `exits` is there.
+
+### The touch warning
+
+"Touch controls are active" is the game's own `touchOn` (v9.0: `pointer: coarse`, a first touch, or the pause menu's
+switch). The warning is **asked every time the Level Editor is opened from the title while it is on**, after the
+spoiler warning when that applies (so on first use: spoiler -> touch -> My Levels), never remembered, and never on the
+way back from a test play (that goes straight to the editor). **My reading, flagged**: "before entering the editor's
+build mode" + "every time the editor is opened from the menu" + "after the spoiler warning" = at the Level Editor
+button, before My Levels - not each time a level is opened from My Levels.
+
+### Several exits (`exitsOf()` - the one change to the shared engine paths)
+
+Every place that read `level.exit` - the ripple's circles (`castRipple`), the wave's line to a monster
+(`waveReaches`), the chime, the glimmer, the finish - now loops over `exitsOf()` = `level.exits || [level.exit]`, so
+a generated or hand-drawn level runs **exactly the code it ran before** with its one exit (identity games and story-bot
+unchanged, below). Every exit chimes (each through the same `chime()` the mimic uses, so a mimic's tell is still
+exactly an exit's), glimmers and shows in a ripple; reaching any open one finishes. Up to 8 (`LIMITS.exits`). Exits are
+numbered on the editor's map when there are several, and the checker names them ("Exit 2 can't be reached..." - a
+warning when another can be reached, an error when none can).
+
+### The key and locked exits (level 14's, without its script)
+
+A locked exit is a **shut door**: drawn with level 14's `EchoArt` 'door' (r 18, `LOCKED_EXIT_ART_R`) in the exit's
+colour with the exit's bell, **solid** to the player (`moveCircle`), and its tile **blocked** for monsters' paths
+(`level.blocked`, as the gaol door's is). Walking into it without the key rattles it (`audio.doorRattle`, once per
+1.5 s, `[the door rattles: locked]`, a "Locked" banner); with the key the key turns (`doorUnlock`), and
+`UNLOCK_SECONDS` 0.9 s later it grinds open (`doorOpen`), stops being solid, swings, and is an ordinary way out - the
+player pushing against it walks in and finishes (measured: 0.9-2.5 s). The key is a flat thing like level 14's
+(`T_KEY`, `EchoArt` 'key', `audio.echoKey`), picked up by walking onto it (`collectKey`: `keyPickup`, HUD "Key", the
+small key at your side). **One key opens every locked exit and is not used up** (my choice). Checker: locked + no key
+-> error; key unreachable without passing a shut door -> error.
+
+### Floor objects (all four slot into the existing system; nothing was skipped)
+
+Puddles and the decoy become `level.puddles` / `level.decoy` in exactly the generator's shapes, so smell, trails, the
+pickup, E to drop and the call all just work. The key is above. A **note** is `level.notes` - a flat thing found by a
+ripple through the same `flats` path as a lore fragment (`T_LORE`, 'note' or 'log' art), read when your own wave
+reaches it (`readNote`) through the same `loreReader` - a note shown, a recording spoken in the cutscenes' voice - and
+**nothing is kept** (`markFound` is never called; tested: `echomaze.lore` unchanged). Its words: 1-140 characters,
+cleaned in `normalise` (control characters, the direction overrides and zero-width characters, `<` and `>`), only ever
+set with `textContent`. Limits: 40 puddles, 1 decoy (the game's own rule: you can only carry one), 1 key, 8 notes, 60
+objects in all; one thing per tile (start, exit, monster, object).
+
+### Effects: light and red glow (`js/effects.js`)
+
+Rect or circle zones (up to 12), colour from 3 per kind, intensity dim / medium / bright. **Drawing only**, held to the
+rule of levels 13 and 15's light: an exception to the ripple, **never to the walls** - clipped to `visibleFrom(player)`
+- and **stone and floor only**: no monster, object or way out is ever drawn by it, and it is drawn **under** the
+ripples, added on, so it can never cover what a ripple shows. Light: a soft pool on the floor and the stone faces in
+it lit in its colour. Glow: a dark red wash with a slow pulse (0.35 Hz; steady in calm mode and with reduced motion)
+and a little red on its stone. Tested: behind a wall, pixel-for-pixel nothing; in sight, brighter; a monster standing
+in the light - identical pixels with and without it; the pulse differs between two clocks and not in calm mode. After
+seeing it, both were made a little stronger (floor 0.11 / 0.16, faces 0.55 / 0.34) - a ripple still reads clearly
+over a bright red glow (screenshot checked).
+
+### Level settings
+
+Exact width / height (5-61 x 5-45, the same grow-with-wall / shrink-asks rules), the **title card** line (0-80, cleaned
+like a note), the **palette** ('' = the player's own, or one of the four), the **difficulty**. **The title card**: a
+custom level opens on a card (state `'card'`: nothing simulates, no monster moves) with its title, the line (if any)
+and "Difficulty: X"; any key, a click or a tap - or 2.4 s (3.6 s with a line) - starts it, and its banner follows.
+Not on Try again. **The palette** is used **only for a player whose own palette is Default** (`borrowPalette` /
+`returnPalette`, never saved): a colour-blind or high-contrast player keeps theirs. My choice, flagged.
+
+### Each level's own difficulty (the owner asked me to choose and say)
+
+**The level fixes it; the player's title-screen mode is not read for a custom level.** A rating that is a mode plays
+exactly as that mode tunes level 12 (ripple range and recharge, every monster's speed and hearing, the mimic's tell);
+Custom is Normal with three scales: monster speed 0.5-1.5, ripple range 0.6-1.5, hearing 0.5-1.5 (footstep, presence,
+the Muffler's three radii and the smell range) - sliders, enabled only for Custom, with **Reset to defaults**. Why:
+what the maker tested is what everyone plays, and the card and My Levels can say honestly what it is. A v15.0 level
+(no rating) reads as **Normal** (flagged: v15.0 used the player's mode). Calm mode, Visual cues and the rest of the
+player's own settings still apply; Hardcore-rated levels still offer Try again (a custom level is not a run).
+**Never uncapped**: every monster but the hunters is held at 169 px/s (below the player's 170, the game's own rule);
+the Level 15 / 16 monster keeps its own rule (`WARDEN_SPEED` / `WARDEN_UPGRADED_SPEED` x your speed) times the same
+clamped scale, never above `CUSTOM_WARDEN_TOP` 1.25 x your speed. **No impossible levels**: the checker's hunter
+check walks the shortest way out (to the key first if it must) and refuses a level where a hunter, at this level's
+speed, could reach any tile of it before a perfect run does (warning under 1 s). Its words say where the monster is,
+never what it does (the editor's v15.0 rule).
+
+### Folders, duplicate, thumbnails
+
+Folders live in `echomaze.folders` - `{ schemaVersion: 1, folders: [{id, name, createdAt, updatedAt}], levels: {levelId:
+folderId} }` - read as untrusted (bad entries dropped, `__proto__`-style ids refused, membership only into folders
+that exist), handled only by the store (`listFolders` / `createFolder` / `renameFolder` / `deleteFolder` / `moveLevel` /
+`folderOf`); **a level's own data never mentions its folder** (tested). Flat; 50 at most; names 1-32 characters. Delete
+asks: "Delete folder, keep levels" (the default, they go back to Unsorted) or "Delete folder and its N levels", which
+asks a second, plain question. Sort by name or by the newest edit inside (`editedAt`) - the same choice sorts the
+levels. **Play in order** (it was cheap: `customRun.queue`): the folder's playable levels in the order shown, a
+"Next level" on the Complete screen and "Name: 2 of 5 done." / "That was the last level in Name."; unplayable ones are
+stepped over. New level with a folder open files it there on its first save. **Duplicate**: "Copy of ...", a new id,
+the same folder. **Thumbnails**: one small canvas per row (walls, start, exits; locked in the key's colour) from the
+summary's `preview` - cheap, so done.
+
+### Touch editing (best effort)
+
+The canvas takes Pointer Events from a finger or pen and treats them as the left button (tap places, drag draws or
+moves; `preventDefault` stops the browser's copied mouse events); there is no right button, so the hints say "Use
+Erase" / "press Delete" on a touch screen. The tool lists, panels and tabs are ordinary buttons (40 px tall in touch
+mode); under 760 px wide the side panel narrows. What stops it being good: no pinch-zoom, so Huge levels on a phone
+are ~8 px tiles; and the game's portrait "turn your device" screen covers the editor too.
+
+### Choices I made (flagged to the owner)
+
+The touch warning's place (above); one key opens every lock and is kept; a locked exit is solid and blocks monsters'
+paths while shut; the level's difficulty fixes it, v15.0 levels read as Normal; the palette only over Default; the
+title card always shows (title + difficulty) and the line is optional, not on Try again; notes can be notes or
+recordings; effect colours are fixed lists that avoid the monsters' and the exit's colours except the glow's reds;
+Select moves exits and objects with the box but not effect zones (the Effect tool moves those); the 9th exit, 2nd key
+and 2nd decoy are refused with a sentence; the hunter check (an extra validation the brief allowed).
+
+### Tests (`tools/editor-test-2.js`, after `tools/editor-test.js`, on a clean `?debug` page)
+
+- **v15.1 suites**: touchGate **15/15** (spoiler then touch on first use, every time, Back / Esc, not after test play,
+  touch taps and drags in the editor, none with mouse+keyboard), exits **18/18**, keys **14/14**, objects **20/20**,
+  effects **14/14**, card **16/16**, difficulty **27/27**, folders **25/25**, migration **15/15**, untrusted **4/4**
+  (15 hostile inputs with the new fields), noWrites **7/7** (a level with all of it, played through deaths, a retry, a
+  note, the decoy, the key and the locked door: storage, stats, medals and fragments identical).
+- **Measured** (difficulty suite): a stalker walks 66.5 / 133 / 169 px/s at monster speed x0.5 / x1 / x1.5 (the last
+  capped from 199.5); a Level 15 monster 127.5 px/s at x1 and 191.25 at x1.5; a Level 16 monster at x1.5 212.5 (the
+  1.25 cap, from 267.75); the ripple reaches 155.7 / 259.6 / 389.3 px at x0.6 / x1 / x1.5 (the rays that hit nothing
+  stop exactly there); a stalker hears a still player out to the tuned presence radius, x1.5 = round(x1 x 1.5); a
+  level rated X plays with X's numbers whether the player is on Easy or Hardcore.
+- **v15.0 suites still pass** on the new format: gate 9/9, tools 41/41, validation 15/15, storage 22/22, untrusted
+  20/20, noWrites 20/20 (their test levels' two hunters were moved into a sealed gallery: on the only route they make
+  the level impossible, which the checker now refuses).
+- **Soaks**: ~322,000 frames on 108 random levels (37 more refused by the checker) with every new thing (several exits, locks and keys, objects,
+  zones, random ratings and palettes), incl. one chunk in calm mode with Visual cues - **0 exceptions, storage
+  untouched, the player's palette back every time**; random editing **2 x 1,600 + 1,500 actions** with every tool and
+  panel - valid data every 40 (one thing per tile, nothing in walls, limits kept, exact round trips).
+- **Levels 0-16 did not move**: generator fingerprint **`9097b344`** (sanity 37x29, echo + singer, 72); eleven scripted
+  identity games identical between v15.0 and v15.1 (incl. three that really read a fragment); levels 0 / 13-16 in four
+  modes x 2 seeds hash `c77914bd` / `a35d01f9` / `ab344c7d` / `a8702cc1` / `b2d8ade1` on both builds (as in v14.1);
+  story-bot on 14, 15, 16, 16-hard, 16 with a pause and a deliberate catch on 15-hardcore - identical results and gaps.
+- **Samples** (test copy): Many Doors (3 exits), Lanterns (5 zones), The Key (locked exit, key, decoy, puddles, a note
+  and a recording), Quick Feet (Custom: x1.25 speed, x0.8 ripple, x1.15 hearing), All of It (two exits one locked, key,
+  objects, three zones, the high-contrast palette, Hard) - built from the generator, bot-cleared 8/8, 8/8, 11/12,
+  11/12, 7/8 (the losses: idle monsters the blind bot walked into); folders Showcase (3) and Puzzles (2).
+
+### Lessons
+
+1. **A heredoc in this shell eats doubled backslashes** (`\\` arrived as `\`): an edit script for a file full of
+   Windows paths silently searched for the wrong text. Write such scripts with the Write tool.
+2. **Validation that is right breaks old tests that were wrong.** Two v15.0 test levels had hunters on the only route
+   - impossible levels the old checker let through. The fix was the test levels, not the rule.
+3. **Hidden panes throttle timers**: a soak that yields with `setTimeout(0)` crawls; long runs go in the background
+   (`window.__x = []` + poll) because a tool call stops waiting after 45 s.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
@@ -1431,6 +1617,6 @@ All are scripted in a hand-built stage (a corridor with side passages); the intr
 
 Serve the folder with any static server and open `/?debug`; that exposes `window.__echo` (`info`, `tp`, `go`, `step`, `intro`, `freeze`, `csTo`, `setMode`, `setCalm`, `settings`, `draw`, `ripples`, `marks`, `crouch`, `decoys`, `dropDecoy`, `rippleRange`, `cues`, `captionText`, `features`, `seed`, `snapCamera(x, y)`, `zoom(v)`, `artClock(t)`, `showMuffler(on)`, `newMonsters()`, `markBy(singer)`, `touch`, `soundBlocked`, `setVisualCues`, `setTouchControls`, `audio`; and for the tutorial `go(0)`, `startTutorial('intro'|'title')`, `skipTutorial`, `leaveTutorial`, `tutorialState()`, `tutorialSteps()`, `newPlayer()`, `setTutorialDone(on)`; and for the title wordmark `wordmarkState()`, `wordmarkReveal(withSound)`, `wordmarkTick(seconds)`, `wordmarkSeek(u, isReveal)` and `wordmarkRelease()`, plus `ui()` and `transition(fn)` for the screen fades, and `deathTip()`, `tipFor()`, `whyOf()`, `nearMiss()`, `forceNearMiss()`, `savedToast()` and `showSaved()` for the v11.6 feedback layers; and for level 13 `go(13)`, `wardenState()`, `wardenCheck()` (the hand-drawn level's shape, dead ends, ways into the room, start-to-room distance and whether the door is sealed), `wardenDread(x, y)`, `captureStep(secs)` (`step()` cannot drive the capture: `updatePlay` is not running once the controls are gone), `gasp()` (the involuntary ripple walking into the great room sends) - seek FREEZES the frame, which is the only way to photograph the same instant of the sweep with calm mode off and on: the rAF loop otherwise repaints over it before the screenshot is taken). `settings()` = `{ campaignLevels (13), medalLevels (12), warden: {level, insideX, waveFallback, dreadTiles, at}, lore: {total, found, chance, bonus, here}, tutorial: {level, done, after, newPlayer, steps, at}, palette, showTimer, volumes, keyBindings, medalPar, music, muffler, singer, mode, calm, visualCues, touchControls: {on, saved}, audioFx, progress, seen }`. To photograph cues: build the scene and call `__echo.snapCamera(); __echo.draw()` in ONE call, copy the region round the player onto a temporary big `<canvas>` you leave on the page (the game keeps running in real time between calls, so one-shot cues fade before a screenshot), and take two screenshots. For the cutscenes: `__echo.freeze(true); __echo.intro(); __echo.csTo(22 + 24.1)` jumps to a moment of the intro and holds it; `__echo.intro('scent')` plays the level 5 -> 6 scene (scene starts at 4.6s, `csTo(4.6 + 16.66)` is its impact); `intro('mimic')` the 7 -> 8 scene (scene starts at 4.4s: `csTo(20.4)` is the moment the wave touches it, `csTo(21.3)` the hit); `intro('decoy')` the 8 -> 9 scene (starts at 4.6s: the decoy calls at `csTo(21.0)`, the monsters are held by ~23); `intro('stalker')` the 9 -> 10 scene (starts at 4.4s: `csTo(4.4 + 3.7)` the stalker hears them, `+ 6.2` they crouch, `+ 7.96` it reaches the spot, `+ 9.2` it gives up, `+ 15.6` the closing card - the card and subtitles fade in real time, so wait ~2s before a screenshot); `__echo.advance()` does what the Next level button does. **Testing the stalker / crouching** (all done this way in v8.0, no node needed): mute first (`__echo.audio.setMuted(true)` before any `go`), `go(10)`, clear the maze for a clean field (`level.walls.fill(0); level.blocked.fill(0); level.obstacles.length = 0`), drop the other monsters from `info().enemies` (it is the live array), park the stalker with `s.pause = 99`, place things with `tp` and `s.x/s.y` (keep the player INSIDE the level bounds or they are stuck in a wall), and judge hearing with ONE frame (`step(1/60)`) so it does not move; hold keys with `window.dispatchEvent(new KeyboardEvent('keydown', {code:'ShiftLeft'}))`. Spy on `audio.*` methods to count footsteps / echo sounds. **To prove levels 1-12 did not move, load `tools/generator-fingerprint.js` into a `?debug` page of each build and compare `GENFP().combined`** (`9097b344` from v11.6 to v13.0) - and look at its `sanity` field, which must describe a real level 12 (37x29, an echo monster and a singer): the harness went two versions hashing nothing because `generateLevel` was called with the wrong arguments. The real signature is `generateLevel(n, runSeed, modeId)`. For the lore fragments: `lore()`, `placeFragment(level, seed, mode)`, `readFragment()`, `setLoreFound(ids)`, `showArchive()`. For levels 14-16 (v14.0): `go(14..16)`, `storyState()`, `scriptLock()`, `hunter()`, `wakeHunter()`; `step()` drives them (their beats run inside `play`). **`tools/story-bot.js` plays them through the real keys** - `StoryBot.run({ level, mode, detours, pauses, skipKey, tryDoorFirst })` - and reports whether it cleared, was caught, and the gap to the Warden ALONG THE PATH (never measure the chase through the walls). The pane only runs animation frames while a screenshot is being taken, so to photograph a moment, `draw()` it and copy the canvas into an overlay canvas first (and dispatch a `resize` event after a reload, or the canvas is 0x0). Compare generation with the previous `js/level.js` (`git show HEAD:js/level.js`, both evaluated with `new Function`) to prove old levels did not change. In the embedded browser pane the canvas only repaints when a screenshot is taken, so screenshots lag one step behind - take a second one.
 
-**The level editor (v15.0): `tools/editor-test.js`** - load it into a `?debug` page and run `EditorTest.gate()`, `.tools()`, `.validation()`, `.storage()`, `.untrusted()`, `.noWrites()`, `.soak(levels, frames, seed)`, `.editSoak(ops, seed)` one at a time (each is async and returns pass/fail with what failed; keep each call under ~20 s - the soaks in chunks), and `EditorTest.bot(doc, { mode, pingEvery })` plays a custom level with the real keys. It drives the editor with real `MouseEvent`s aimed at tiles (`__echo.editor.tileToClient`). Several suites write levels and flags to localStorage: run them on the scratch server and clear its storage after (`EditorTest.clearAll()`). In a background tab `focus()`/`blur()` do not fire, so dispatch those events yourself; and load the harness with a cache-busting query (it assigns `window.EditorTest`, so it can be loaded again).
+**The level editor (v15.0): `tools/editor-test.js`** - load it into a `?debug` page and run `EditorTest.gate()`, `.tools()`, `.validation()`, `.storage()`, `.untrusted()`, `.noWrites()`, `.soak(levels, frames, seed)`, `.editSoak(ops, seed)` one at a time (each is async and returns pass/fail with what failed; keep each call under ~20 s - the soaks in chunks), and `EditorTest.bot(doc, { mode, pingEvery })` plays a custom level with the real keys. It drives the editor with real `MouseEvent`s aimed at tiles (`__echo.editor.tileToClient`). Several suites write levels and flags to localStorage: run them on the scratch server and clear its storage after (`EditorTest.clearAll()`). In a background tab `focus()`/`blur()` do not fire, so dispatch those events yourself; and load the harness with a cache-busting query (it assigns `window.EditorTest`, so it can be loaded again). **v15.1: `tools/editor-test-2.js`** (load it after `editor-test.js`; it reuses its mouse helpers): `EditorTest2.touchGate()`, `.exits()`, `.keys()`, `.objects()`, `.effects()`, `.card()`, `.difficulty()` (it MEASURES monster speed, hunter speed, ripple reach and hearing), `.folders()`, `.migration()` (fetches `tools/sample-levels.json`), `.untrusted()`, `.noWrites()`, `.soak(levels, frames, seed)`, `.editSoak(ops, seed)`, and `EditorTest2.bot(doc, { pingEvery })`, which fetches the key first when it must. `__echo.playCustom(doc, from, { card: true })` keeps the title card up (by default the hook takes it away, so v15.0's tests still start in `play`). The edit soak yields to the page after every action, and a hidden pane throttles that: start long runs in the background (`window.__x = []; (async () => {...})()`) and poll, because a tool call stops waiting after 45 s.
 
 Web Audio gotcha: a `GainNode` sits at gain 1.0 until its first scheduled event, so if an oscillator starts before its envelope does you get a full-scale click. Start the oscillator and its `_env` at the same time. `step(seconds)` runs the simulation without needing animation frames, which is handy in headless/embedded browsers. Synthetic key events need `code` set (e.g. `new KeyboardEvent('keydown', {code: 'Space'})`).

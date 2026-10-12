@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * EDITOR TESTS (v15.0). Load into a ?debug page of the game - it drives the real editor with real mouse events,
+ * EDITOR TESTS (v15.0; kept working on the v15.1 format - the v15.1 suites are in tools/editor-test-2.js). Load into a ?debug page of the game - it drives the real editor with real mouse events,
  * the real store and the real engine:
  *   const s = document.createElement('script'); s.src = 'tools/editor-test.js'; document.head.appendChild(s);
  * Then run the suites one at a time (each is async and returns { name, pass, fail, failed: [...], notes }):
@@ -109,14 +109,17 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     E().editor.render();
   }
 
-  /** A level as data, from rows of text: '#' wall, '.' floor, 'S' start, 'X' exit; monsters as [kind, x, y, variant]. */
+  /**
+   * A level as data, from rows of text: '#' wall, '.' floor, 'S' start, 'X' an exit, 'L' a locked exit (v15.1: a level
+   * has a list of them); monsters as [kind, x, y, variant].
+   */
   function levelFrom(rows, monsters = [], title = 'Test level') {
     const doc = E().levelFormat.blank({ w: rows[0].length, h: rows.length, title });
     doc.walls = rows.map((r) => r.replace(/[^#]/g, '.'));
     rows.forEach((r, y) => {
       for (let x = 0; x < r.length; x++) {
         if (r[x] === 'S') doc.start = { x, y };
-        if (r[x] === 'X') doc.exit = { x, y };
+        if (r[x] === 'X' || r[x] === 'L') doc.exits.push({ x, y, locked: r[x] === 'L' });
       }
     });
     doc.enemies = monsters.map(([kind, x, y, variant]) => (variant ? { kind, variant, x, y } : { kind, x, y }));
@@ -346,10 +349,10 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     inWall.start = { x: 0, y: 0 };
     S.check('start inside a wall', codes(inWall).includes('start-in-wall'));
     const exitWall = JSON.parse(JSON.stringify(d));
-    exitWall.exit = { x: 8, y: 6 };
+    exitWall.exits = [{ x: 8, y: 6 }];
     S.check('exit inside a wall', codes(exitWall).includes('exit-in-wall'));
     const same = JSON.parse(JSON.stringify(d));
-    same.exit = { x: 1, y: 1 };
+    same.exits = [{ x: 1, y: 1 }];
     S.check('start and exit on one tile', codes(same).includes('same-tile'));
     const mon = levelFrom(['#########', '#S......#', '#.......#', '#.......#', '#.......#', '#......X#', '#########'], [['echo', 0, 3], ['scent', 1, 1]]);
     S.check('a monster in a wall and one on the start', codes(mon).includes('monster-in-wall') && codes(mon).includes('monster-on-start'));
@@ -381,8 +384,10 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     const F = E().levelFormat;
     const store = E().levelStore;
     // a level with one of everything, saved and read back
-    const rows = ['###################', '#S................#', '#.###.#####.#####.#', '#.#.............#.#', '#.#.###.###.###.#.#', '#.................X#', '###################'];
-    const mons = E().monsterChoices().map((c, i) => [c.kind, 2 + i * 2, 5, c.variant]); // (along the bottom corridor)
+    // (v15.1: the monsters stand in a sealed gallery - a hunter on the only route would make the level impossible,
+    // which the checker now refuses)
+    const rows = ['###################', '#S................#', '#.###.#####.#####.#', '#.#.............#.#', '#.#.###.###.###.#.#', '#................X#', '###################', '#.................#', '###################'];
+    const mons = E().monsterChoices().map((c, i) => [c.kind, 2 + i * 2, 7, c.variant]); // (along the sealed gallery)
     const doc = levelFrom(rows, mons, 'Round trip ✓ – ünïcode');
     const res = store.save(doc);
     S.check('save: ok', res.ok, res.error);
@@ -396,7 +401,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     S.check('updatedAt stamped, createdAt kept', got.doc.updatedAt >= doc.createdAt && got.doc.createdAt === doc.createdAt);
     const text = F.serialise(got.doc);
     S.check('serialise -> normalise -> serialise is the same text', F.serialise(F.normalise(text).doc) === text);
-    S.check('stored as plain JSON under echomaze.level.<id>', JSON.parse(localStorage.getItem(`echomaze.level.${res.doc.id}`)).schemaVersion === 1);
+    S.check('stored as plain JSON under echomaze.level.<id>', JSON.parse(localStorage.getItem(`echomaze.level.${res.doc.id}`)).schemaVersion === E().levelFormat.SCHEMA_VERSION);
     const listed = store.list().find((l) => l.id === res.doc.id);
     S.check('list: it is there, playable, with its monsters', listed && listed.playable && listed.monsters === mons.length && listed.title === doc.title);
     // the editor round trip: open it, change nothing, the doc is identical
@@ -518,10 +523,10 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     const w = F.normalise({ enemies: [{ kind: 'warden', x: 2, y: 2 }] }).doc;
     S.check('a warden with no variant reads as the first variant', w.enemies[0].variant === 'regular');
     // a level from a NEWER version: an unknown monster and an unknown field are kept, not lost
-    const future = { format: 'echo-maze-level', schemaVersion: 2, id: 'future-1', title: 'From the future', size: { w: 9, h: 5 }, walls: ['#########', '#S.....X#', '#.......#', '#.......#', '#########'], start: { x: 1, y: 1 }, exit: { x: 7, y: 1 }, enemies: [{ kind: 'echo', x: 4, y: 3 }, { kind: 'lurker', x: 5, y: 3, mood: 'grim' }], objects: [{ type: 'lamp', x: 2, y: 2 }] };
+    const future = { format: 'echo-maze-level', schemaVersion: 3, id: 'future-1', title: 'From the future', size: { w: 9, h: 5 }, walls: ['#########', '#S.....X#', '#.......#', '#.......#', '#########'], start: { x: 1, y: 1 }, exits: [{ x: 7, y: 1 }], enemies: [{ kind: 'echo', x: 4, y: 3 }, { kind: 'lurker', x: 5, y: 3, mood: 'grim' }], objects: [{ kind: 'lamp', x: 2, y: 2 }], weather: { fog: 0.4 } };
     const once = F.normalise(future);
     const twice = F.normalise(once.doc);
-    S.check('read twice: what was kept aside is kept again, once', twice.foreign && twice.doc.extraEnemies.length === 1 && twice.doc.extra.objects && !('extra' in twice.doc.extra) && F.serialise(twice.doc) === F.serialise(once.doc));
+    S.check('read twice: what was kept aside is kept again, once', twice.foreign && twice.doc.extraEnemies.length === 1 && twice.doc.extraObjects.length === 1 && twice.doc.extra.weather && !('extra' in twice.doc.extra) && F.serialise(twice.doc) === F.serialise(once.doc));
     S.check('an in-memory level read again is not "foreign"', !F.normalise(F.blank()).foreign && !F.normalise(E().levelFormat.copy(F.blank())).foreign);
     localStorage.setItem('echomaze.level.future-1', JSON.stringify(future));
     // ...and damaged ones
@@ -555,10 +560,12 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     T.answer('ok');
     await sleep(20);
     const kept = JSON.parse(localStorage.getItem('echomaze.level.future-1'));
-    S.check('rename keeps the unknown monster, the unknown field and the version', kept.title === 'Renamed here' && kept.schemaVersion === 2 && kept.enemies.some((e) => e.kind === 'lurker' && e.mood === 'grim') && kept.objects && kept.objects[0].type === 'lamp', kept);
+    S.check('rename keeps the unknown monster, object and field, and the version', kept.title === 'Renamed here' && kept.schemaVersion === 3 && kept.enemies.some((e) => e.kind === 'lurker' && e.mood === 'grim') && kept.objects.some((o) => o.kind === 'lamp') && kept.weather && kept.weather.fog === 0.4, kept);
     // playing it plays what is understood (the echo monster), and nothing throws
     btn('future-1', 'play').click();
     await sleep(500);
+    S.check('(v15.1) it opens on its title card', E().info().state === 'card' && !!E().card());
+    E().endCard();
     S.check('the newer level plays with what this version knows', E().info().state === 'play' && E().info().enemies.length === 1 && E().info().enemies[0].kind === 'echo');
     E().step(1);
     E().leaveCustom();
@@ -604,9 +611,11 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
       '#.#######.#####.#####.#####.#',
       '#.........................X.#',
       '#############################',
+      '#...........................#', // (v15.1: a sealed gallery for the two hunters - on the route they would make
+      '#############################', //  the level impossible, which the checker now refuses)
     ];
     const ch = E().monsterChoices();
-    const spots = [[5, 3], [8, 4], [14, 3], [16, 4], [22, 3], [24, 4], [12, 7], [20, 5], [26, 1], [5, 5]];
+    const spots = [[5, 3], [8, 4], [14, 3], [16, 4], [22, 3], [24, 4], [12, 9], [20, 9], [26, 1], [5, 5]];
     return levelFrom(rows, ch.map((c, i) => [c.kind, spots[i][0], spots[i][1], c.variant]), 'Every monster');
   }
 
@@ -704,13 +713,14 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     if (floor.length < 4) return null;
     const pick = () => floor.splice(Math.floor(rand() * floor.length), 1)[0];
     doc.start = pick();
-    doc.exit = pick();
+    const exit = pick();
+    doc.exits = [{ x: exit.x, y: exit.y, locked: false }];
     // carve a straight-ish way from start to exit so it is reachable
     const rows = grid.map((r) => r.split(''));
     let { x, y } = doc.start;
-    while (x !== doc.exit.x || y !== doc.exit.y) {
-      if (x !== doc.exit.x && (y === doc.exit.y || rand() < 0.5)) x += Math.sign(doc.exit.x - x);
-      else y += Math.sign(doc.exit.y - y);
+    while (x !== exit.x || y !== exit.y) {
+      if (x !== exit.x && (y === exit.y || rand() < 0.5)) x += Math.sign(exit.x - x);
+      else y += Math.sign(exit.y - y);
       rows[y][x] = '.';
     }
     doc.walls = rows.map((r) => r.join(''));
@@ -749,6 +759,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
       else keysDown.delete(code);
     };
     let played = 0;
+    let impossible = 0;
     let caught = 0;
     let cleared = 0;
     let stepped = 0;
@@ -758,6 +769,10 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
       const doc = randomLevel(rand);
       if (!doc) continue;
       const err = e.playCustom(doc, rand() < 0.5 ? 'editor' : 'mylevels');
+      if (err && /too close to the way out/.test(err)) {
+        impossible++; // (v15.1: a hunter dropped on the way out - the checker refuses it, rightly)
+        continue;
+      }
       if (err) {
         S.check('a random reachable level plays', false, err);
         continue;
@@ -800,7 +815,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     const changed = diffStorage(before, storageSnapshot());
     S.check(`soak: ${played} levels, ${stepped} frames, no exceptions`, errors.length === 0, errors.slice(0, 5));
     S.check('soak: storage untouched by all of it', changed.length === 0, changed);
-    S.note(`played ${played}, frames ${stepped}, caught ${caught}, cleared ${cleared}`);
+    S.note(`played ${played}, frames ${stepped}, caught ${caught}, cleared ${cleared}, refused as impossible ${impossible}`);
     return S.done();
   }
 
@@ -843,7 +858,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
             tiles.add(k);
           }
           if (doc.start && doc.walls[doc.start.y][doc.start.x] === '#') bad++;
-          if (doc.exit && doc.walls[doc.exit.y][doc.exit.x] === '#') bad++;
+          for (const ex of doc.exits) if (doc.walls[ex.y][ex.x] === '#') bad++;
           E().levelCheck.check(doc);
         }
       } catch (ex) {
