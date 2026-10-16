@@ -228,7 +228,7 @@ const EchoLevelStore = (() => {
   function summary(source, id, read, folders) {
     const folder = folders && Object.prototype.hasOwnProperty.call(folders.levels, id) ? folders.levels[id] : null;
     if (!read || !read.doc) {
-      return { id, source, title: 'Damaged level', updatedAt: '', createdAt: '', size: null, monsters: 0, playable: false, problem: (read && read.error) || 'It could not be read.', foreign: false, damaged: true, rating: null, exits: 0, folder, preview: null };
+      return { id, source, title: 'Damaged level', updatedAt: '', createdAt: '', size: null, monsters: 0, playable: false, problem: (read && read.error) || 'It could not be read.', foreign: false, damaged: true, rating: null, author: '', exits: 0, folder, preview: null };
     }
     const doc = read.doc;
     const verdict = EchoLevelCheck.check(doc);
@@ -245,6 +245,7 @@ const EchoLevelStore = (() => {
       foreign: !!read.foreign,
       damaged: false,
       rating: doc.difficulty.rating,
+      author: doc.authorName || '', // (v15.3: the creator name a shared level came with)
       exits: doc.exits.length,
       folder,
       preview: { w: doc.size.w, h: doc.size.h, walls: EchoLevelFormat.wallGrid(doc), start: doc.start, exits: doc.exits.map((e) => ({ x: e.x, y: e.y, locked: e.locked })) },
@@ -447,6 +448,63 @@ const EchoLevelStore = (() => {
     return local.save(d);
   }
 
+  /** (v15.3) A folder name nobody has used yet: the name itself, or "Name (2)", "Name (3)"... (never a merge). */
+  function freeFolderName(name) {
+    const base = cleanName(name) || 'Shared levels';
+    const taken = new Set(readFolders().folders.map((x) => x.name.toLowerCase()));
+    if (!taken.has(base.toLowerCase())) return base;
+    for (let n = 2; n < 1000; n++) {
+      const tail = ` (${n})`;
+      const nm = `${Array.from(base).slice(0, FOLDER_LIMITS.name - tail.length).join('').trim()}${tail}`;
+      if (!taken.has(nm.toLowerCase())) return nm;
+    }
+    return base;
+  }
+
+  /**
+   * (v15.3) Keep what a share code held (EchoShare.decode's result, already read as untrusted and checked) as the
+   * player's own levels, through the ordinary calls: each level a new id and new dates, its creator name kept; one
+   * level goes to Unsorted, a folder becomes a NEW folder (freeFolderName - never merged into one that is there).
+   * ALL OR NOTHING: if any step fails, everything this call saved is taken back, so there is never half an import.
+   * -> { ok: true, ids, folder } | { ok: false, error }
+   */
+  function importShared(res) {
+    if (!res || !res.ok || !Array.isArray(res.levels) || !res.levels.length) return { ok: false, error: 'There is nothing to import.' };
+    const isFolder = res.kind === 'folder';
+    if (isFolder && readFolders().folders.length >= FOLDER_LIMITS.folders) return { ok: false, error: `Nothing was imported: you already have ${FOLDER_LIMITS.folders} folders, the most there can be. Delete one first.` };
+    const saved = [];
+    const undo = () => {
+      for (const id of saved) local.delete(id);
+    };
+    const now = new Date().toISOString();
+    for (const lv of res.levels) {
+      const d = EchoLevelFormat.copy(lv);
+      d.id = EchoLevelFormat.newId();
+      d.createdAt = now;
+      d.updatedAt = now;
+      const r = local.save(d);
+      if (!r.ok) {
+        undo();
+        return { ok: false, error: `Nothing was imported. ${r.error}` };
+      }
+      saved.push(r.doc.id);
+    }
+    if (!isFolder) return { ok: true, ids: saved, folder: null };
+    const made = createFolder(freeFolderName(res.folderName));
+    if (!made.ok) {
+      undo();
+      return { ok: false, error: `Nothing was imported. ${made.error}` };
+    }
+    for (const id of saved) {
+      if (!moveLevel(id, made.folder.id)) {
+        undo();
+        deleteFolder(made.folder.id);
+        return { ok: false, error: `Nothing was imported. ${storageError}` };
+      }
+    }
+    return { ok: true, ids: saved, folder: made.folder };
+  }
+
   // the bonus levels (js/bonus-levels.js is data only; without it there are simply none)
   const BONUS_KEY = 'echomaze.bonus';
   const bonus = readOnlySource('bonus', 'Bonus Levels', typeof ECHO_BONUS_LEVELS !== 'undefined' ? ECHO_BONUS_LEVELS : [], {
@@ -468,6 +526,8 @@ const EchoLevelStore = (() => {
     readOnly,
     readOnlySource,
     copyToMine,
+    importShared,
+    freeFolderName,
     list: () => local.list(),
     get: (id) => local.get(id),
     save: (doc) => local.save(doc),

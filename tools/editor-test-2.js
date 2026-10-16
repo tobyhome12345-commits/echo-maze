@@ -821,7 +821,7 @@ window.EditorTest2 = (() => {
     await sleep(20);
     // delete a folder: its levels kept, back in Unsorted
     e.myLevels.show(b.id);
-    $('mylevels-folderbar').querySelectorAll('button')[2].click();
+    [...$('mylevels-folderbar').querySelectorAll('button')].find((b) => b.textContent === 'Delete folder').click(); // (by its label: v15.3 added Share folder to the bar)
     await sleep(20);
     S.check('Delete folder asks, with a separate choice for its levels', T.dialogOpen() && /Delete folder, keep levels/.test($('dialog-buttons').textContent) && /Delete folder and its 2 levels/.test($('dialog-buttons').textContent));
     T.answer('keep');
@@ -830,7 +830,7 @@ window.EditorTest2 = (() => {
     // ...and the other way: the levels too, after a second question
     e.myLevels.show(a.id);
     const inA = st.list().filter((l) => l.folder === a.id).map((l) => l.id);
-    $('mylevels-folderbar').querySelectorAll('button')[2].click();
+    [...$('mylevels-folderbar').querySelectorAll('button')].find((b) => b.textContent === 'Delete folder').click(); // (by its label: v15.3 added Share folder to the bar)
     await sleep(20);
     T.answer('all');
     await sleep(20);
@@ -838,7 +838,7 @@ window.EditorTest2 = (() => {
     T.answer('cancel');
     await sleep(20);
     S.check('Cancel: nothing deleted', st.listFolders().some((f) => f.id === a.id) && inA.every((id) => st.get(id)));
-    $('mylevels-folderbar').querySelectorAll('button')[2].click();
+    [...$('mylevels-folderbar').querySelectorAll('button')].find((b) => b.textContent === 'Delete folder').click(); // (by its label: v15.3 added Share folder to the bar)
     await sleep(20);
     T.answer('all');
     await sleep(20);

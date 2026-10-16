@@ -17,6 +17,8 @@
                            sample levels in tools\sample-levels.json to My Levels, and the folders in
                            tools\sample-folders.json (once); and (v15.2) ticks the first two bonus levels as done
                            (once), so the Bonus Levels tab shows what a tick looks like
+    * READ ME - test copy.txt - generated; (v15.3) with the sample share codes from tools\sample-codes.txt to paste
+                           into My Levels > Enter code (nothing else of sharing goes into the test save)
     * READ ME - test copy.txt - generated
   Everything else (style.css, README.md, the game code) is copied unchanged. The script checks all of this
   when it is done and stops with an error if anything did not come out as expected.
@@ -114,6 +116,19 @@ if ($bonusIds.Count -lt 2 -or $bonusIds.Count -ne $bonusTitles.Count) { Fail "co
 $doneIds = $bonusIds[0..1]
 $doneTitles = ($bonusTitles[0..1]) -join ' and '
 $doneJs = '{ ' + (($doneIds | ForEach-Object { "'$_': now" }) -join ', ') + ' }'
+
+# v15.3: sample share codes for the READ ME (pasted by hand: they are NOT put into the test save)
+$codesPath = Join-Path $PSScriptRoot 'sample-codes.txt'
+if (-not (Test-Path $codesPath)) { Fail "tools\sample-codes.txt is missing" }
+$codeLines = @((Get-Text $codesPath) -split "`n" | ForEach-Object { $_.TrimEnd() } | Where-Object { $_ -and -not $_.StartsWith('#') })
+if ($codeLines.Count -lt 2) { Fail "tools\sample-codes.txt should hold at least two sample codes" }
+$codesText = ''
+foreach ($l in $codeLines) {
+  $parts = $l -split ' \| ', 2
+  if ($parts.Count -ne 2 -or $parts[1] -notmatch '^ECHO1[LF][0-9A-Za-z]+$') { Fail "a line in tools\sample-codes.txt is not 'what it is | ECHO1...': $l" }
+  $codesText += "    $($parts[0])`n`n$($parts[1])`n`n"
+}
+if (-not (Test-Path (Join-Path $Source 'js\sharecode.js'))) { Fail "$leaf has no js\sharecode.js - the sample codes need a version with sharing" }
 
 # ---- what "finished" means for THIS version of the game
 # (up to v13.0 CAMPAIGN_LEVELS was a number in game.js; from v14.0 it is STORY_LAST, the last of the hand-drawn
@@ -254,6 +269,10 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     They are added only once: delete or change one and it stays that way.
   * the Bonus Levels tab (beside My Levels) has $($bonusIds.Count) levels that come with the game,
     and $doneTitles are already ticked as done (once only, like the samples)
+  * level sharing: to try it, open the Level Editor, press "Enter code" in My Levels
+    and paste one of these codes (each is one long line - copy all of it):
+
+$codesText
 
 To play it: double-click index.html (or the shortcut "Play Echo Maze (test - finished)"
 next to this folder).
@@ -302,5 +321,6 @@ if ($problems) { Fail ($problems -join '; ') }
 "  level editor unlocked, sample levels: $sampleTitles"
 "  sample folders: $folderNames"
 "  bonus levels: $($bonusTitles -join ', ') - ticked as done: $doneTitles"
+"  sample share codes in the READ ME: $($codeLines.Count)"
 "  save-slot names changed: $slotCount"
 "  checks passed. Still open the copy once and look at it (see CLAUDE.md)."

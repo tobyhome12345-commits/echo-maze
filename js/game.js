@@ -276,6 +276,13 @@
         return false; /* storage unavailable */
       }
     },
+    remove(key) {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {
+        /* storage unavailable: there is nothing to take away */
+      }
+    },
   };
 
   function loadProgress() {
@@ -4055,6 +4062,20 @@
    * screen uses to write "Finished" on a mode: isFinished(getBest(m)) - the best level kept for that mode in
    * `echomaze.progress` is past the last one (CAMPAIGN_LEVELS), which only clearing level 16 can do.
    */
+  /**
+   * (v15.3) The player's creator name: empty unless they set one (the editor's Level settings tab). It is put into
+   * the codes they share - in a level with no creator name of its own - and nowhere else.
+   */
+  const CREATOR_KEY = 'echomaze.creator';
+  const creatorName = () => EchoLevelFormat.cleanShown(store.get(CREATOR_KEY) || '', EchoLevelFormat.LIMITS.author);
+  function setCreatorName(v) {
+    const name = EchoLevelFormat.cleanShown(typeof v === 'string' ? v : '', EchoLevelFormat.LIMITS.author);
+    if (name) store.set(CREATOR_KEY, name);
+    else store.remove(CREATOR_KEY);
+    return name;
+  }
+  $('ed-creator').addEventListener('input', () => setCreatorName($('ed-creator').value));
+  $('ed-creator').addEventListener('change', () => ($('ed-creator').value = setCreatorName($('ed-creator').value)));
   const anyModeFinished = () => MODE_ORDER.some((m) => isFinished(getBest(m)));
   const editorUnlocked = () => store.get(EDITOR_KEY) === '1' || anyModeFinished();
   const customTitle = () => (customRun && customRun.doc ? customRun.doc.title : 'Custom level');
@@ -4068,7 +4089,11 @@
   let newLevelFolder = null;
   const editorStore = {
     save(doc) {
-      const isNew = !EchoLevelStore.get(doc.id);
+      const before = EchoLevelStore.get(doc.id);
+      const isNew = !before;
+      // (v15.3) a shared level keeps its creator's name - until its content is changed here: then it is the
+      // player's own. (A new title alone is not a change to the level: it keeps the name.)
+      if (before && before.doc && before.doc.authorName && EchoShare.contentKey(before.doc) !== EchoShare.contentKey(doc)) doc.authorName = '';
       const res = EchoLevelStore.save(doc);
       if (res.ok && isNew && newLevelFolder) EchoLevelStore.moveLevel(res.doc.id, newLevelFolder);
       return res;
@@ -4083,6 +4108,7 @@
       sort: $('mylevels-sort'),
       folderBar: $('mylevels-folderbar'),
       newFolder: $('btn-mylevels-folder'),
+      enterCode: $('btn-mylevels-code'), // (v15.3)
       // (v15.2) the two tabs: My Levels and Bonus Levels
       screen: $('mylevels'),
       tabMine: $('lv-tab-mine'),
@@ -4098,6 +4124,9 @@
     play: (doc) => playCustom(doc, 'mylevels'),
     playBonus: (doc) => playCustom(doc, 'bonus'),
     copyBonus: (id) => EchoLevelStore.copyToMine('bonus', id),
+    // (v15.3) share codes, and the name that goes into them
+    share: EchoShare,
+    creator: () => creatorName(),
     playQueue: (queue) => playQueue(queue),
     edit: (doc, folder) => openEditor(doc, folder),
   });
@@ -4198,6 +4227,7 @@
     newLevelFolder = doc ? null : folder || null;
     showOverlay('editor'); // (first: the editor measures its stage to lay the map out)
     editor.open(doc ? EchoLevelFormat.copy(doc) : null);
+    $('ed-creator').value = creatorName(); // (v15.3)
     return true;
   }
   function closeEditorScreens() {
@@ -5037,6 +5067,9 @@
       myLevels,
       levelStore: EchoLevelStore,
       bonus: EchoLevelStore.bonus, // v15.2: the bonus levels (read-only) and their ticks
+      share: EchoShare, // v15.3: share codes
+      creatorName: () => creatorName(),
+      setCreatorName: (v) => setCreatorName(v),
       levelFormat: EchoLevelFormat,
       levelCheck: EchoLevelCheck,
       dialog: EchoDialog,

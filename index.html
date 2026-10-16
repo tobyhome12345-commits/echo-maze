@@ -228,6 +228,7 @@
       <div class="buttons dock">
         <button id="btn-mylevels-new" class="primary mine-only">New level</button>
         <button id="btn-mylevels-folder" class="mine-only">New folder</button>
+        <button id="btn-mylevels-code" class="mine-only">Enter code</button>
         <button id="btn-mylevels-back">Back <span class="key">Esc</span></button>
       </div>
     </div>
@@ -276,6 +277,9 @@
           <p class="fine">Everyone plays this level at this difficulty, whatever they picked on the title screen. Custom is Normal, tuned below.</p>
           <div id="ed-tuning" class="ed-tuning"></div>
           <button id="ed-tune-reset" type="button" class="quiet ed-wide">Reset to defaults</button>
+          <h3>Sharing</h3>
+          <label class="ed-prop"><span>Creator name (optional)</span><input id="ed-creator" type="text" maxlength="32" spellcheck="false" autocomplete="off" placeholder="None"></label>
+          <p class="fine">Yours, not this level's: it goes into <b>every code you share</b>, and anyone who imports one sees it. Leave it empty to share without a name.</p>
         </div>
       </aside>
       <div id="ed-stage" class="ed-stage"><canvas id="ed-canvas" aria-label="The level"></canvas></div>
@@ -456,6 +460,8 @@
       <p id="dialog-text"></p>
       <input id="dialog-input" type="text" class="hidden" maxlength="48" spellcheck="false" autocomplete="off">
       <select id="dialog-select" class="hidden"></select>
+      <textarea id="dialog-area" class="hidden" rows="5" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      <p id="dialog-status" class="dialog-status hidden" aria-live="polite"></p>
       <div id="dialog-buttons" class="buttons"></div>
     </div>
   </div>
@@ -499,6 +505,7 @@
   <script src="js/levelcheck.js"></script>
   <script src="js/bonus-levels.js"></script>
   <script src="js/levelstore.js"></script>
+  <script src="js/sharecode.js"></script>
   <script src="js/dialog.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/editor.js"></script>

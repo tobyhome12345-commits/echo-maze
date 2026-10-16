@@ -11,7 +11,7 @@
  *   schemaVersion  2
  *   id             1-64 of A-Z a-z 0-9 _ -  (unique)
  *   title          1-48 characters
- *   authorName     0-32 characters - always '' for now: levels are private
+ *   authorName     0-32 characters - the creator name a shared level came with (v15.3), or ''
  *   createdAt      ISO 8601 date strings
  *   updatedAt
  *   size           { w, h } in 40 px tiles: w 5-61, h 5-45
@@ -601,6 +601,8 @@ const EchoLevelFormat = (() => {
     cleanTitle: (s) => text(s, LIMITS.title, DEFAULT_TITLE),
     cleanNote: (s) => shownText(s, LIMITS.noteText),
     cleanCard: (s) => shownText(s, LIMITS.titleCard),
+    /** (v15.3) Any shown words from outside (a shared code's title, creator name, folder name): plain, visible text, no < or >. */
+    cleanShown: (s, max) => shownText(s, max),
     validId: (id) => typeof id === 'string' && ID_RE.test(id),
   };
 })();

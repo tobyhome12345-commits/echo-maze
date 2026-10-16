@@ -17,6 +17,12 @@
  * read-only `bonus` source, js/bonus-levels.js). Listed in their own order with their difficulty, a picture and a
  * tick once finished; Play, and Copy to My Levels (an editable copy with a new id, in Unsorted). Nothing here edits,
  * renames or deletes them: there are no such buttons, and the store refuses anyway.
+ *
+ * SHARING (v15.3): Share on a playable level, Share folder on a folder - a code (js/sharecode.js) in a box with
+ * Copy, and how long it is - and Enter code, which reads a pasted code, shows what it holds (and whether you already
+ * have any of it) and saves nothing until Import (the store's importShared: one level to Unsorted, a folder as a new
+ * folder, all or nothing). Bonus levels have no Share: a copy of one does. A shared level carries its creator name:
+ * the one it came with, or else the player's own (env.creator(), set in the editor's Level settings).
  */
 const EchoMyLevels = (() => {
   function create(env) {
@@ -117,6 +123,154 @@ const EchoMyLevels = (() => {
       if (r.id !== 'move') return;
       if (!env.store.moveLevel(it.id, r.value || null)) tell("Couldn't move it", 'This browser would not let the game change what it has stored.');
       render();
+    }
+
+    // ---------------------------------------------------------------- sharing (v15.3)
+    const count = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
+    const fmt = (n) => n.toLocaleString('en-GB');
+    /** What a code holds, in words: the level(s), the title(s) and the creator name - nothing else. */
+    function holds(authors, many) {
+      const names = [...new Set(authors.filter(Boolean))];
+      const what = many ? 'the levels and their titles' : 'the level and its title';
+      if (!names.length) return `The code holds ${what} - nothing else. (You can add a creator name in the editor's Level settings.)`;
+      return `The code holds ${what} and the creator name${names.length > 1 ? 's' : ''} ${names.map((n) => `"${n}"`).join(', ')} - nothing else.`;
+    }
+    /** Copy the code: the clipboard if the browser allows it, else select it so the player can copy it themselves. */
+    async function copyCode(code, api) {
+      let ok = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+          ok = true;
+        }
+      } catch (e) {
+        ok = false;
+      }
+      const box = api.box;
+      try {
+        box.focus({ preventScroll: true });
+        box.select();
+        box.setSelectionRange(0, box.value.length);
+        if (!ok && document.execCommand) ok = document.execCommand('copy');
+      } catch (e) {
+        /* selected (or not) - the words below say what to do */
+      }
+      api.status(ok ? 'Copied. Paste it wherever you like.' : 'This browser would not let the game copy it, so the code is selected: press Ctrl+C (Cmd+C on a Mac) to copy it. On a phone, press and hold it and choose Copy.');
+      return ok;
+    }
+    function showCode(title, code, lines) {
+      return env.dialog.open({
+        title,
+        text: lines.filter(Boolean).concat(`${fmt(code.length)} characters.`).join('\n\n'),
+        area: { value: code, readonly: true, label: 'Share code' },
+        buttons: [{ id: 'copy', label: 'Copy', primary: true, stay: true, act: (api) => copyCode(code, api) }, { id: 'done', label: 'Done' }],
+        cancel: 'done',
+      });
+    }
+    /** A level as it goes into a code: its own creator name if it came with one, else the player's. */
+    function forSharing(doc) {
+      const d = EchoLevelFormat.copy(doc);
+      d.authorName = d.authorName || env.creator();
+      return d;
+    }
+    async function share(it) {
+      const got = fetch(it);
+      if (!got) return;
+      if (got.foreign) return tell("Can't share it", 'This level was made in a newer version of Echo Maze, and this version would leave out the parts it does not understand.');
+      const doc = forSharing(got.doc);
+      const res = await env.share.encodeLevel(doc);
+      if (!res.ok) return tell("Couldn't share it", res.error);
+      return showCode(`Share "${doc.title}"`, res.code, ['Anyone who pastes this code into their Echo Maze (My Levels, Enter code) gets their own copy of this level.', holds([doc.authorName], false)]);
+    }
+    async function shareFolder(f, items) {
+      const ok = [];
+      const skipped = [];
+      for (const it of items.slice().sort((a, b) => byName(a.title, b.title) || (a.id < b.id ? -1 : 1))) {
+        if (it.damaged) skipped.push(`"${it.title}" - it could not be read`);
+        else if (it.foreign) skipped.push(`"${it.title}" - made in a newer version`);
+        else if (!it.playable) skipped.push(`"${it.title}" - unfinished: ${it.problem}`);
+        else ok.push(it);
+      }
+      const skippedText = skipped.length ? `Not included (only levels that can be played are shared):\n${skipped.map((x) => `• ${x}`).join('\n')}` : '';
+      if (!ok.length) return tell('Nothing to share yet', [`None of the levels in "${f.name}" can be played yet, so there is nothing to share.`, skippedText].filter(Boolean).join('\n\n'));
+      const tooBig = (why) => tell('This folder is too big to share', `${why} Share it in smaller folders: make a new folder and move some of the levels into it.`);
+      if (ok.length > env.share.LIMITS.folderLevels) return tooBig(`A folder code can hold up to ${env.share.LIMITS.folderLevels} levels, and "${f.name}" has ${ok.length} that can be played.`);
+      const docs = [];
+      for (const it of ok) {
+        const got = env.store.get(it.id);
+        if (!got || !got.doc) return tell("Couldn't share it", `"${it.title}" could not be read.`);
+        docs.push(forSharing(got.doc));
+      }
+      // (in a fixed order - by title, then by content - so the same folder always makes the same code)
+      docs.sort((a, b) => byName(a.title, b.title) || (env.share.contentKey(a) < env.share.contentKey(b) ? -1 : 1));
+      const res = await env.share.encodeFolder(f.name, docs);
+      if (!res.ok) return res.code === 'tooLong' ? tooBig(`This folder's code ${res.error.charAt(0).toLowerCase()}${res.error.slice(1)}`) : tell("Couldn't share it", res.error);
+      return showCode(`Share the folder "${f.name}"`, res.code, [
+        `Anyone who pastes this code into their Echo Maze (My Levels, Enter code) gets a new folder "${f.name}" with ${count(docs.length, 'level')}: ${docs.map((d) => `"${d.title}"`).join(', ')}.`,
+        holds(docs.map((d) => d.authorName), true),
+        skippedText,
+      ]);
+    }
+
+    /** One line about a level from a code (the preview). Every word in it was cleaned when the code was read. */
+    function describe(doc) {
+      const n = doc.enemies.length;
+      return `${doc.size.w} × ${doc.size.h} · ${n ? count(n, 'monster') : 'no monsters'} · ${count(doc.exits.length, 'exit')} · ${EchoLevelFormat.ratingLabel(doc.difficulty.rating)}`;
+    }
+    /** Enter code: paste, read, look at what it holds, then Import or Cancel. Nothing is saved before Import. */
+    async function enterCode(prefill) {
+      const r = await env.dialog.open({
+        title: 'Enter a code',
+        text: 'Paste a level code someone shared with you. You will see what it holds before anything is saved.',
+        area: { value: prefill || '', placeholder: 'ECHO1...', label: 'Level code' },
+        buttons: [{ id: 'read', label: 'Preview', primary: true }, { id: 'cancel', label: 'Cancel' }],
+        cancel: 'cancel',
+      });
+      if (r.id !== 'read') return null;
+      const res = await env.share.decode(r.value || '');
+      if (!res.ok) {
+        const again = await env.dialog.open({ title: "Couldn't read that code", text: res.error, buttons: [{ id: 'again', label: 'Try again', primary: true }, { id: 'close', label: 'Close' }], cancel: 'close' });
+        if (again.id === 'again') return enterCode(r.value);
+        return null;
+      }
+      return preview(res);
+    }
+    async function preview(res) {
+      // already have any of it? (the same content - walls, things, settings - whatever its title)
+      const mine = new Map();
+      for (const it of env.store.list()) {
+        if (it.damaged) continue;
+        const got = env.store.get(it.id);
+        if (got && got.doc) mine.set(env.share.contentKey(got.doc), got.doc.title);
+      }
+      const dups = res.levels.filter((d) => mine.has(env.share.contentKey(d))).map((d) => (mine.get(env.share.contentKey(d)) === d.title ? `"${d.title}"` : `"${d.title}" (yours is called "${mine.get(env.share.contentKey(d))}")`));
+      const lines = [];
+      let title;
+      if (res.kind === 'folder') {
+        const name = env.store.freeFolderName(res.folderName);
+        title = `A folder: "${res.folderName}"`;
+        lines.push(`${count(res.levels.length, 'level')}:\n${res.levels.map((d) => `• "${d.title}"${d.authorName ? ` by ${d.authorName}` : ''} - ${describe(d)}`).join('\n')}`);
+        lines.push(name === res.folderName ? `They will go into a new folder, "${name}".` : `You already have a folder called "${res.folderName}", so they will go into a new one, "${name}".`);
+      } else {
+        const d = res.levels[0];
+        title = `A level: "${d.title}"`;
+        lines.push([d.authorName ? `By ${d.authorName}` : 'No creator name', describe(d)].join('\n'));
+        lines.push('It will go into My Levels, in Unsorted.');
+      }
+      if (dups.length) lines.push(`You already have ${dups.length === res.levels.length && dups.length === 1 ? 'this level' : `${dups.length === 1 ? 'one of these levels' : `${dups.length} of these levels`}`}: ${dups.join(', ')}. Import ${res.levels.length === 1 ? 'it' : 'them'} anyway?`);
+      lines.push('Nothing in it counts towards your progress, medals or stats.');
+      const r = await env.dialog.open({ title, text: lines.join('\n\n'), buttons: [{ id: 'import', label: dups.length ? 'Import anyway' : 'Import', primary: true }, { id: 'cancel', label: 'Cancel' }], cancel: 'cancel' });
+      if (r.id !== 'import') return { imported: false };
+      const done = env.store.importShared(res);
+      if (!done.ok) {
+        tell("Couldn't import it", done.error);
+        return { imported: false, error: done.error };
+      }
+      setView('mine', true);
+      open = done.folder ? done.folder.id : 'unsorted';
+      render();
+      tell('Imported', done.folder ? `The folder "${done.folder.name}" is in My Levels, with ${count(done.ids.length, 'level')} in it.` : `"${res.levels[0].title}" is in My Levels, in Unsorted.`);
+      return { imported: true, ids: done.ids, folder: done.folder };
     }
 
     // ---------------------------------------------------------------- bonus levels (v15.2)
@@ -347,7 +501,7 @@ const EchoMyLevels = (() => {
       const where = folderName ? ` · in ${folderName}` : '';
       if (it.damaged) meta.textContent = `${it.problem} It can only be deleted.`;
       else if (it.foreign) meta.textContent = `Made in a newer version of Echo Maze: it can be played here, but not edited.${where}`;
-      else if (it.playable) meta.textContent = `${it.size.w} × ${it.size.h} · ${it.monsters} monster${it.monsters === 1 ? '' : 's'}${it.exits > 1 ? ` · ${it.exits} exits` : ''} · saved ${when(it.updatedAt)}${where}`;
+      else if (it.playable) meta.textContent = `${it.author ? `by ${it.author} · ` : ''}${it.size.w} × ${it.size.h} · ${it.monsters} monster${it.monsters === 1 ? '' : 's'}${it.exits > 1 ? ` · ${it.exits} exits` : ''} · saved ${when(it.updatedAt)}${where}`;
       else meta.textContent = `${it.problem} Edit it to finish it.${where}`;
       info.append(head, meta);
       const acts = document.createElement('div');
@@ -373,6 +527,7 @@ const EchoMyLevels = (() => {
         button('Play', play, { primary: true, disabled: !it.playable, why: it.damaged ? 'It could not be read.' : 'Unfinished: edit it to finish it.' }),
         button('Edit', edit, { disabled: it.damaged || it.foreign, why: it.foreign ? 'Made in a newer version.' : 'It could not be read.' }),
         button('Duplicate', duplicate, { disabled: it.damaged, why: 'It could not be read.' }),
+        button('Share', share, { disabled: !it.playable || it.foreign, why: it.damaged ? 'It could not be read.' : it.foreign ? 'Made in a newer version.' : 'Unfinished: only a level that can be played can be shared.' }),
         button('Move', move),
         button('Rename', rename, { disabled: it.damaged, why: 'It could not be read.' }),
         button('Delete', remove)
@@ -445,6 +600,7 @@ const EchoMyLevels = (() => {
         el.folderBar.append(
           label,
           mk('Play in order', () => playFolder(current, shown), 'primary', !shown.some((it) => it.playable)),
+          mk('Share folder', () => shareFolder(current, shown), 'quiet', !shown.length),
           mk('Rename folder', () => renameFolder(current)),
           mk('Delete folder', () => deleteFolder(current))
         );
@@ -458,7 +614,7 @@ const EchoMyLevels = (() => {
         el.list.appendChild(p);
       }
       for (const it of shown) el.list.appendChild(row(it, open === 'all' && it.folder ? nameOf.get(it.folder) : ''));
-      el.note.textContent = 'Your levels are kept in this browser, and only you can see them. Each one plays at the difficulty set in its own Level settings, whatever difficulty is picked on the title screen. Nothing you do in them counts towards your progress, medals or stats.';
+      el.note.textContent = 'Your levels are kept in this browser. Nobody else sees them unless you share a code (Share) - and Enter code imports one someone shared with you. Each one plays at the difficulty set in its own Level settings, whatever difficulty is picked on the title screen. Nothing you do in them counts towards your progress, medals or stats.';
       return shown.length;
     }
 
@@ -468,6 +624,10 @@ const EchoMyLevels = (() => {
       render();
     });
     el.newFolder.addEventListener('click', newFolder);
+    el.enterCode.addEventListener('click', () => {
+      env.click();
+      enterCode();
+    });
     el.tabMine.addEventListener('click', () => {
       if (view !== 'mine') env.click();
       setView('mine');
@@ -491,6 +651,14 @@ const EchoMyLevels = (() => {
       /** (v15.2) 'mine' or 'bonus': which tab is showing. */
       view: () => view,
       setView: (v, quiet) => setView(v, quiet),
+      /** (v15.3) the sharing screens, for tests: each returns when its dialogs are done */
+      share: (id) => share({ id }),
+      shareFolder: (folderId) => {
+        const items = env.store.list().filter((it) => it.folder === folderId);
+        const f = env.store.listFolders().find((x) => x.id === folderId);
+        return f ? shareFolder(f, items) : null;
+      },
+      enterCode: (text) => enterCode(text),
     };
   }
 

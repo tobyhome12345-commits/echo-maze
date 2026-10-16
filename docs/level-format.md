@@ -49,7 +49,7 @@ depends on the editor: any source (the editor today; sharing or importing later)
 | `schemaVersion` | integer | `2`. Missing or below 1 is read as 1. A version 1 level is upgraded as it is read (see "Versions"). Higher than this version knows: read with what is understood, and the level is *foreign* (see below). |
 | `id` | string | 1-64 characters of `A-Z a-z 0-9 _ -`. Unique within a source. Not valid: a new id is made. In local storage the key it is filed under is its id. |
 | `title` | string | 1-48 characters after tidying (control characters become spaces, runs of spaces become one, trimmed). Empty: `"Untitled level"`. |
-| `authorName` | string | 0-32 characters, same tidying. Always `""` in this version (levels are private); kept for sharing later. |
+| `authorName` | string | 0-32 characters, same tidying. The **creator name** a shared level came with (v15.3, see "Share codes"); `""` for the player's own levels and the bonus levels. |
 | `createdAt`, `updatedAt` | string | ISO 8601 dates (numbers in milliseconds are accepted when reading). Invalid: the time it was read. A save stamps `updatedAt`. |
 | `size` | `{ w, h }` | Tiles of 40 px. `w` 5-61, `h` 5-45; out of range is clamped. Missing: worked out from `walls`. |
 | `walls` | string[] | Exactly `h` rows of exactly `w` characters: `#` is a wall, `.` is floor. Anything else, a missing row or a short row is read as floor. Outside the grid counts as wall in the game. |
@@ -194,3 +194,108 @@ characters, tidied like a title; at most 50 folders. It is read as untrusted too
 filed in a folder that is not there is Unsorted, and a level that is not there is forgotten on the next write. The
 store's calls: `listFolders()`, `createFolder(name)`, `renameFolder(id, name)`, `deleteFolder(id, { withLevels })` (by
 default its levels go back to Unsorted), `moveLevel(levelId, folderId | null)`, `folderOf(levelId)`.
+
+## Share codes (format version 1, v15.3)
+
+A level - or a folder of levels - can be turned into a **share code**: one line of letters and digits that holds the
+level itself, so it needs no server, no account and no network. `js/sharecode.js` (`EchoShare`) makes and reads
+them; it has no UI. My Levels uses it (Share, Share folder, Enter code) and the store keeps what it reads
+(`EchoLevelStore.importShared`).
+
+```
+ECHO1L 0rTz...9xQ 4kP2aB       one level
+ECHO1F 0A2j...nFKd 7wDXJz      a folder
+^^^^^^ ^^^^^^^^^^ ^^^^^^
+header payload    check        (written with no spaces: "ECHO1L0rTz...9xQ4kP2aB")
+```
+
+- **Header**: `ECHO`, the **format version** as a number (`1`), and what it holds: `L` one level, `F` a folder.
+  Reading: `ECHO` in any case; a version this game has no reader for and that is newer than 1 is refused with
+  "This code was made in a newer version of Echo Maze."
+- **Payload**: one byte saying how the rest is compressed - `0` stored, `1` raw deflate (RFC 1951) - then the packed
+  data (below). Written in **base 62** (`0-9 A-Z a-z`), every 8 bytes as 11 characters (a last group of 1-7 bytes as
+  2, 3, 5, 6, 7, 9 or 10). Only letters and digits: nothing a chat app turns into bold, a link or a line break, and
+  a double-click selects the whole code.
+- **Check**: 6 base-62 characters, the CRC-32 (the standard one) of the header and the payload bytes. Any mistyped,
+  missing or extra character is caught here: "This code looks incomplete or damaged."
+- **Compression**: the browser's own (`CompressionStream('deflate-raw')`), used only when it makes the payload
+  shorter - for one level the packing below is already so tight that a level is usually stored, while folders and
+  big levels are deflated. Without it, codes are made stored. A deflate code is read with `DecompressionStream`, or,
+  where the browser has none, with the game's own small inflate - so every code can be read everywhere.
+- **The same level always makes the same code** - the code holds no id, date or anything else that changes. (A
+  different browser's deflate may write a different but equivalent code for a deflated one; both read back to the
+  same level.)
+
+### What is packed
+
+Numbers are unsigned LEB128 ("varint"); text is UTF-8 with its byte length first; a **word** is a varint into a
+fixed list (1 = the first) or `0` followed by the word as text. The lists are frozen for format 1 and only ever
+added to at the end: a number past the end of a list means the code is from a newer version.
+
+| Lists (format 1) | |
+| --- | --- |
+| monster | echo, scent, mimic, stalker, muffler, singer, warden |
+| variant | - (none), regular, upgraded |
+| object | puddle, decoy, key, note |
+| style / effect / shape | note, recording / light, glow / rect, circle |
+| colour / intensity | warm, cold, pale, red, crimson, ember / dim, medium, bright |
+| palette / rating | - (the player's own), default, protan, tritan, contrast / easy, normal, hard, hardcore, custom |
+
+**A level**: schema version (2) · title · creator name (`authorName`, '' for none) · width · height · the walls, one
+bit a tile, row by row (`ceil(w x h / 8)` bytes) · start (0 = none, else 1 + tile number `y x w + x`) · exits: count,
+then `tile x 2 + locked` each · monsters: count, then monster word, variant word, tile · objects: count, then object
+word, tile (a note: its text and style word) · effects: count, then kind, shape, x, y, w, h, colour, intensity ·
+title card · palette word · rating word (Custom: monster speed, ripple range, hearing, each x 100).
+**A folder**: its name · the number of levels · each level as above, its byte length first.
+
+**Nothing else is in a code**: no id, no dates, no folder of the player's, no save data, no progress, medals, stats or
+fragments, nothing about the browser. The only words in it are the titles, the title cards, the notes, the folder
+name and the creator names.
+
+### Limits (`EchoShare.LIMITS`)
+
+| | |
+| --- | --- |
+| a code (once cleaned) | at most 32,000 characters - made or read |
+| levels in a folder code | 1 to 20 |
+| what a code may unpack to | 256 KB (a folder of 20 large levels is well under 100 KB): a small code that would unpack to more is refused before it is finished |
+| a folder name | 32 characters |
+| everything in a level | the level format's own limits (above): sizes 5-61 x 5-45, 8 exits, 40 monsters, 60 objects (8 notes of 140 characters), 12 effects, a 48-character title, a 32-character creator name, an 80-character card |
+
+Every count and size is checked **before** anything is made from it (a 9999 x 9999 level is refused at its size).
+
+### Reading a code (untrusted, always)
+
+1. **Cleaning what was pasted**: spaces, tabs, line breaks, zero-width and other invisible characters are dropped;
+   reading starts at `ECHO` + a digit (so a sentence or quotes around it do not matter) and keeps only letters and
+   digits after it.
+2. Too long, no `ECHO`, a newer version, a bad check, a payload that is not whole: refused, with a sentence.
+3. Unpacked with every limit above; then each level's title and creator name lose `<`, `>` and the invisible
+   direction / zero-width characters, and the level goes through `EchoLevelFormat.normalise` (which cleans notes
+   and the card the same way) and `EchoLevelCheck`. A level with a kind or field this version does not know is from
+   a newer version (refused); **a level that cannot be played is refused - and a folder with one such level is
+   refused whole** ("Level 2 in this code ... can't be played ... Nothing was imported").
+4. Nothing is saved by reading. Text from a code is only ever put on screen as plain text.
+
+`decode(text)` never throws: `{ ok: true, kind, folderName, levels }` or `{ ok: false, code, error }`.
+
+### Importing
+
+`EchoLevelStore.importShared(result)`, through the store's ordinary calls: each level saved as a **new level** (a new
+id, new dates, its creator name kept); one level goes to **Unsorted**; a folder becomes a **new folder** with its
+name - or "Name (2)", "Name (3)" if that name is taken (never merged). **All or nothing**: if any save fails, what was
+saved is taken back. Before it, My Levels shows what the code holds and warns when the player already has a level
+with the same content (`EchoShare.contentKey`: everything but the title, creator name, id and dates).
+
+The **creator name** (`authorName`) of an imported level is shown with it ("by Sam") and goes back into the code
+when it is shared again - until its content is changed in the editor, when it becomes the player's own and is
+shared with the player's creator name (set once, in the editor's Level settings; empty by default).
+
+### Adding to it later
+
+- **Short online codes**: give them their own format version (e.g. `ECHO2`) and register a reader for it:
+  `EchoShare.register({ id, versions: [2], resolve(code, version, kindLetter, header) })` -> a Promise of
+  `{ kind, folderName, levels }` (plain levels; `decode` cleans and checks them as above). Version 1 codes are read
+  offline, by this file, for good.
+- **A new monster, object, effect, colour or palette**: add it to the END of its list in `WORDS` (`js/sharecode.js`).
+- **A new level field** that should travel in codes: a new format version.
