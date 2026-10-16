@@ -212,9 +212,13 @@
 
   <section id="mylevels" class="overlay hidden">
     <div class="panel">
-      <h2>My Levels</h2>
-      <p class="mode-desc">Levels you have made. Play them, change them, or make a new one.</p>
-      <div class="lv-bar">
+      <div class="lv-tabs" role="tablist" aria-label="Levels">
+        <button id="lv-tab-mine" type="button" role="tab" class="on" aria-selected="true">My Levels</button>
+        <button id="lv-tab-bonus" type="button" role="tab" aria-selected="false">Bonus Levels <small id="lv-bonus-count"></small></button>
+      </div>
+      <h2 id="mylevels-head">My Levels</h2>
+      <p id="mylevels-desc" class="mode-desc">Levels you have made. Play them, change them, or make a new one.</p>
+      <div id="mylevels-bar" class="lv-bar">
         <div id="mylevels-folders" class="lv-chips" role="group" aria-label="Folders"></div>
         <label class="lv-sort"><span>Sort</span><select id="mylevels-sort"><option value="recent">Recently edited</option><option value="name">Name</option></select></label>
       </div>
@@ -222,8 +226,8 @@
       <div id="mylevels-list" class="lv-list"></div>
       <p id="mylevels-note" class="fine"></p>
       <div class="buttons dock">
-        <button id="btn-mylevels-new" class="primary">New level</button>
-        <button id="btn-mylevels-folder">New folder</button>
+        <button id="btn-mylevels-new" class="primary mine-only">New level</button>
+        <button id="btn-mylevels-folder" class="mine-only">New folder</button>
         <button id="btn-mylevels-back">Back <span class="key">Esc</span></button>
       </div>
     </div>
@@ -493,6 +497,7 @@
   <script src="js/settings.js"></script>
   <script src="js/levelformat.js"></script>
   <script src="js/levelcheck.js"></script>
+  <script src="js/bonus-levels.js"></script>
   <script src="js/levelstore.js"></script>
   <script src="js/dialog.js"></script>
   <script src="js/effects.js"></script>

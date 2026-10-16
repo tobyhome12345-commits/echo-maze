@@ -344,7 +344,7 @@
   let storyDone = false; // the level's way out has been walked through and its last beat played
   let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
   // ---- the level editor and custom levels (v15.0)
-  let customRun = null; // { doc, from: 'editor' | 'mylevels', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
+  let customRun = null; // { doc, from: 'editor' | 'mylevels' | 'bonus', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
   let editorScreen = null; // 'gate' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
   // ---- custom levels, v15.1
   let fxZones = []; // the level's light / glow zones, ready to draw (js/effects.js)
@@ -3109,7 +3109,12 @@
     if (n === CUSTOM_LEVEL && customRun) {
       // a custom level (v15.0): its own title, and a reminder that nothing in it is kept
       $('banner-title').textContent = customRun.from === 'editor' ? 'Test play' : customTitle();
-      $('banner-text').textContent = customRun.from === 'editor' ? 'Nothing you do here is saved. Esc to pause and go back to the editor.' : 'Made in the level editor. Nothing here counts towards your progress, medals or stats.';
+      $('banner-text').textContent =
+        customRun.from === 'editor'
+          ? 'Nothing you do here is saved. Esc to pause and go back to the editor.'
+          : customRun.from === 'bonus'
+            ? 'A bonus level. Nothing here counts towards your progress, medals or stats.'
+            : 'Made in the level editor. Nothing here counts towards your progress, medals or stats.';
       el.classList.add('show');
       clearTimeout(bannerTimer);
       bannerTimer = setTimeout(() => el.classList.remove('show'), 4500);
@@ -3253,7 +3258,7 @@
     clearTimeout(bannerTimer);
     $('banner').classList.remove('show');
     const q = customRun && customRun.queue;
-    $('card-kicker').textContent = customRun && customRun.from === 'editor' ? 'Test play' : q ? `${q.name} · ${q.index + 1} of ${q.ids.length}` : 'My Levels';
+    $('card-kicker').textContent = customRun && customRun.from === 'editor' ? 'Test play' : customRun && customRun.from === 'bonus' ? 'Bonus level' : q ? `${q.name} · ${q.index + 1} of ${q.ids.length}` : 'My Levels';
     $('card-title').textContent = c.title;
     $('card-line').textContent = c.card || '';
     $('card-line').classList.toggle('hidden', !c.card);
@@ -3639,6 +3644,12 @@
       // (v15.1) a folder being played in order: where you are in it, and whether that was the last
       const q = customRun.queue;
       $('complete-note').textContent = q ? (queueAfter() ? `${q.name}: ${q.index + 1} of ${q.ids.length} done.` : `That was the last level in ${q.name}.`) : COMPLETE_NOTE;
+      // (v15.2) a bonus level: ticked in Bonus Levels - its own small save, never the campaign's
+      if (customRun.from === 'bonus') {
+        const first = !EchoLevelStore.bonus.isDone(customRun.doc.id);
+        const ticked = EchoLevelStore.bonus.markDone(customRun.doc.id);
+        $('complete-note').textContent = first && ticked ? `Ticked off in Bonus Levels. ${COMPLETE_NOTE}` : COMPLETE_NOTE;
+      }
       $('complete-stats').textContent = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
       $('custom-back-label').textContent = customBackLabel();
       completeButtons(true);
@@ -4047,7 +4058,7 @@
   const anyModeFinished = () => MODE_ORDER.some((m) => isFinished(getBest(m)));
   const editorUnlocked = () => store.get(EDITOR_KEY) === '1' || anyModeFinished();
   const customTitle = () => (customRun && customRun.doc ? customRun.doc.title : 'Custom level');
-  const customBackLabel = () => (customRun && customRun.from === 'editor' ? 'Back to the editor' : 'Back to My Levels');
+  const customBackLabel = () => (customRun && customRun.from === 'editor' ? 'Back to the editor' : customRun && customRun.from === 'bonus' ? 'Back to Bonus Levels' : 'Back to My Levels');
 
   /**
    * (v15.1) Where a NEW level is filed when it is first saved: the folder My Levels had open when New level was
@@ -4065,11 +4076,28 @@
   };
 
   const myLevels = EchoMyLevels.create({
-    el: { list: $('mylevels-list'), note: $('mylevels-note'), folders: $('mylevels-folders'), sort: $('mylevels-sort'), folderBar: $('mylevels-folderbar'), newFolder: $('btn-mylevels-folder') },
+    el: {
+      list: $('mylevels-list'),
+      note: $('mylevels-note'),
+      folders: $('mylevels-folders'),
+      sort: $('mylevels-sort'),
+      folderBar: $('mylevels-folderbar'),
+      newFolder: $('btn-mylevels-folder'),
+      // (v15.2) the two tabs: My Levels and Bonus Levels
+      screen: $('mylevels'),
+      tabMine: $('lv-tab-mine'),
+      tabBonus: $('lv-tab-bonus'),
+      bonusCount: $('lv-bonus-count'),
+      head: $('mylevels-head'),
+      desc: $('mylevels-desc'),
+    },
     store: EchoLevelStore,
+    bonus: EchoLevelStore.bonus,
     dialog: EchoDialog,
     click: () => audio.uiClick(),
     play: (doc) => playCustom(doc, 'mylevels'),
+    playBonus: (doc) => playCustom(doc, 'bonus'),
+    copyBonus: (id) => EchoLevelStore.copyToMine('bonus', id),
     playQueue: (queue) => playQueue(queue),
     edit: (doc, folder) => openEditor(doc, folder),
   });
@@ -4127,6 +4155,7 @@
     if (state !== 'title') return;
     audio.init();
     audio.uiClick();
+    myLevels.setView('mine', true); // (v15.2: from the title it always opens on My Levels; out of a bonus level, back to Bonus Levels)
     if (!editorUnlocked()) showGate();
     else if (touchOn) showTouchGate();
     else showMyLevels();
@@ -4163,11 +4192,13 @@
   }
   /** Edit a level (a doc from the store), or start a new one (null) - filed in `folder` when it is first saved. */
   function openEditor(doc, folder) {
+    if (doc && EchoLevelStore.readOnly(doc.id)) return false; // (v15.2: a bonus level is copied first - see My Levels)
     state = 'editor';
     editorScreen = 'editor';
     newLevelFolder = doc ? null : folder || null;
     showOverlay('editor'); // (first: the editor measures its stage to lay the map out)
     editor.open(doc ? EchoLevelFormat.copy(doc) : null);
+    return true;
   }
   function closeEditorScreens() {
     audio.uiClick();
@@ -4195,7 +4226,7 @@
     return null;
   }
   function startCustom(doc, from, queue) {
-    customRun = { doc, from: from === 'editor' ? 'editor' : 'mylevels', queue: queue || null };
+    customRun = { doc, from: from === 'editor' || from === 'bonus' ? from : 'mylevels', queue: queue || null };
     startLevel(CUSTOM_LEVEL);
   }
 
@@ -5005,6 +5036,7 @@
       editor,
       myLevels,
       levelStore: EchoLevelStore,
+      bonus: EchoLevelStore.bonus, // v15.2: the bonus levels (read-only) and their ticks
       levelFormat: EchoLevelFormat,
       levelCheck: EchoLevelCheck,
       dialog: EchoDialog,
@@ -5142,7 +5174,7 @@
         story: { first: STORY_FIRST, last: STORY_LAST, walkSpeed: WALK_SPEED, wardenSpeed: WARDEN_SPEED, wardenUpgradedSpeed: WARDEN_UPGRADED_SPEED, at: level && level.story ? story.state() : null },
         lore: { total: EchoLore.TOTAL, found: EchoLore.count(), chance: EchoLore.CHANCE[mode], bonus: EchoLore.bonusUnlocked(), here: level && level.fragment ? level.fragment.id : null },
         // the level editor (v15.0): open to this player? (accepted the warning, or finished a mode), and what is up
-        editor: { unlocked: editorUnlocked(), accepted: store.get(EDITOR_KEY) === '1', anyModeFinished: anyModeFinished(), screen: editorScreen, custom: customRun ? customRun.from : null, curveLevel: CUSTOM_CURVE_LEVEL, levels: EchoLevelStore.list().length },
+        editor: { unlocked: editorUnlocked(), accepted: store.get(EDITOR_KEY) === '1', anyModeFinished: anyModeFinished(), screen: editorScreen, custom: customRun ? customRun.from : null, curveLevel: CUSTOM_CURVE_LEVEL, levels: EchoLevelStore.list().length, bonus: EchoLevelStore.bonus.list().length, bonusDone: EchoLevelStore.bonus.doneIds().length, view: myLevels.view() },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to
         tutorial: { level: TUTORIAL_LEVEL, done: tutorialDone, after: tutorialAfter, newPlayer: newPlayer(), steps: tutorial.stepIds(), at: inTutorial() ? tutorial.state() : null },
         palette: EchoPalette.id,

@@ -15,7 +15,8 @@
     * test-save.js       - generated: marks every level of every mode cleared, every cutscene seen and every lore
                            fragment found (the ids are read from js\lore.js), unlocks the level editor and adds the
                            sample levels in tools\sample-levels.json to My Levels, and the folders in
-                           tools\sample-folders.json (once)
+                           tools\sample-folders.json (once); and (v15.2) ticks the first two bonus levels as done
+                           (once), so the Bonus Levels tab shows what a tick looks like
     * READ ME - test copy.txt - generated
   Everything else (style.css, README.md, the game code) is copied unchanged. The script checks all of this
   when it is done and stops with an error if anything did not come out as expected.
@@ -102,6 +103,18 @@ $folderNames = (@($folderData.folders) | ForEach-Object { $_.name }) -join ', '
 $foldersJs = ($foldersText -replace "`r`n", "`n") -replace "`n", "`n        "
 $oldFormat = @($samples | Where-Object { $_.schemaVersion -eq 1 }).Count
 
+# v15.2: the bonus levels (js\bonus-levels.js, data only) - the first two already ticked as done, in their own key
+# (js\levelstore.js BONUS_KEY), apart from every campaign save and from My Levels
+if ((Get-Text $storeJs) -notmatch "const BONUS_KEY = 'echomaze\.test\.bonus';") { Fail "js\levelstore.js no longer keeps the bonus levels' ticks under 'echomaze.bonus' - update test-save.js's ticks" }
+$bonusJs = Join-Path $Source 'js\bonus-levels.js'
+if (-not (Test-Path $bonusJs)) { Fail "$leaf has no js\bonus-levels.js - the Bonus Levels need it" }
+$bonusIds = @([regex]::Matches((Get-Text $bonusJs), '"id": "([A-Za-z0-9_-]{1,64})"') | ForEach-Object { $_.Groups[1].Value })
+$bonusTitles = @([regex]::Matches((Get-Text $bonusJs), '"title": "([^"]*)"') | ForEach-Object { $_.Groups[1].Value })
+if ($bonusIds.Count -lt 2 -or $bonusIds.Count -ne $bonusTitles.Count) { Fail "could not read the bonus levels' ids and titles from js\bonus-levels.js (found $($bonusIds.Count) ids, $($bonusTitles.Count) titles)" }
+$doneIds = $bonusIds[0..1]
+$doneTitles = ($bonusTitles[0..1]) -join ' and '
+$doneJs = '{ ' + (($doneIds | ForEach-Object { "'$_': now" }) -join ', ') + ' }'
+
 # ---- what "finished" means for THIS version of the game
 # (up to v13.0 CAMPAIGN_LEVELS was a number in game.js; from v14.0 it is STORY_LAST, the last of the hand-drawn
 #  levels 14-16, which lives in js/level.js)
@@ -159,6 +172,8 @@ $save = @"
  *     sample folders holding some of them (v15.1) - added once only, so a sample or folder you delete or
  *     change stays that way until the copy's storage is cleared. Some samples are kept in the older v15.0
  *     format on purpose, so the copy also shows them being read by this version.
+ *   - (v15.2) the first two Bonus Levels ticked as done ($doneTitles), once - in the ticks' own key,
+ *     never in the campaign's saves
  *
  * This copy uses its OWN save slot (keys start with "echomaze.test."), so it never
  * touches the save of your real game. It only ever raises progress, never lowers it,
@@ -193,6 +208,20 @@ $save = @"
       localStorage.setItem(P + 'samples', '1');
       localStorage.setItem(P + 'samples2', '1');
     }
+    // (v15.2) two bonus levels already done, so the Bonus Levels tab shows its ticks - once ('bonus2'), and only
+    // ever added to: a tick the tester earns or clears stays as it is
+    if (!localStorage.getItem(P + 'bonus2')) {
+      const now = new Date().toISOString();
+      let ticks = {};
+      try {
+        ticks = JSON.parse(localStorage.getItem(P + 'bonus')) || {};
+      } catch (e) {
+        ticks = {};
+      }
+      const done = Object.assign({}, ticks && typeof ticks.done === 'object' ? ticks.done : {}, $doneJs);
+      localStorage.setItem(P + 'bonus', JSON.stringify({ schemaVersion: 1, done }));
+      localStorage.setItem(P + 'bonus2', '1');
+    }
   } catch (e) {
     /* storage is blocked: this copy then just behaves like a fresh game */
   }
@@ -223,6 +252,8 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     them are saved in the older v15.0 format on purpose, to show they still load),
     and the folders $folderNames holding some of them.
     They are added only once: delete or change one and it stays that way.
+  * the Bonus Levels tab (beside My Levels) has $($bonusIds.Count) levels that come with the game,
+    and $doneTitles are already ticked as done (once only, like the samples)
 
 To play it: double-click index.html (or the shortcut "Play Echo Maze (test - finished)"
 next to this folder).
@@ -270,5 +301,6 @@ if ($problems) { Fail ($problems -join '; ') }
 "  lore fragments marked found: $($fragments.Count)"
 "  level editor unlocked, sample levels: $sampleTitles"
 "  sample folders: $folderNames"
+"  bonus levels: $($bonusTitles -join ', ') - ticked as done: $doneTitles"
 "  save-slot names changed: $slotCount"
 "  checks passed. Still open the copy once and look at it (see CLAUDE.md)."

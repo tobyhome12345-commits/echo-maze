@@ -26,11 +26,15 @@
  * A level that is deleted leaves its folder too; a folder entry for a level that is not there is ignored (and
  * tidied away on the next write). v15.0 had no folders: every level it made is simply in Unsorted.
  *
- * SOURCES. Today there is one, `local`: this browser's localStorage, the same storage every other save in the
- * game uses (`echomaze.*`), one key per level (LEVEL_PREFIX + its id) holding it as JSON in the saved format
- * (js/levelformat.js). A later update can add another source - levels from online, or imported ones - by making an
- * object with the same calls (plus `id`, `label` and `writable`) and handing it to register(). The calls at the
- * top level are the local source's; sources() lists them all.
+ * SOURCES. `local`: this browser's localStorage, the same storage every other save in the game uses
+ * (`echomaze.*`), one key per level (LEVEL_PREFIX + its id) holding it as JSON in the saved format
+ * (js/levelformat.js). Since v15.2 a second, READ-ONLY one, `bonus`: the levels that come with the game
+ * (js/bonus-levels.js) - list and get as above, save / delete / duplicate refuse (see readOnlySource), plus which
+ * of them the player has finished (BONUS_KEY). A later update can add another source - levels from online, or
+ * imported ones - by making an object with the same calls (plus `id`, `label` and `writable`) and handing it to
+ * register(). The calls at the top level are the local source's; sources() lists them all, source(id) finds one,
+ * copyToMine(sourceId, id) gives the player an editable copy of any level, and no level a read-only source holds
+ * can be saved into My Levels under that same id.
  *
  * Everything read is UNTRUSTED (anything could have written to this browser's storage, and later a source could
  * be anyone's): it is read through EchoLevelFormat.normalise (and the folder list through readFolders), a level that
@@ -279,6 +283,8 @@ const EchoLevelStore = (() => {
       const read = EchoLevelFormat.normalise(EchoLevelFormat.toStorable(doc));
       if (!read.doc) return { ok: false, error: read.error || 'This level could not be saved.' };
       const d = read.doc;
+      // (v15.2) never a level that comes with the game, under its own id: My Levels gets copies, with ids of their own
+      if (readOnly(d.id)) return { ok: false, error: 'This level comes with the game and cannot be changed. Copy it to My Levels to make your own version of it.' };
       d.updatedAt = new Date().toISOString();
       if (!d.createdAt || d.createdAt > d.updatedAt) d.createdAt = d.updatedAt;
       if (!ls.set(LEVEL_PREFIX + d.id, EchoLevelFormat.serialise(d))) {
@@ -314,6 +320,106 @@ const EchoLevelStore = (() => {
     },
   };
 
+  // ------------------------------------------------------------------ read-only sources (v15.2)
+  /**
+   * Levels that come WITH the game (today: the bonus levels, js/bonus-levels.js). The same calls as `local`, but
+   * read-only: save, delete and duplicate refuse with a sentence, and the editor is never given one of these to
+   * change (EchoLevelStore.copyToMine makes the player an editable copy instead). Each entry is kept as the JSON
+   * text it came as and read through EchoLevelFormat.normalise every time, exactly like a stored level - so nothing
+   * handed out can change the source, and an entry that is not a level (or has a bad or repeated id) is listed as
+   * damaged instead of stopping anything. The list keeps the entries' own order.
+   *
+   * `doneKey` (optional): which of them the player has finished, kept in this browser's localStorage under that
+   * one key - apart from the campaign's saves and from My Levels:
+   *   { schemaVersion: 1, done: { <level id>: <ISO date first finished> } }
+   * read as untrusted (an entry that is not a valid id with a real date is dropped; ids this version does not have
+   * are kept, for a later one).
+   * isDone(id), doneIds(), markDone(id) (writes only the first time; -> true when it is marked).
+   */
+  function readOnlySource(sourceId, label, entries, opts = {}) {
+    const refusal = opts.refusal || 'These levels come with the game and cannot be changed.';
+    const items = [];
+    const seen = new Set();
+    (Array.isArray(entries) ? entries : []).forEach((e, i) => {
+      let text = null;
+      try {
+        text = JSON.stringify(e);
+      } catch (err) {
+        text = null;
+      }
+      const raw = isObj(e) ? e.id : null;
+      const ok = EchoLevelFormat.validId(raw) && !UNSAFE.includes(raw) && !seen.has(raw);
+      const id = ok ? raw : `${sourceId}-entry-${i + 1}`;
+      if (ok) seen.add(raw);
+      items.push({ id, text, problem: ok ? '' : 'This level has no id of its own, so it cannot be played.' });
+    });
+    const find = (id) => items.find((it) => it.id === id) || null;
+    function read(it) {
+      if (it.problem) return { doc: null, error: it.problem };
+      const r = EchoLevelFormat.normalise(it.text);
+      if (r.doc) r.doc.id = it.id;
+      return r;
+    }
+
+    // which ones are done
+    function readDone() {
+      const done = Object.create(null);
+      if (!opts.doneKey) return done;
+      let src = null;
+      try {
+        const raw = ls.get(opts.doneKey);
+        if (raw && raw.length < 200000) src = JSON.parse(raw);
+      } catch (e) {
+        src = null;
+      }
+      if (!isObj(src) || !isObj(src.done)) return done;
+      for (const k of Object.keys(src.done)) {
+        if (UNSAFE.includes(k) || !EchoLevelFormat.validId(k)) continue;
+        const when = isoOr(src.done[k], null); // (a tick is an id with a real date: anything else is not one)
+        if (when) done[k] = when;
+      }
+      return done;
+    }
+
+    const source = {
+      id: sourceId,
+      label,
+      writable: false,
+      list() {
+        const done = readDone();
+        return items.map((it) => {
+          const s = summary(sourceId, it.id, read(it), null);
+          s.readOnly = true;
+          s.done = !!done[it.id];
+          return s;
+        });
+      },
+      get(id) {
+        const it = find(id);
+        if (!it) return null;
+        const r = read(it);
+        if (!r.doc) return { id, damaged: true, error: r.error, readOnly: true };
+        return { id, doc: r.doc, foreign: r.foreign, notes: r.notes, readOnly: true };
+      },
+      has: (id) => !!find(id),
+      save: () => ({ ok: false, error: refusal }),
+      delete: () => false,
+      duplicate: () => ({ ok: false, error: refusal }),
+      isDone: (id) => !!readDone()[id],
+      doneIds: () => Object.keys(readDone()).filter((id) => !!find(id)),
+      markDone(id) {
+        if (!opts.doneKey || !find(id)) return false;
+        const done = readDone();
+        if (done[id]) return true;
+        done[id] = new Date().toISOString();
+        const out = {};
+        for (const k of Object.keys(done)) out[k] = done[k];
+        return ls.set(opts.doneKey, JSON.stringify({ schemaVersion: 1, done: out }));
+      },
+    };
+    return source;
+  }
+
   const all = [local];
   /** A later source of levels: an object with id, label, writable, list, get, save and delete. */
   function register(source) {
@@ -322,15 +428,46 @@ const EchoLevelStore = (() => {
     all.push(source);
     return true;
   }
+  /** (v15.2) Does a read-only source hold a level with this id? (It is then never saved over in My Levels.) */
+  const readOnly = (id) => all.some((s) => !s.writable && typeof s.has === 'function' && s.has(id));
+
+  /**
+   * (v15.2) "Copy to My Levels": the player's own copy of a level from another source - a new id, saved with the
+   * local source, in Unsorted. It can then be changed freely; the original is untouched.
+   */
+  function copyToMine(sourceId, id) {
+    const src = all.find((s) => s.id === sourceId);
+    const got = src ? src.get(id) : null;
+    if (!got || !got.doc) return { ok: false, error: got && got.damaged ? 'This level could not be read, so it cannot be copied.' : 'That level is not there.' };
+    const d = EchoLevelFormat.copy(got.doc);
+    d.id = EchoLevelFormat.newId();
+    const now = new Date().toISOString();
+    d.createdAt = now;
+    d.updatedAt = now;
+    return local.save(d);
+  }
+
+  // the bonus levels (js/bonus-levels.js is data only; without it there are simply none)
+  const BONUS_KEY = 'echomaze.bonus';
+  const bonus = readOnlySource('bonus', 'Bonus Levels', typeof ECHO_BONUS_LEVELS !== 'undefined' ? ECHO_BONUS_LEVELS : [], {
+    doneKey: BONUS_KEY,
+    refusal: 'Bonus levels come with the game and cannot be changed. Copy one to My Levels to make your own version of it.',
+  });
+  register(bonus);
 
   return {
     LEVEL_PREFIX,
     FOLDERS_KEY,
     FOLDER_LIMITS,
+    BONUS_KEY,
     local,
+    bonus,
     sources: () => all.slice(),
     source: (id) => all.find((s) => s.id === id) || null,
     register,
+    readOnly,
+    readOnlySource,
+    copyToMine,
     list: () => local.list(),
     get: (id) => local.get(id),
     save: (doc) => local.save(doc),

@@ -3357,3 +3357,72 @@ body.touch button.ed-monster {
     display: none;
   }
 }
+
+/* -- Bonus Levels (v15.2): a second tab on the My Levels screen ----------- */
+.lv-tabs {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 auto 10px;
+}
+
+.lv-tabs button {
+  padding: 7px 16px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.lv-tabs button.on {
+  background: rgba(var(--ui-rgb), 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 18px rgba(var(--ui-rgb), 0.3), inset 0 0 0 1px rgba(var(--ui-rgb), 0.5);
+}
+
+.lv-tabs button small {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(var(--ui-rgb), 0.12);
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.lv-tabs button small:empty {
+  display: none;
+}
+
+#mylevels.bonus-view .lv-bar,
+#mylevels.bonus-view .lv-folderbar,
+#mylevels.bonus-view .mine-only {
+  display: none;
+}
+
+.lv-head .lv-num {
+  flex: none;
+  min-width: 1.5em;
+  color: var(--dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lv-row.bonus.done {
+  border-color: rgba(var(--exit-rgb), 0.35);
+}
+
+.lv-row.bonus .lv-tag.lv-done {
+  color: rgb(var(--exit-rgb));
+  background: rgba(var(--exit-rgb), 0.1);
+}
+
+.lv-row.bonus .lv-tag.lv-done::before {
+  content: '\2713\00a0';
+}
+
+.lv-row.bonus .lv-actions {
+  grid-template-columns: auto;
+}
+
+.lv-row.bonus .lv-tag.lv-diff {
+  color: var(--dim);
+}

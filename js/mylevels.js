@@ -12,12 +12,18 @@
  * name or by the newest edit in them (the same choice sorts the levels). With a folder open: rename it, delete it
  * (its levels go back to Unsorted; deleting them too is a separate, clearly worded choice that asks twice), or
  * play it through in order. Which folder a level is in is kept by the store, never in the level.
+ *
+ * BONUS LEVELS (v15.2): a second tab on the same screen, for the levels that come with the game (the store's
+ * read-only `bonus` source, js/bonus-levels.js). Listed in their own order with their difficulty, a picture and a
+ * tick once finished; Play, and Copy to My Levels (an editable copy with a new id, in Unsorted). Nothing here edits,
+ * renames or deletes them: there are no such buttons, and the store refuses anyway.
  */
 const EchoMyLevels = (() => {
   function create(env) {
     const el = env.el;
     let open = 'all'; // 'all' | 'unsorted' | a folder's id
     let sortBy = 'recent'; // 'recent' | 'name'
+    let view = 'mine'; // (v15.2) 'mine' | 'bonus': which tab is showing
 
     function when(iso) {
       const d = new Date(iso);
@@ -111,6 +117,115 @@ const EchoMyLevels = (() => {
       if (r.id !== 'move') return;
       if (!env.store.moveLevel(it.id, r.value || null)) tell("Couldn't move it", 'This browser would not let the game change what it has stored.');
       render();
+    }
+
+    // ---------------------------------------------------------------- bonus levels (v15.2)
+    function playBonus(it) {
+      const got = env.bonus.get(it.id);
+      if (!got || !got.doc) {
+        tell("Couldn't open it", 'This bonus level could not be read.');
+        render();
+        return;
+      }
+      const err = env.playBonus(got.doc);
+      if (err) tell("Can't play it", err);
+    }
+    async function copyBonus(it) {
+      const res = env.copyBonus(it.id);
+      if (!res.ok) {
+        tell("Couldn't copy it", res.error);
+        return;
+      }
+      const r = await env.dialog.open({
+        title: 'Copied to My Levels',
+        text: `Your copy of "${it.title}" is in My Levels, in Unsorted. It is yours to change; the bonus level stays as it is.`,
+        buttons: [{ id: 'edit', label: 'Edit the copy', primary: true }, { id: 'ok', label: 'OK' }],
+        cancel: 'ok',
+      });
+      if (r.id === 'edit') {
+        setView('mine', true);
+        env.edit(res.doc);
+      } else render();
+    }
+    function bonusRow(it, n) {
+      const r = document.createElement('div');
+      r.className = `lv-row bonus ${it.damaged ? 'damaged' : it.playable ? 'playable' : 'unfinished'}${it.done ? ' done' : ''}`;
+      r.dataset.id = it.id;
+      const info = document.createElement('div');
+      info.className = 'lv-info';
+      const head = document.createElement('div');
+      head.className = 'lv-head';
+      const num = document.createElement('span');
+      num.className = 'lv-num';
+      num.textContent = n;
+      const name = document.createElement('b');
+      name.textContent = it.title;
+      head.append(num, name);
+      if (it.done) {
+        const tick = document.createElement('span');
+        tick.className = 'lv-tag lv-done';
+        tick.textContent = 'Done';
+        tick.title = 'You have finished this one';
+        head.append(tick);
+      }
+      if (it.rating) {
+        const d = document.createElement('span');
+        d.className = `lv-tag lv-diff diff-${it.rating}`;
+        d.textContent = EchoLevelFormat.ratingLabel(it.rating);
+        head.append(d);
+      }
+      const meta = document.createElement('small');
+      if (it.damaged || !it.playable) meta.textContent = `This level can't be played: ${it.problem}`;
+      else meta.textContent = `${it.size.w} × ${it.size.h} · ${it.monsters ? `${it.monsters} monster${it.monsters === 1 ? '' : 's'}` : 'no monsters'}${it.exits > 1 ? ` · ${it.exits} exits` : ''}`;
+      info.append(head, meta);
+      const acts = document.createElement('div');
+      acts.className = 'lv-actions';
+      const button = (label, fn, opts = {}) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = label;
+        b.className = opts.primary ? 'primary' : 'quiet';
+        b.dataset.act = opts.act;
+        b.setAttribute('aria-label', `${label}: ${it.title}`);
+        b.disabled = !!opts.disabled;
+        b.addEventListener('click', () => {
+          env.click();
+          fn(it);
+        });
+        return b;
+      };
+      acts.append(
+        button('Play', playBonus, { primary: true, act: 'play', disabled: !it.playable }),
+        button('Copy to My Levels', copyBonus, { act: 'copy', disabled: it.damaged })
+      );
+      r.append(thumb(it), info, acts);
+      return r;
+    }
+    function renderBonus(items) {
+      el.list.textContent = '';
+      if (!items.length) {
+        const p = document.createElement('p');
+        p.className = 'lv-empty';
+        p.textContent = 'There are no bonus levels in this copy of the game.';
+        el.list.appendChild(p);
+      }
+      items.forEach((it, i) => el.list.appendChild(bonusRow(it, i + 1)));
+      const done = items.filter((it) => it.done).length;
+      el.note.textContent = `${done} of ${items.length} done. These levels come with the game: play them in any order. They can't be changed here - Copy to My Levels makes a version of your own. Nothing you do in them counts towards your progress, medals or stats.`;
+      return items.length;
+    }
+    /** My Levels or Bonus Levels. */
+    function setView(v, quiet) {
+      view = v === 'bonus' && env.bonus ? 'bonus' : 'mine';
+      const bonus = view === 'bonus';
+      el.screen.classList.toggle('bonus-view', bonus);
+      el.tabMine.classList.toggle('on', !bonus);
+      el.tabBonus.classList.toggle('on', bonus);
+      el.tabMine.setAttribute('aria-selected', bonus ? 'false' : 'true');
+      el.tabBonus.setAttribute('aria-selected', bonus ? 'true' : 'false');
+      el.head.textContent = bonus ? 'Bonus Levels' : 'My Levels';
+      el.desc.textContent = bonus ? 'Ready-made levels that come with the game, from gentle to tough.' : 'Levels you have made. Play them, change them, or make a new one.';
+      if (!quiet) render();
     }
 
     // ---------------------------------------------------------------- folders
@@ -286,6 +401,11 @@ const EchoMyLevels = (() => {
     }
 
     function render() {
+      // (v15.2) the Bonus Levels tab says how many are done, whichever tab is showing
+      const bonusItems = env.bonus ? env.bonus.list() : [];
+      el.bonusCount.textContent = bonusItems.length ? `${bonusItems.filter((it) => it.done).length}/${bonusItems.length}` : '';
+      el.tabBonus.classList.toggle('hidden', !env.bonus);
+      if (view === 'bonus') return renderBonus(bonusItems);
       const all = env.store.list();
       const folders = env.store.listFolders();
       if (open !== 'all' && open !== 'unsorted' && !folders.some((f) => f.id === open)) open = 'all';
@@ -348,6 +468,14 @@ const EchoMyLevels = (() => {
       render();
     });
     el.newFolder.addEventListener('click', newFolder);
+    el.tabMine.addEventListener('click', () => {
+      if (view !== 'mine') env.click();
+      setView('mine');
+    });
+    el.tabBonus.addEventListener('click', () => {
+      if (view !== 'bonus') env.click();
+      setView('bonus');
+    });
 
     return {
       render,
@@ -359,7 +487,10 @@ const EchoMyLevels = (() => {
         if (sort) sortBy = sort === 'name' ? 'name' : 'recent';
         return render();
       },
-      state: () => ({ open, sortBy }),
+      state: () => ({ open, sortBy, view }),
+      /** (v15.2) 'mine' or 'bonus': which tab is showing. */
+      view: () => view,
+      setView: (v, quiet) => setView(v, quiet),
     };
   }
 

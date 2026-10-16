@@ -1,6 +1,6 @@
 # Echo Maze custom level format (schema version 2)
 
-Custom levels (v15.0 and v15.1, the level editor) are stored as plain JSON. This file is the reference for that
+Custom levels (v15.0 and v15.1, the level editor; and since v15.2 the bonus levels that come with the game) are plain JSON. This file is the reference for that
 format; `js/levelformat.js` is the code that reads and writes it, and the two must agree. Nothing in the format
 depends on the editor: any source (the editor today; sharing or importing later) can supply a level in this shape.
 **Folders are not part of a level** (see "Where levels live"): a level is one self-contained piece of data.
@@ -153,9 +153,31 @@ open it, because editing it here would lose what this version cannot show.
 ## Where levels live
 
 `js/levelstore.js` is the only thing that saves or loads them. Its interface is `list()`, `get(id)`, `save(doc)`,
-`delete(id)` and (v15.1) `duplicate(id)`; today's one source, `local`, keeps each level in this browser's localStorage
-under `echomaze.level.<id>` (the test copy's are `echomaze.test.level.<id>`), as the JSON above. A later source
-(online, imported) implements the same calls and is added with `EchoLevelStore.register(source)`.
+`delete(id)` and (v15.1) `duplicate(id)`. There are two sources:
+
+- **`local`** (My Levels) keeps each level in this browser's localStorage under `echomaze.level.<id>` (the test copy's
+  are `echomaze.test.level.<id>`), as the JSON above.
+- **`bonus`** (v15.2, the Bonus Levels) is **read-only**: the levels in `js/bonus-levels.js`, an array
+  `ECHO_BONUS_LEVELS` of levels in exactly this format (schema 2). `list()` and `get(id)` work as for `local` -
+  every entry is read through `normalise` and checked, every time, so a broken entry is listed as one level that
+  cannot be played and never stops the game - and `save`, `delete` and `duplicate` refuse with a sentence.
+  Adding a bonus level is adding an entry (a unique `id`; neutral title). `EchoLevelStore.copyToMine('bonus', id)`
+  makes the player's own copy: the same level with a new id, saved by `local`, in Unsorted. And `local` refuses to
+  save any level under an id a read-only source holds, so a bonus level can never be overwritten in My Levels.
+
+A later source (online, imported) implements the same calls and is added with `EchoLevelStore.register(source)`;
+`EchoLevelStore.readOnlySource(id, label, entries, opts)` makes one like `bonus` from a list of levels.
+
+**Which bonus levels are done** (v15.2) is kept apart from everything else - not in a level, not with My Levels, not in
+any campaign save - in one key, `echomaze.bonus` (`echomaze.test.bonus` in the test copy):
+
+```json
+{ "schemaVersion": 1, "done": { "bonus-01-crossroads": "2026-10-17T12:00:00.000Z" } }
+```
+
+The date is when it was first finished (finishing it again writes nothing). Read as untrusted: an entry that is not
+a valid id with a date is dropped, ids the game does not have are kept (for a later version that has them), and a
+key that cannot be read at all is simply "none done".
 
 **Folders** (v15.1) are kept in their own list, one key, `echomaze.folders` (`echomaze.test.folders` in the test copy):
 
