@@ -4,6 +4,10 @@
 
 This repo is the home of the game. **Every time the game is changed, commit and push the change to `origin/main`** (owner requested this explicitly). Do it at the end of each round of changes — don't wait to be asked. Use clear commit messages that say what changed in the game.
 
+## The website (GitHub Pages, since 2026-10-17)
+
+The repo is **public** and GitHub Pages serves `main` (root) at **https://tobyhome12345-commits.github.io/echo-maze/** - the owner plays it there on their phone. Every push to `main` republishes it automatically (about a minute), so pushing after each change (above) is all it needs. Anything committed to `main` is live on the site, so never push half-finished game changes to `main`. The version tag in the corner shows nothing there (it reads the number from a `vX.Y - ...` folder name), and the link preview (`social.jpg`) works there.
+
 ## Keep a copy of every version in `C:\Claude\echo game` (owner's PC)
 
 Everything for this game lives in `C:\Claude\echo game` on the owner's PC: the version folders (`Echo Maze\`), the shortcut `Play Echo Maze.lnk` and the link `Echo Maze on GitHub.url` (which points at the repo).
