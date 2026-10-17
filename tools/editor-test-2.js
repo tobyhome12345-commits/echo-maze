@@ -19,6 +19,12 @@ window.EditorTest2 = (() => {
   const T = window.EditorTest.T;
   const ET = window.EditorTest;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // (v15.7) the unreleased-content warning now stands between the title and the editor's other screens (it has its own
+  // tests in tools/monster-test.js): these suites step through it and go on testing what they always tested
+  const passUnreleased = () => {
+    const g = window.__echo;
+    if (g.editorScreen() === 'unreleased') g.acceptUnreleased();
+  };
   const $ = (id) => document.getElementById(id);
   const F = () => E().levelFormat;
   const C = () => E().levelCheck;
@@ -63,7 +69,7 @@ window.EditorTest2 = (() => {
     toTitle();
     localStorage.setItem('echomaze.editor', '1');
     E().features({ touch: false });
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     await sleep(20);
     E().openEditor(null);
     window.dispatchEvent(new Event('resize'));
@@ -103,11 +109,11 @@ window.EditorTest2 = (() => {
     S.check('touch controls are on (the game\'s own switch)', e.features().touch === true);
     if (finished) S.note('(this page has a finished mode, so the spoiler warning never shows - part A checks only the touch warning)');
     // A: first use, touch on: the spoiler warning first, then the touch warning
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     if (!finished) {
       S.check('first: the spoiler warning', e.editorScreen() === 'gate');
-      $('btn-gate-ok').click();
+      $('btn-gate-ok').click(); passUnreleased();
       await sleep(40);
     }
     S.check('then: the touch warning', e.editorScreen() === 'touch' && $('editor-touch').classList.contains('in'));
@@ -121,19 +127,19 @@ window.EditorTest2 = (() => {
     e.closeEditorScreens();
     await sleep(40);
     // B: every time - and Back goes back
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     S.check('shown again the next time (every time touch is on)', e.editorScreen() === 'touch');
     $('btn-touchgate-back').click();
     await sleep(40);
     S.check('Back: the title', e.info().state === 'title' && e.editorScreen() === null);
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     key('Escape');
     await sleep(40);
     S.check('Esc is Back too', e.info().state === 'title');
     // C: not when coming back from a test play
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     $('btn-touchgate-ok').click();
     await sleep(40);
@@ -159,7 +165,7 @@ window.EditorTest2 = (() => {
     toTitle();
     // D: touch off - straight to My Levels
     e.features({ touch: false });
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     S.check('mouse and keyboard: no touch warning, straight to My Levels', e.editorScreen() === 'list');
     toTitle();
@@ -554,8 +560,8 @@ window.EditorTest2 = (() => {
     e.setPalette(own || 'default');
     // the rating in My Levels
     const res = e.levelStore.save(F().normalise(doc).doc);
-    e.openEditorScreens();
-    if (e.editorScreen() !== 'list') e.closeEditorScreens(), localStorage.setItem('echomaze.editor', '1'), e.openEditorScreens();
+    e.openEditorScreens(); passUnreleased();
+    if (e.editorScreen() !== 'list') e.closeEditorScreens(), localStorage.setItem('echomaze.editor', '1'), e.openEditorScreens(); passUnreleased();
     await sleep(20);
     const row = document.querySelector(`.lv-row[data-id="${res.doc.id}"]`);
     S.check('My Levels shows the difficulty', row && /Hard/.test(row.querySelector('.lv-diff').textContent));
@@ -767,7 +773,7 @@ window.EditorTest2 = (() => {
     // the screen
     localStorage.setItem('echomaze.editor', '1');
     e.features({ touch: false });
-    e.openEditorScreens();
+    e.openEditorScreens(); passUnreleased();
     await sleep(30);
     const chips = () => [...document.querySelectorAll('.lv-chip')].map((c) => c.textContent);
     S.check('My Levels: All, Unsorted and each folder, with counts', chips().some((t) => t === 'Alpha one3') && chips().some((t) => t === 'beta0') && chips()[0].startsWith('All') && chips()[1].startsWith('Unsorted'), chips());

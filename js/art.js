@@ -49,14 +49,14 @@ const EchoArt = (() => {
   // both "obstacle" - a palette has one colour for the pair, exactly as the ripple does.
   const RGB = {};
   const CORE = {};
-  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer', note: 'lore', log: 'lore', key: 'key', bar: 'obstacle', door: 'exit' };
+  const ART_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', exit: 'exit', scent: 'scent', puddle: 'puddle', decoy: 'decoy', stalker: 'stalker', singer: 'singer', note: 'lore', log: 'lore', key: 'key', bar: 'obstacle', door: 'exit', alarm: 'alarm', screecho: 'screecho' };
   EchoPalette.onChange((rgb, core) => {
     for (const k in ART_ROLE) {
       RGB[k] = rgb[ART_ROLE[k]];
       CORE[k] = core[ART_ROLE[k]];
     }
   });
-  const HEADED = { echo: 1, scent: 1, stalker: 1, singer: 1 };
+  const HEADED = { echo: 1, scent: 1, stalker: 1, singer: 1, screecho: 1 };
 
   // ----------------------------------------------------------- tiny helpers
   function hash2(a, b) {
@@ -686,8 +686,75 @@ const EchoArt = (() => {
     detail(ctx, CORE.door, a, w, 0.62);
   }
 
+  // ------------------------------------------------------------- the alarm
+  // (v15.7, unreleased) A squat siren on the floor: a dome on a base plate with a round horn in its face and three
+  // short bars of sound above it. Once it has screamed (o.spent) the bars are gone and a crack runs across the dome.
+  function alarm(ctx, a, w, o) {
+    ctx.beginPath();
+    ctx.moveTo(-0.72, 0.2);
+    ctx.arc(0, 0.2, 0.72, Math.PI, 0);
+    ctx.lineTo(0.84, 0.2);
+    ctx.lineTo(0.84, 0.44);
+    ctx.lineTo(-0.84, 0.44);
+    ctx.lineTo(-0.84, 0.2);
+    ctx.closePath();
+    paint(ctx, RGB.alarm, CORE.alarm, a, w, 0.16);
+    ctx.beginPath();
+    circle(ctx, 0, -0.02, 0.22); // the horn
+    circle(ctx, 0, -0.02, 0.08);
+    ctx.moveTo(-0.72, 0.2); // where the dome sits on its plate
+    ctx.lineTo(0.72, 0.2);
+    if (o.spent) {
+      ctx.moveTo(-0.5, -0.32); // a crack across the dome
+      ctx.lineTo(-0.2, -0.14);
+      ctx.lineTo(-0.28, 0.02);
+      ctx.lineTo(0.12, 0.14);
+    } else {
+      for (const ang of [-2.1, -Math.PI / 2, -1.04]) {
+        ctx.moveTo(Math.cos(ang) * 0.84, 0.2 + Math.sin(ang) * 0.84);
+        ctx.lineTo(Math.cos(ang) * 1.0, 0.2 + Math.sin(ang) * 1.0);
+      }
+    }
+    detail(ctx, CORE.alarm, a, w, 0.7);
+  }
+
+  // ----------------------------------------------------------- the screecho
+  // (v15.7, unreleased) An echo monster's jagged body, smaller and set back, with a siren's flared horn for a mouth
+  // and two arcs of sound coming out of it - the alarm's bars, carried on something that hunts. Facing +x.
+  function screecho(ctx, a, w, o) {
+    const t = o.t || 0;
+    ctx.beginPath();
+    for (let i = 0; i < ECHO.length; i++) {
+      const p = ECHO[i];
+      const k = p[2] ? 1 + 0.05 * (0.5 + 0.5 * Math.sin(t * 7 + i * 1.3)) : 1;
+      const x = p[0] * 0.72 * k - 0.24;
+      const y = p[1] * 0.72 * k;
+      if (i) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    paint(ctx, RGB.screecho, CORE.screecho, a, w, 0.16);
+    ctx.beginPath(); // the horn of a mouth, flaring forward
+    ctx.moveTo(0.3, -0.12);
+    ctx.lineTo(0.8, -0.38);
+    ctx.lineTo(0.8, 0.38);
+    ctx.lineTo(0.3, 0.12);
+    ctx.closePath();
+    paint(ctx, RGB.screecho, CORE.screecho, a, w, 0.1);
+    ctx.beginPath();
+    for (const rr of [0.2, 0.32]) {
+      ctx.moveTo(0.62 + Math.cos(-0.7) * rr, Math.sin(-0.7) * rr);
+      ctx.arc(0.62, 0, rr, -0.7, 0.7);
+    }
+    for (const x of [-0.6, -0.34]) {
+      ctx.moveTo(x, -0.26); // ribs, like the echo monster's
+      ctx.quadraticCurveTo(x + 0.12, 0, x, 0.26);
+    }
+    detail(ctx, CORE.screecho, a, w);
+  }
+
   // ---------------------------------------------------------------- drawing
-  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log, key, bar, door };
+  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log, key, bar, door, alarm, screecho };
   const NO = {};
 
   function draw(ctx, kind, x, y, r, o) {

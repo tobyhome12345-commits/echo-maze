@@ -18,6 +18,12 @@ window.TitleTest = (() => {
   const E = () => window.__echo;
   const $ = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // (v15.7) the unreleased-content warning now stands between the title and the editor's other screens (it has its own
+  // tests in tools/monster-test.js): these suites step through it and go on testing what they always tested
+  const passUnreleased = () => {
+    const g = window.__echo;
+    if (g.editorScreen() === 'unreleased') g.acceptUnreleased();
+  };
   const visible = (el) => !!el && !el.classList.contains('hidden') && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
   const lit = (id) => $(id).classList.contains('in');
   const key = (code, target = window, extra = {}) => {
@@ -161,7 +167,7 @@ window.TitleTest = (() => {
     await until(() => lit('title'), 2000);
     T.check('...Esc back to the title', lit('title'));
     // Level Editor (its gate or My Levels)
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await until(() => E().info().state === 'editor', 2000);
     T.check('Level Editor opens its screens', E().info().state === 'editor' && ['gate', 'touch', 'list'].includes(E().editorScreen()));
     E().closeEditorScreens();

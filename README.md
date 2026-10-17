@@ -134,7 +134,7 @@ Once there is something to replay, a **Levels & cutscenes** button appears under
 
 ## The level editor
 
-**Level Editor** on the title screen lets you build mazes of your own and play them with the real game. The first time you open it, it warns you that it can show every monster and mechanic in the game - including ones you may not have met yet - and asks you to press **I understand** (or **Back**); that is only asked once. If you have already finished the game on any difficulty, it never asks at all. On a touch screen it also says, every time, that the editor works best with a mouse and keyboard - **I understand** goes on into it anyway.
+**Level Editor** on the title screen lets you build mazes of your own and play them with the real game. The first time you open it, it warns you that it can show every monster and mechanic in the game - including ones you may not have met yet - and asks you to press **I understand** (or **Back**); that is only asked once. If you have already finished the game on any difficulty, it never asks at all. While the editor holds monsters that are not in the main game yet, it also shows an **unreleased content** warning every single time you open it from the title (after the first-time warning, before the touch one) - **I understand** goes on, **Back** or `Esc` goes back. On a touch screen it also says, every time, that the editor works best with a mouse and keyboard - **I understand** goes on into it anyway.
 
 It opens on **My Levels**: every level you have made, each with a small picture, marked **Playable** or **Unfinished** and with its difficulty. From there you can **Play**, **Edit**, **Duplicate**, **Move** (to a folder), **Rename** or **Delete** one (deleting asks first), or press **New level**. **Folders**: **New folder** makes one; the row along the top shows **All**, **Unsorted** and each folder with how many levels it holds, sorted by name or by the newest edit. With a folder open you can rename it, delete it (its levels go back to Unsorted - or, if you pick the separate "and its levels" option and say so twice, they go too), or **Play in order** - every playable level in it, one after another. Your levels are kept in this browser; nobody else sees them unless you share one (see **Sharing levels** below).
 
@@ -153,6 +153,13 @@ It opens on **My Levels**: every level you have made, each with a small picture,
 Underneath, the editor tells you in plain words what still stops the level being played: it needs a **start**, at least one **exit**, and **a way to walk from one to the other**; a locked exit needs a key you can get to; nothing may be standing or lying inside a wall, or standing on the start; and a Level 15 / 16 monster must not be so close to the way out that no run could make it. An exit that cannot be reached when another can is only a warning, and it says which one. You can save an unfinished level at any time - it is listed as *Unfinished* and can be edited but not played until it is fixed. **Test play** plays it straight away with the real game; when you are caught, finish, or pause and go back, you are returned to the editor exactly as you left it.
 
 **Difficulty.** Each level has its own: **Easy**, **Normal**, **Hard** or **Hardcore** - exactly how that mode tunes the game's level 12 - or **Custom**, which is Normal with three sliders: monster speed (x0.5 to x1.5), ripple range (x0.6 to x1.5) and monster hearing (x0.5 to x1.5), and **Reset to defaults**. **The level's difficulty is what everyone plays it at**: the difficulty you picked on the title screen does not change a custom level. Monsters other than the Level 15 / 16 ones never become faster than you, however the slider is set, and those two are capped too.
+
+**Unreleased monsters.** Two monsters are in the editor before they are in the main game, each tagged **Unreleased** in the monster list (they may still change):
+
+- **Alarm** - it never moves and touching it is harmless, but the moment one of your ripples reaches it, it screams: every monster in the level (except the Level 15 / 16 ones) heads for the spot where you were standing when it screamed. It only screams once; after that it is a silent, dim landmark. Crouching sends no ripples, so it never sets one off, and neither does a sonar decoy's call or a Singer's song. Before you ping it you can hear it: a faint, regular tick (and its own shape with Visual cues on).
+- **Screecho** - an echo monster in every way (it hunts, listens, locks on and kills like one), but when one of your ripples reaches it, it screams like an Alarm. It can scream again, but not for 20 seconds.
+
+They are never in the campaign, the tutorial or the Bonus Levels.
 
 **Nothing you do in a custom level counts**: no progress, no medals, no stats, no fragments - whether you are test-playing it or playing it from My Levels. On Hardcore they still let you try again, because a custom level is not a run.
 
@@ -618,6 +625,9 @@ tools/          developer tools, not part of the game and not exported with a ve
                 the key first), bonus-test.js (v15.2: every bonus level through the loader, played through along
                 written routes with several random seeds, the warnings in front of them, nothing saved but the ticks,
                 Copy to My Levels playing identically, read-only, the ticks, broken data, a soak),
+                monster-test.js (v15.7: the Alarm and the Screecho - what sets them off, the scream, the cooldown and the speed
+                measured, calm mode, Visual cues, the unreleased-content warning, share codes, the editor, never in the campaign,
+                nothing saved, a soak),
                 title-test.js (v15.5: the title screen - keys, How to play and what it hides, every button, Begin
                 on every difficulty with Calm / Visual cues, touch, nothing saved),
                 share-test.js (v15.3: share codes - round trips, lengths, bad / hostile / oversized codes, the screens,

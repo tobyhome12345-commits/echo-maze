@@ -20,6 +20,12 @@
 window.EditorTest = (() => { // (on window, so it can be loaded again into the same page)
   const E = () => window.__echo;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // (v15.7) the unreleased-content warning now stands between the title and the editor's other screens (it has its own
+  // tests in tools/monster-test.js): these suites step through it and go on testing what they always tested
+  const passUnreleased = () => {
+    const g = window.__echo;
+    if (g.editorScreen() === 'unreleased') g.acceptUnreleased();
+  };
   const $ = (id) => document.getElementById(id);
 
   // ------------------------------------------------------------ driving the editor like a person would
@@ -96,7 +102,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
         E().leaveCustom();
       }
       localStorage.setItem('echomaze.editor', '1');
-      E().openEditorScreens();
+      E().openEditorScreens(); passUnreleased();
     }
     await sleep(30);
   }
@@ -137,7 +143,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     location.hash = '';
     // (progress is read at load; the test reloads nothing, so it looks at what the game holds right now)
     S.check('starts locked (no flag, nothing finished)', !e.editorUnlocked() || e.settings().editor.anyModeFinished, e.settings().editor);
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     S.check('first click shows the warning', e.editorScreen() === 'gate' && $('editor-gate').classList.contains('in'));
     const text = $('editor-gate').textContent;
@@ -146,20 +152,20 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     $('btn-gate-back').click();
     await sleep(40);
     S.check('Back: the title again, nothing saved', e.info().state === 'title' && localStorage.getItem('echomaze.editor') === null);
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     S.check('asked again after Back', e.editorScreen() === 'gate');
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
     await sleep(40);
     S.check('Esc is Back too', e.info().state === 'title' && localStorage.getItem('echomaze.editor') === null);
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
-    $('btn-gate-ok').click();
+    $('btn-gate-ok').click(); passUnreleased();
     await sleep(40);
     S.check('I understand: My Levels, and it is kept', e.editorScreen() === 'list' && localStorage.getItem('echomaze.editor') === '1');
     e.closeEditorScreens();
     await sleep(40);
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(40);
     S.check('never asked again', e.editorScreen() === 'list');
     e.closeEditorScreens();
@@ -387,7 +393,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     // (v15.1: the monsters stand in a sealed gallery - a hunter on the only route would make the level impossible,
     // which the checker now refuses)
     const rows = ['###################', '#S................#', '#.###.#####.#####.#', '#.#.............#.#', '#.#.###.###.###.#.#', '#................X#', '###################', '#.................#', '###################'];
-    const mons = E().monsterChoices().map((c, i) => [c.kind, 2 + i * 2, 7, c.variant]); // (along the sealed gallery)
+    const mons = E().monsterChoices().map((c, i) => [c.kind, 2 + i, 7, c.variant]); // (along the sealed gallery - one tile apart since v15.7 brought two more)
     const doc = levelFrom(rows, mons, 'Round trip ✓ – ünïcode');
     const res = store.save(doc);
     S.check('save: ok', res.ok, res.error);
@@ -546,7 +552,7 @@ window.EditorTest = (() => { // (on window, so it can be loaded again into the s
     await toEditorList();
     E().closeEditorScreens();
     await sleep(20);
-    $('btn-editor').click();
+    $('btn-editor').click(); passUnreleased();
     await sleep(30);
     const row = (id) => document.querySelector(`.lv-row[data-id="${id}"]`);
     const btn = (id, act) => row(id).querySelector(`button[data-act="${act}"]`);

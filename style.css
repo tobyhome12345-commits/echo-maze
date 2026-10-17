@@ -4099,3 +4099,16 @@ body.touch.on-title #rotate {
     transition: none;
   }
 }
+
+/* (v15.7) the editor tags a monster that is not in the main game yet (js/level.js UNRELEASED_CONTENT) */
+#editor .ed-monster .ed-tag {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid rgba(var(--ui-rgb), 0.55);
+  border-radius: 8px;
+  color: rgba(var(--ui-rgb), 0.95);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}

@@ -58,7 +58,7 @@ const EchoShare = (() => {
    * means the code came from a newer version of the game.
    */
   const WORDS = {
-    monster: ['echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden'],
+    monster: ['echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden', 'alarm', 'screecho'], // (v15.7: + alarm, screecho - at the end, as the rule says)
     variant: ['-', 'regular', 'upgraded'], // ('-': none)
     object: ['puddle', 'decoy', 'key', 'note'],
     style: ['note', 'recording'],

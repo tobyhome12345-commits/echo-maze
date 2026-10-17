@@ -272,6 +272,18 @@
     </div>
   </section>
 
+  <!-- (v15.7) shown EVERY time the editor is opened from the title while js/level.js UNRELEASED_CONTENT is not empty -->
+  <section id="editor-unreleased" class="overlay hidden" role="dialog" aria-labelledby="unreleased-title">
+    <div class="panel small">
+      <h2 id="unreleased-title">Unreleased content</h2>
+      <p>The level editor currently contains unreleased content. New monsters here aren't in the main game yet, and they may change or be unfinished.</p>
+      <div class="buttons dock">
+        <button id="btn-unreleased-ok" class="primary">I understand</button>
+        <button id="btn-unreleased-back">Back <span class="key">Esc</span></button>
+      </div>
+    </div>
+  </section>
+
   <!-- (v15.1) shown every time the editor is opened from the title while touch controls are on -->
   <section id="editor-touch" class="overlay hidden">
     <div class="panel small">

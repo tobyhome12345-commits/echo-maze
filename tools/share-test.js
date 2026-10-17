@@ -26,6 +26,12 @@ window.ShareTest = (() => {
   const ST = () => E().levelStore;
   const $ = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // (v15.7) the unreleased-content warning now stands between the title and the editor's other screens (it has its own
+  // tests in tools/monster-test.js): these suites step through it and go on testing what they always tested
+  const passUnreleased = () => {
+    const g = window.__echo;
+    if (g.editorScreen() === 'unreleased') g.acceptUnreleased();
+  };
   function suite(name) {
     const results = [];
     const notes = [];
@@ -168,7 +174,7 @@ window.ShareTest = (() => {
     if (E().info().state === 'editor') E().closeEditorScreens();
     localStorage.setItem(P() + 'editor', '1');
     E().features({ touch: false });
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     await sleep(30);
   }
 
@@ -473,13 +479,13 @@ window.ShareTest = (() => {
     localStorage.setItem(P() + 'progress', JSON.stringify({ normal: 3 }));
     if (E().info().state === 'editor') E().closeEditorScreens();
     E().features({ touch: false });
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     await sleep(20);
     T.check('locked editor: the spoiler warning first - My Levels (and Enter code) not on screen', E().editorScreen() === 'gate' && !$('mylevels').classList.contains('in'));
     E().closeEditorScreens();
     E().features({ touch: true });
     localStorage.setItem(P() + 'editor', '1');
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     await sleep(20);
     T.check('touch controls on: the touch warning first', E().editorScreen() === 'touch' && !$('mylevels').classList.contains('in'));
     E().acceptTouchGate();

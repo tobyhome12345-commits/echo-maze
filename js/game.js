@@ -58,11 +58,13 @@
   const T_WARDEN = 10; // the warden (level 13 only) - and ONLY once a ripple has revealed it. Until then its rays come back as T_WALL.
   const T_LORE = 11; // a lore fragment (js/lore.js) - lies flat like a puddle or a decoy: the wave lights it and passes over
   const T_KEY = 12; // level 14's key (js/story.js) - flat on the floor too, and found exactly the same way
+  const T_ALARM = 13; // (v15.7, unreleased: custom levels only) an Alarm - a ripple shows it, and the wave reaching it sets it off
+  const T_SCREECHO = 14; // (v15.7, unreleased) a Screecho - an echo monster that screams when the wave reaches it
   // The ripple's hit colours, by type. They are filled in from js/palette.js and refilled whenever the player
   // picks another palette (Settings -> Display); the array itself is never replaced, so everything that reads
   // COLORS[T_...] keeps working, and a palette can never reach anything but the drawing.
-  const COLORS = [null, null, null, null, null, null, null, null, null, null, null, null, null];
-  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden', 'lore', 'key'];
+  const COLORS = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
+  const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden', 'lore', 'key', 'alarm', 'screecho'];
   // which palette colour each swatch on the title legend belongs to (drawing only: it tints the chip around it)
   const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit', note: 'lore' };
   const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
@@ -71,8 +73,8 @@
   });
   // core stroke width per type; the rays that find a round thing (obstacle, monster, exit) are a little thinner than they were,
   // because the thing itself is now drawn on top of them (EchoArt) - they still trace its true collision circle
-  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2, 3, 3];
-  const NRAYTYPES = 11; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer) and 10 (a warden - level 13's once revealed, and the one hunting you on 15-16); 0 = nothing (also where the muffler ate the ray). 6, 7, 11 and 12 are flat marks (puddle, decoy, lore fragment, key), never rays - so they need no ray bucket
+  const LINE_W = [0, 2.4, 2.1, 2.5, 2.3, 2.5, 3, 3, 2.5, 2.5, 3.2, 3, 3, 2.4, 2.5];
+  const NRAYTYPES = 15; // ray hit types are 1..5 (wall, obstacle, echo monster, exit, scent monster), 8 (stalker), 9 (singer), 10 (a warden - level 13's once revealed, and the one hunting you on 15-16), and (v15.7) 13 / 14 (an Alarm, a Screecho); 0 = nothing (also where the muffler ate the ray). 6, 7, 11 and 12 are flat marks (puddle, decoy, lore fragment, key), never rays - their buckets stay empty
   const ALPHA_LEVELS = 10;
   const SMELL_TRAIL_STEP = 12; // px between recorded trail points
   const TRAIL_TOUCH = 22; // px: how close a scent monster must be to a trail to "touch" it
@@ -120,7 +122,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'howto', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'editor-touch', 'mylevels', 'editor'];
+  const overlays = ['title', 'howto', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'editor-unreleased', 'editor-touch', 'mylevels', 'editor'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
   //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after
   //         level 16) | editor (v15.0: the level editor's screens - its warning, My Levels, the editor itself; no
@@ -352,7 +354,7 @@
   let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
   // ---- the level editor and custom levels (v15.0)
   let customRun = null; // { doc, from: 'editor' | 'mylevels' | 'bonus', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
-  let editorScreen = null; // 'gate' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
+  let editorScreen = null; // 'gate' | 'unreleased' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
   // ---- custom levels, v15.1
   let fxZones = []; // the level's light / glow zones, ready to draw (js/effects.js)
   let cardTimer = 0; // seconds the title card has left (state 'card'): the level waits underneath it
@@ -806,7 +808,12 @@
       followTrail: null, // scent monster: the trail it is following
       ignoreTrail: null, // scent monster: a trail it just finished; ignored until it walks away from it
       // a disguised mimic makes no sound of its own - and a Warden asleep in the stone makes none until it wakes
-      voice: audio.ready && kind !== 'mimic' && !isWarden ? audio.createEnemyVoice(spec.pitch, kind) : null,
+      voice: audio.ready && kind !== 'mimic' && kind !== 'alarm' && !isWarden ? audio.createEnemyVoice(spec.pitch, kind) : null,
+      // (v15.7) the Alarm: it has screamed (and is silent and dim from then on); the next tick of its hum. The
+      // Screecho: seconds before it can scream again (SCREECHO_COOLDOWN, js/level.js)
+      spent: false,
+      humCd: 0.6,
+      screamCd: 0,
     };
     if (isWarden) {
       e.variant = wv.id;
@@ -820,7 +827,7 @@
     return e;
   }
 
-  const isChasing = (e) => e.state === 'hunt' || e.state === 'track' || e.state === 'follow';
+  const isChasing = (e) => e.state === 'hunt' || e.state === 'track' || e.state === 'follow' || e.state === 'summoned';
 
   function destroyVoices() {
     for (const e of enemies) {
@@ -928,9 +935,15 @@
 
   function updateEnemy(e, dt) {
     e.alertCd = Math.max(0, e.alertCd - dt);
+    if (e.screamCd > 0) e.screamCd = Math.max(0, e.screamCd - dt); // (v15.7: a Screecho getting its breath back)
     if (e.state === 'lured' || e.state === 'trapped') {
       // a sonar decoy has called it: it ignores everything else (ripples, footsteps, smell) until it is released
       enemyAudio(e, updateLured(e, dt), dt);
+      return;
+    }
+    if (e.state === 'summoned') {
+      // (v15.7) a scream sent it to where you were: it walks there, waits a while, and goes back to its round
+      enemyAudio(e, updateSummoned(e, dt), dt);
       return;
     }
     // a disguised mimic just sits there, silent, being an exit
@@ -940,8 +953,8 @@
       : e.kind === 'muffler' ? updateMuffler(e, dt)
       : e.kind === 'singer' ? updateSinger(e, dt)
       : e.kind === 'scent' ? updateScent(e, dt)
-      : e.kind === 'mimic' ? 0
-      : updateEcho(e, dt);
+      : e.kind === 'mimic' || e.kind === 'alarm' ? 0 // (v15.7: an Alarm never moves)
+      : updateEcho(e, dt); // (an echo monster - and, v15.7, a Screecho, which hunts exactly like one)
     enemyAudio(e, moved, dt);
   }
 
@@ -1282,18 +1295,20 @@
     return true;
   }
 
+  /** Each kind's own walking speed (they are all slower than the player, as ever) - for a decoy's call and a scream. */
+  const speedOf = (e) =>
+    e.kind === 'scent' ? cfg.scentSpeed
+    : e.kind === 'stalker' ? cfg.stalkerSpeed
+    : e.kind === 'muffler' ? cfg.mufflerSpeed
+    : e.kind === 'singer' ? cfg.singerSpeed
+    : cfg.enemySpeed;
+
   /** Walk to the decoy, then stay trapped there for DECOY_TRAP_SECONDS; then go back to normal. */
   function updateLured(e, dt) {
     let moved = 0;
     if (e.state === 'lured') {
-      // each kind walks to the decoy at its own speed (they are all slower than the player, as ever)
-      const speed =
-        e.kind === 'scent' ? cfg.scentSpeed
-        : e.kind === 'stalker' ? cfg.stalkerSpeed
-        : e.kind === 'muffler' ? cfg.mufflerSpeed
-        : e.kind === 'singer' ? cfg.singerSpeed
-        : cfg.enemySpeed;
-      moved = followPath(e, speed, dt);
+      // each kind walks to the decoy at its own speed
+      moved = followPath(e, speedOf(e), dt);
       if (!e.path) {
         e.state = 'trapped';
         e.timer = DECOY_TRAP_SECONDS; // counts from the moment it arrives
@@ -1586,6 +1601,7 @@
    */
   function enemyAudio(e, moved, dt = 0) {
     if (e.kind === 'mimic') return; // disguised: no footsteps, no voice - the only sound it makes is the exit's chime
+    if (e.kind === 'alarm') return alarmAudio(e, dt); // (v15.7) its faint hum-tick, until it has screamed
     if (e.kind === 'warden' && e.state !== 'hunt') return; // a Warden still in the stone (levels 15-16) is silent
     const scent = e.kind === 'scent';
     const stalker = e.kind === 'stalker';
@@ -1593,7 +1609,7 @@
     const singer = e.kind === 'singer';
     const warden = e.kind === 'warden';
     const chasing = isChasing(e);
-    const cueKind = warden ? 'warden' : stalker ? 'stalker' : scent ? 'scent' : muffler ? 'muffler' : singer ? 'singer' : 'echo';
+    const cueKind = warden ? 'warden' : stalker ? 'stalker' : scent ? 'scent' : muffler ? 'muffler' : singer ? 'singer' : e.kind === 'screecho' ? 'screecho' : 'echo';
     const blocked = soundBlocked(e.x, e.y, player.x, player.y);
     const muf = audioFx && blocked; // what the audio does about it (?debug can switch the audio effect off; the cue still follows `blocked`)
 
@@ -1651,6 +1667,88 @@
     if (e.voice) audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: muf, doppler });
     // its voice as a sustained cue, while it would be audible (the stalker's breathing: three small dots)
     if (gain >= 0.012) cues.hold(e, cueKind, e.x, e.y, cueLoud(gain / 0.46), blocked, stalker ? 3 : 1);
+  }
+
+  // ------------------------------------------------- the Alarm and the Screecho (v15.7, unreleased)
+  const ALARM_HUM_GAP = 1.15; // seconds between the ticks of an Alarm's hum
+  const ALARM_HUM_RANGE = 520; // px: how far off its hum can be heard (a quiet sound: you have to be listening)
+  let screamLog = []; // ?debug only: every scream this level - who, where you were, and when
+
+  /**
+   * An Alarm that has not screamed yet hums: a faint, regular tick, placed and wall-muffled like any monster's
+   * sound - so a careful player can hear where it is before they ping it - and its own glyph in the Visual cues.
+   * Once it has screamed it is silent for good.
+   */
+  function alarmAudio(e, dt) {
+    if (e.spent) return;
+    e.humCd -= dt;
+    if (e.humCd > 0) return;
+    e.humCd = ALARM_HUM_GAP;
+    const blocked = soundBlocked(e.x, e.y, player.x, player.y);
+    const sp = spatial(e.x, e.y, ALARM_HUM_RANGE);
+    audio.alarmHum(sp.pan, sp.g, audioFx && blocked);
+    if (sp.g >= 0.01) cues.pulse('alarm', e.x, e.y, cueLoud(sp.g), { key: e, sub: 'hum', muffled: blocked });
+  }
+
+  /**
+   * THE SCREAM - an Alarm's (once, when the wave of a ripple first reaches it) or a Screecho's (whenever the wave
+   * reaches it and it has got its breath back). Every monster in the level EXCEPT the Warden - both kinds - and
+   * other Alarms is sent to the spot where YOU are at this instant, however far away it is. The spot is fixed: it
+   * does not follow you afterwards. Each goes there the way it would go to a ripple: an echo monster (and a
+   * Screecho, and a mimic, whose disguise breaks) walks to it and listens there (alertEnemy -> search); the kinds
+   * that never stand still walk to it, wait there for the same listening time and go back to their round
+   * (summon -> updateSummoned). One held by a sonar decoy stays held; one already tracking you keeps tracking you
+   * (it knows better, as with a ripple).
+   */
+  function scream(src) {
+    const x = player.x;
+    const y = player.y;
+    const screecho = src.kind === 'screecho';
+    const sp = spatial(src.x, src.y, 1600);
+    const loud = Math.max(sp.g, 0.4); // it is a scream: you hear it wherever you are
+    audio.scream(sp.pan, loud, screecho);
+    cues.pulse(src.kind, src.x, src.y, cueLoud(loud), { big: true, key: src, sub: 'scream' });
+    marks.push({ x: src.x, y: src.y, t: 0, life: 1.6, c: COLORS[screecho ? T_SCREECHO : T_ALARM], r: 70 });
+    if (!calm) shake = Math.max(shake, 5);
+    let sent = 0;
+    for (const e of enemies) {
+      if (e.kind === 'warden' || e.kind === 'alarm') continue;
+      if (summon(e, x, y)) sent++;
+    }
+    if (screecho) src.screamCd = SCREECHO_COOLDOWN;
+    // (last, so the screeches of the monsters it has just sent do not cover it: this is the sound that matters)
+    cues.caption(screecho ? '[a shrieking howl]' : '[an alarm shrieks]');
+    screamLog.push({ by: src.kind, x, y, at: levelTime, sent });
+  }
+
+  /** Send one monster to (x, y) because of a scream. Returns whether it went. */
+  function summon(e, x, y) {
+    if (e.state === 'lured' || e.state === 'trapped') return false; // a decoy's hold wins
+    if (e.kind === 'singer' && (e.state === 'leap' || e.state === 'land')) return false; // in the air: it lands first
+    if (e.kind === 'mimic') revealMimic(e); // the scream breaks its disguise: it is an echo monster from now on
+    if (e.kind === 'echo' || e.kind === 'screecho') {
+      if (e.state === 'track') return false; // it already has you
+      const before = e.state;
+      alertEnemy(e, x, y);
+      if (e.state !== 'hunt') return false;
+      if (before !== 'hunt' || e.why === 'ripple') e.why = 'scream'; // (the tip only)
+      return true;
+    }
+    if (!setPathTo(e, x, y)) return false;
+    e.state = 'summoned';
+    e.timer = cfg.searchTime; // how long it waits at the spot - an echo monster's listening time
+    e.followTrail = null;
+    e.ignoreTrail = null;
+    e.why = 'scream';
+    return true;
+  }
+
+  /** A monster a scream sent: walk to the spot, wait there, then back to its round (as a decoy's release does). */
+  function updateSummoned(e, dt) {
+    if (e.path) return followPath(e, speedOf(e), dt);
+    e.timer -= dt;
+    if (e.timer <= 0) releaseLured(e);
+    return 0;
   }
 
   // ---------------------------------------------------------------- ripples
@@ -1862,7 +1960,7 @@
           circles.push({ x: e.x, y: e.y, r: e.r, type: e.hidden ? T_WALL : T_WARDEN, enemy: e, warden: !!e.hidden });
           return;
         }
-        const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'singer' ? T_SINGER : e.kind === 'mimic' ? T_EXIT : T_ENEMY;
+        const type = e.kind === 'scent' ? T_SCENT : e.kind === 'stalker' ? T_STALKER : e.kind === 'singer' ? T_SINGER : e.kind === 'mimic' ? T_EXIT : e.kind === 'alarm' ? T_ALARM : e.kind === 'screecho' ? T_SCREECHO : T_ENEMY;
         circles.push({ x: e.x, y: e.y, r: e.r, type, enemy: e, mimic: e.kind === 'mimic' }); // (mimic: drawn as the exit until revealMimic sets revealAt)
       }
     });
@@ -2008,7 +2106,7 @@
     // Whether a monster is really TOUCHED - and so learns of you - is not decided here: it is
     // decided as the wavefront passes over wherever the monster is at that moment (touchMonsters).
     const seen = new Set();
-    for (const bin of objBins.keys()) if (circles[bin] && circles[bin].type === T_ENEMY) seen.add(circles[bin].enemy); // (circles[bin]: the door's bin is named, not numbered)
+    for (const bin of objBins.keys()) if (circles[bin] && (circles[bin].type === T_ENEMY || circles[bin].type === T_ALARM || circles[bin].type === T_SCREECHO)) seen.add(circles[bin].enemy); // (circles[bin]: the door's bin is named, not numbered)
 
     ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6, singer: singerRp, hitPlayer: false, ambient, dim: ambient ? 0.62 : 1 });
   }
@@ -2060,11 +2158,35 @@
   function touchMonsters(rp, r0, r1) {
     if (state !== 'play' || r0 >= rp.R) return; // no monsters to alert, or the outgoing wave has ended
     for (const e of enemies) {
-      if ((e.kind !== 'echo' && e.kind !== 'mimic') || rp.touched.has(e)) continue;
+      if ((e.kind !== 'echo' && e.kind !== 'mimic' && e.kind !== 'alarm' && e.kind !== 'screecho') || rp.touched.has(e)) continue;
       const d = Math.hypot(e.x - rp.x, e.y - rp.y);
       if (d - e.r > r1 || d + e.r < r0) continue; // the front is not passing over it this frame
       if (!waveReaches(rp.x, rp.y, e)) continue;
       rp.touched.add(e);
+      if (e.kind === 'alarm') {
+        // (v15.7) the wave of one of YOUR ripples has reached an Alarm: it screams, once, and is spent for good.
+        // (Only your own ripples come through here - never a singer's song or a drop of water - and crouching
+        // sends none, so a crouched player can never set one off. Touching it does nothing at all.)
+        if (!e.spent) {
+          e.spent = true;
+          scream(e);
+        }
+        continue;
+      }
+      if (e.kind === 'screecho') {
+        // (v15.7) a Screecho screams when the wave reaches it - unless a decoy holds it, or it screamed less than
+        // SCREECHO_COOLDOWN seconds ago. The scream sends it (and everything else) to where you are now; without
+        // one it hears the ripple exactly as an echo monster does (below).
+        if (e.state !== 'lured' && e.state !== 'trapped' && e.screamCd <= 0) {
+          scream(e);
+          if (!rp.seen.has(e)) {
+            marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_SCREECHO], r: 34, art: 'screecho', ar: e.r, h: Math.atan2(rp.y - e.y, rp.x - e.x) });
+            rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_SCREECHO, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
+            rp.echoes.sort((a, b) => a.t - b.t);
+          }
+          continue;
+        }
+      }
       if (e.kind === 'mimic') {
         // the wave touched the "exit": it was a mimic all along, and it is an echo monster from now on
         revealMimic(e);
@@ -2073,8 +2195,9 @@
       if (e.state === 'track' || e.state === 'lured' || e.state === 'trapped') continue;
       if (!rp.seen.has(e)) {
         // it walked into the wave after the ripple was sent, so no echo of it was planned: show and sound it now
-        marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_ENEMY], r: 34, art: 'echo', ar: e.r, h: Math.atan2(rp.y - e.y, rp.x - e.x) });
-        rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_ENEMY, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
+        const sc = e.kind === 'screecho'; // (v15.7: a Screecho is shown and heard as itself)
+        marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[sc ? T_SCREECHO : T_ENEMY], r: 34, art: sc ? 'screecho' : 'echo', ar: e.r, h: Math.atan2(rp.y - e.y, rp.x - e.x) });
+        rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: sc ? T_SCREECHO : T_ENEMY, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
         rp.echoes.sort((a, b) => a.t - b.t);
       }
       alertEnemy(e, rp.x, rp.y);
@@ -2128,6 +2251,8 @@
       case T_WARDEN: audio.echoWarden(ev.pan, vol, ev.d); break; // level 13: the wall that came back wrong
       case T_LORE: audio.echoLore(ev.pan, vol); break; // a lore fragment: paper
       case T_KEY: audio.echoKey(ev.pan, vol); break; // level 14's key: a small bright tick of metal
+      case T_ALARM: audio.echoAlarm(ev.pan, vol); break; // (v15.7) an Alarm: a hard metallic ping
+      case T_SCREECHO: audio.echoScreecho(ev.pan, vol, ev.d); break; // (v15.7) a Screecho: a moan with a siren in it
     }
   }
 
@@ -2275,6 +2400,7 @@
     for (const e of enemies) {
       if (e.state === 'lured' || e.state === 'trapped') continue;
       if (e.kind === 'warden') continue; // the Warden (levels 15-16) is never distracted - there is no decoy there, but if there were
+      if (e.kind === 'alarm') continue; // (v15.7) an Alarm never moves - and a decoy's call is not a ripple, so it does not set one off
       if (Math.hypot(e.x - d.x, e.y - d.y) > DECOY_RADIUS) continue;
       if (e.kind === 'mimic') revealMimic(e);
       if (lureEnemy(e, d.x, d.y)) d.lured.push(e);
@@ -2443,7 +2569,7 @@
     // heartbeat + danger vignette as monsters close in (a disguised mimic gives no warning: it is just an exit)
     let dmin = Infinity;
     for (const e of enemies) {
-      if (e.kind === 'mimic') continue;
+      if (e.kind === 'mimic' || e.kind === 'alarm') continue; // (v15.7: an Alarm cannot hurt you)
       if (e.kind === 'warden' && e.state !== 'hunt') continue; // (nor does a Warden still in the stone)
       const d = Math.hypot(e.x - player.x, e.y - player.y) * (isChasing(e) ? 1 : 1.35);
       if (d < dmin) dmin = d;
@@ -2491,7 +2617,7 @@
     // level. All this does is notice that something came within a hair of you and did not get you.
     nearMiss = Math.max(0, nearMiss - dt / NEAR_MISS_SECONDS);
     for (const e of enemies) {
-      if (e.kind === 'mimic') continue; // a disguised mimic gives nothing away, near miss or not
+      if (e.kind === 'mimic' || e.kind === 'alarm') continue; // a disguised mimic gives nothing away, near miss or not (and an Alarm is harmless)
       if (e.kind === 'warden' && e.state !== 'hunt') continue; // nor a Warden still asleep in the stone
       const d = Math.hypot(e.x - player.x, e.y - player.y);
       e.nmCd = Math.max(0, (e.nmCd || 0) - dt);
@@ -2519,6 +2645,7 @@
         if (e.state === 'hunt' && Math.hypot(e.x - player.x, e.y - player.y) < e.r + PLAYER_R) return onCaught('warden', deathWhy(e));
         continue;
       }
+      if (e.kind === 'alarm') continue; // (v15.7) touching an Alarm is harmless - it never kills
       // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
       if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind, deathWhy(e));
     }
@@ -2584,6 +2711,16 @@
       case T_SCENT: EchoArt.draw(ctx, 'scent', c.x, c.y, c.r, o); break;
       case T_STALKER: EchoArt.draw(ctx, 'stalker', c.x, c.y, c.r, o); break;
       case T_SINGER: EchoArt.draw(ctx, 'singer', c.x, c.y, c.r, o); break;
+      case T_SCREECHO: EchoArt.draw(ctx, 'screecho', c.x, c.y, c.r, o); break; // (v15.7)
+      case T_ALARM: {
+        // (v15.7) an Alarm - drawn dimmer, silent and cracked once it has screamed: a landmark, nothing more
+        const spent = !!(c.enemy && c.enemy.spent);
+        o.spent = spent;
+        o.a = a * (spent ? 0.42 : 1);
+        EchoArt.draw(ctx, 'alarm', c.x, c.y, c.r, o);
+        o.spent = false;
+        break;
+      }
       case T_EXIT:
         if (c.door) {
           // level 14: the gaol door - drawn once, from the middle of its three parts, swinging as it opens
@@ -3143,6 +3280,7 @@
 
   /** `retrying` = the same level again after being caught, which is what costs you the Flawless medal. */
   function startLevel(n, retrying = false) {
+    screamLog = []; // (v15.7, ?debug only)
     destroyVoices();
     warden.stop(); // level 13's drone, if the last level was it
     story.stop(); // ...and levels 14-16's beats and sounds
@@ -4266,10 +4404,12 @@
   });
 
   /**
-   * The title's Level Editor button. In this order, each only when it applies: the spoiler warning (until it has
-   * been accepted once), then - v15.1 - the touch warning (every time, while touch controls are on: the editor
-   * works best with a mouse, but it does work), then My Levels. Coming back from a test play goes straight back to
-   * the editor: neither warning is in that way.
+   * The title's Level Editor button - the ONLY way into the editor's screens (there is no shortcut and no link to
+   * it). In this order, each only when it applies: the spoiler warning (until it has been accepted once), then -
+   * v15.7 - the unreleased-content warning (EVERY time, while js/level.js UNRELEASED_CONTENT is not empty: nothing
+   * about it is remembered), then - v15.1 - the touch warning (every time, while touch controls are on: the editor
+   * works best with a mouse, but it does work), then My Levels. Moving about inside the editor's screens, and
+   * coming back from a test play, go straight where they are going: no warning is in that way.
    */
   function openEditorScreens() {
     if (state !== 'title') return;
@@ -4277,8 +4417,32 @@
     audio.uiClick();
     myLevels.setView('mine', true); // (v15.2: from the title it always opens on My Levels; out of a bonus level, back to Bonus Levels)
     if (!editorUnlocked()) showGate();
-    else if (touchOn) showTouchGate();
+    else afterSpoilerGate();
+  }
+  /** What follows the spoiler warning - or comes first, once it has been accepted. */
+  function afterSpoilerGate() {
+    if (UNRELEASED_CONTENT.length) showUnreleasedGate();
+    else afterUnreleasedGate();
+  }
+  function afterUnreleasedGate() {
+    if (touchOn) showTouchGate();
     else showMyLevels();
+  }
+  /** (v15.7) The unreleased-content warning. Never remembered - asked every time, with no way to turn it off. */
+  function showUnreleasedGate() {
+    state = 'editor';
+    editorScreen = 'unreleased';
+    showOverlay('editor-unreleased');
+    try {
+      $('btn-unreleased-ok').focus({ preventScroll: true }); // Enter (or Space) accepts it, Tab reaches Back, Esc goes back
+    } catch (err) {
+      /* (an old browser without focus options) */
+    }
+  }
+  function acceptUnreleasedGate() {
+    if (editorScreen !== 'unreleased') return;
+    audio.uiClick();
+    afterUnreleasedGate();
   }
   function showGate() {
     state = 'editor';
@@ -4290,8 +4454,7 @@
     if (editorScreen !== 'gate') return;
     store.set(EDITOR_KEY, '1');
     audio.uiClick();
-    if (touchOn) showTouchGate();
-    else showMyLevels();
+    afterSpoilerGate();
   }
   /** (v15.1) The touch warning: the editor is made for a mouse and a keyboard. Never remembered - asked each time. */
   function showTouchGate() {
@@ -4870,6 +5033,8 @@
   $('btn-gate-ok').addEventListener('click', acceptGate);
   $('btn-gate-back').addEventListener('click', closeEditorScreens);
   $('btn-touchgate-ok').addEventListener('click', acceptTouchGate); // (v15.1)
+  $('btn-unreleased-ok').addEventListener('click', acceptUnreleasedGate); // (v15.7)
+  $('btn-unreleased-back').addEventListener('click', closeEditorScreens);
   $('btn-touchgate-back').addEventListener('click', closeEditorScreens);
   $('btn-mylevels-new').addEventListener('click', () => {
     audio.uiClick();
@@ -5125,6 +5290,9 @@
       },
       // markPlayer(): force a singer to mark you now (for tests); state of every singer / muffler
       markBy: (e) => markPlayer(e),
+      screams: () => screamLog.map((s) => Object.assign({}, s)), // (v15.7)
+      shake: () => shake,
+      alarms: () => enemies.filter((e) => e.kind === 'alarm' || e.kind === 'screecho').map((e) => ({ kind: e.kind, x: e.x, y: e.y, state: e.state, spent: e.spent, screamCd: e.screamCd })),
       newMonsters: () => enemies.filter((e) => e.kind === 'muffler' || e.kind === 'singer').map((e) => ({ kind: e.kind, x: e.x, y: e.y, state: e.state, timer: e.timer, markFrac: e.markFrac, markX: e.markX, markY: e.markY, deaf: e.deaf, everHeard: e.everHeard, singCd: e.singCd })),
       // v11.0: the settings screen, the palettes, the keys, the medals, the stats and the soundtrack
       openSettings,
@@ -5229,6 +5397,8 @@
       monsterChoices: () => monsterChoices(),
       openEditorScreens: () => openEditorScreens(),
       acceptGate: () => acceptGate(),
+      acceptUnreleased: () => acceptUnreleasedGate(), // (v15.7)
+      unreleased: () => UNRELEASED_CONTENT.slice(),
       closeEditorScreens: () => closeEditorScreens(),
       openEditor: (doc, folder) => openEditor(doc || null, folder || null),
       editorUnlocked: () => editorUnlocked(),

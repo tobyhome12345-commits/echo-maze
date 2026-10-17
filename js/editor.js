@@ -1363,6 +1363,14 @@ const EchoEditor = (() => {
           setTool('monster');
         });
         b.dataset.index = i;
+        if (c.unreleased) {
+          // (v15.7) not in the main game yet - see UNRELEASED_CONTENT in js/level.js
+          const tag = document.createElement('small');
+          tag.className = 'ed-tag';
+          tag.textContent = 'Unreleased';
+          b.append(tag);
+          b.title = c.label + ' - unreleased: not in the main game yet';
+        }
         el.monsters.appendChild(b);
       });
     }

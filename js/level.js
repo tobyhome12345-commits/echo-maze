@@ -141,6 +141,18 @@ const PUDDLE_CAP = { 9: 6 }; // level 9 has two scent monsters (Normal, Hard, Ha
  */
 const WARDEN_SPEED = 0.75; // level 15: the Warden - slower than you, so it only gains while you stop or go wrong
 const WARDEN_UPGRADED_SPEED = 1.05; // level 16: the upgraded Warden - faster than you, so it gains a little all the time
+// (v15.7) the Screecho screams when a ripple reaches it - and then not again for this many seconds, so it can never
+// be a trap that screams at every ripple. One number, here, to tune.
+const SCREECHO_COOLDOWN = 20;
+
+/**
+ * UNRELEASED CONTENT (v15.7) - the ONE list of things that are in the game's files but not in the campaign yet.
+ * While it holds anything, the level editor shows its unreleased-content warning every time it is opened from the
+ * title (js/game.js openEditorScreens), and the editor tags each monster named here 'Unreleased' (monsterChoices).
+ * When they are released into the campaign, empty this list: the warning and the tags go with it, nothing else.
+ * Nothing in the campaign, the tutorial, levels 13-16 or the bonus levels may use what is in it.
+ */
+const UNRELEASED_CONTENT = ['alarm', 'screecho'];
 
 /**
  * EVERY KIND OF MONSTER IN THE GAME (v15.0), in the order they arrive. This is the one list: js/game.js makes its
@@ -167,17 +179,21 @@ const MONSTER_TYPES = [
   { kind: 'muffler', name: 'Muffler', roams: true, art: null, role: 'muffler', pitch: [46, 8] },
   { kind: 'singer', name: 'Singer', roams: true, art: 'singer', role: 'singer', pitch: [200, 40] },
   { kind: 'warden', name: null, roams: false, art: 'hunter', role: 'warden', variants: () => (typeof EchoWarden === 'undefined' ? [] : Object.keys(EchoWarden.VARIANTS).map((id) => EchoWarden.VARIANTS[id])) },
+  // (v15.7, UNRELEASED - the level editor and custom levels only: see UNRELEASED_CONTENT) the pitch of these two is
+  // the Alarm's hum and the Screecho's voice
+  { kind: 'alarm', name: 'Alarm', roams: false, art: 'alarm', role: 'alarm', pitch: [1320, 120] },
+  { kind: 'screecho', name: 'Screecho', roams: false, art: 'screecho', role: 'screecho', pitch: [52, 18] },
 ];
 const monsterType = (kind) => MONSTER_TYPES.find((t) => t.kind === kind) || null;
 /**
  * Everything that can be placed, one entry per thing a player would pick: a kind, or each variant of a kind that
- * has them. { kind, variant (or null), label, art, role }.
+ * has them. { kind, variant (or null), label, art, role, unreleased }.
  */
 function monsterChoices() {
   const out = [];
   for (const t of MONSTER_TYPES) {
     if (t.variants) for (const v of t.variants()) out.push({ kind: t.kind, variant: v.id, label: v.label || `${t.kind} (${v.id})`, art: t.art, role: t.role });
-    else out.push({ kind: t.kind, variant: null, label: t.name || t.kind, art: t.art, role: t.role });
+    else out.push({ kind: t.kind, variant: null, label: t.name || t.kind, art: t.art, role: t.role, unreleased: UNRELEASED_CONTENT.includes(t.kind) });
   }
   return out;
 }

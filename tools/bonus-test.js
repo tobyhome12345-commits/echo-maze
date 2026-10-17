@@ -21,6 +21,12 @@ window.BonusTest = (() => {
   const E = () => window.__echo;
   const $ = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // (v15.7) the unreleased-content warning now stands between the title and the editor's other screens (it has its own
+  // tests in tools/monster-test.js): these suites step through it and go on testing what they always tested
+  const passUnreleased = () => {
+    const g = window.__echo;
+    if (g.editorScreen() === 'unreleased') g.acceptUnreleased();
+  };
   const key = (code, down = true) => window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, bubbles: true, cancelable: true }));
   const tap = (code) => {
     key(code, true);
@@ -443,20 +449,20 @@ window.BonusTest = (() => {
     localStorage.removeItem(KEY('editor'));
     localStorage.setItem(KEY('progress'), JSON.stringify({ easy: 3, normal: 3, hard: 1, hardcore: 1 }));
     E().features({ touch: false });
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     T.check('not unlocked: the spoiler warning comes first', E().editorScreen() === 'gate' && $('editor-gate').classList.contains('in'));
     T.check('...and the Bonus Levels are not on screen behind it (a screen that is up has .in)', !$('mylevels').classList.contains('in'));
     tap('Escape');
     await waitFor(() => E().info().state === 'title');
     T.check('Back from the warning: the title, nothing saved', E().info().state === 'title' && localStorage.getItem(KEY('editor')) === null);
-    E().openEditorScreens();
-    E().acceptGate();
+    E().openEditorScreens(); passUnreleased();
+    E().acceptGate(); passUnreleased();
     E().myLevels.setView('bonus');
     T.check('I understand: the list, and the Bonus Levels tab', E().editorScreen() === 'list' && E().myLevels.view() === 'bonus' && $('mylevels-list').querySelectorAll('.lv-row.bonus').length === 6);
     E().closeEditorScreens();
     // touch controls on: the touch warning, every time, before the list
     E().features({ touch: true });
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     T.check('touch controls on: the touch warning comes first', E().editorScreen() === 'touch' && $('editor-touch').classList.contains('in') && !$('mylevels').classList.contains('in'));
     E().acceptTouchGate();
     T.check('...then the list - opened from the title, it is always My Levels first', E().editorScreen() === 'list' && E().myLevels.view() === 'mine');
@@ -467,7 +473,7 @@ window.BonusTest = (() => {
     E().leaveCustom();
     T.check('leaving it: back on Bonus Levels, no warning', E().editorScreen() === 'list' && E().myLevels.view() === 'bonus');
     E().closeEditorScreens();
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     T.check('touch on: asked again next time from the title', E().editorScreen() === 'touch');
     E().closeEditorScreens();
     E().features({ touch: false });
@@ -505,7 +511,7 @@ window.BonusTest = (() => {
     const caught = walk(docOf('bonus-05-the-long-way'), [{ wait: 20 }], { seed: 9 });
     T.check('standing still on The Long Way: caught', caught.caught, caught);
     // through the real screens: caught -> Try again -> pause -> back
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     E().myLevels.setView('bonus');
     E().playCustom(docOf('bonus-05-the-long-way'), 'bonus');
     for (let i = 0; i < 60 * 20 && E().info().state === 'play'; i++) E().step(1 / 60);
@@ -565,7 +571,7 @@ window.BonusTest = (() => {
       await sleep(0);
     }
     // through the screen: the button, the dialog, the copy in Unsorted
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     E().myLevels.setView('bonus');
     const n0 = S().list().length;
     const btn = $('mylevels-list').querySelector('.lv-row.bonus [data-act="copy"]');
@@ -611,7 +617,7 @@ window.BonusTest = (() => {
     const renamed = docOf(id);
     renamed.title = 'Renamed';
     T.check('renaming (a save) is refused the same way', !S().save(renamed).ok && docOf(id).title === 'Embers');
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     const edTitle = $('ed-title').value;
     T.check('the editor will not open a bonus level', E().openEditor(doc) === false && E().editorScreen() === 'list' && !$('editor').classList.contains('in') && $('ed-title').value === edTitle);
     E().myLevels.setView('bonus');
@@ -660,7 +666,7 @@ window.BonusTest = (() => {
     T.check('deleting every level in My Levels leaves the ticks', B().isDone('bonus-01-crossroads'));
     T.check('no bonus level ever appears in My Levels', !S().list().some((it) => it.id.startsWith('bonus-')));
     // on screen
-    E().openEditorScreens();
+    E().openEditorScreens(); passUnreleased();
     E().myLevels.setView('bonus');
     const row = $('mylevels-list').querySelector('.lv-row[data-id="bonus-01-crossroads"]');
     T.check('the row shows Done, the tab counts 1/6', row.classList.contains('done') && /Done/.test(row.textContent) && $('lv-bonus-count').textContent === '1/6');
@@ -718,7 +724,7 @@ window.BonusTest = (() => {
     B().get = src.get;
     let uiThrew = null;
     try {
-      E().openEditorScreens();
+      E().openEditorScreens(); passUnreleased();
       E().myLevels.setView('bonus');
     } catch (e) {
       uiThrew = e;

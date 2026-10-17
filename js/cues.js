@@ -46,7 +46,7 @@ const EchoCues = (() => {
   // change with the palette - only these colours do - so a glyph always means the same thing.
   const RGB = {};
   EchoPalette.onChange((rgb) => {
-    for (const k of ['echo', 'scent', 'stalker', 'exit', 'decoy', 'heart', 'muffler', 'singer', 'warden', 'key']) RGB[k] = rgb[k];
+    for (const k of ['echo', 'scent', 'stalker', 'exit', 'decoy', 'heart', 'muffler', 'singer', 'warden', 'key', 'alarm', 'screecho']) RGB[k] = rgb[k];
     RGB.drip = rgb.wall; // a drop of water is the colour of the stone it lights
   });
 
@@ -296,6 +296,34 @@ const EchoCues = (() => {
         ctx.lineWidth = Math.max(1, size * 0.13);
         ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, alpha * 0.7)})`; // (the cues draw additively: a seam of light)
         ctx.stroke();
+      } else if (kind === 'alarm') {
+        // (v15.7) a dome on a flat base with three bars of sound above it: the Alarm (its hum, and its scream)
+        ctx.moveTo(-size * 0.95, size * 0.45);
+        ctx.arc(0, size * 0.45, size * 0.95, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.lineWidth = Math.max(1.3, size * 0.18);
+        for (const a of [-2.2, -Math.PI / 2, -0.94]) {
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * size * 1.2, size * 0.45 + Math.sin(a) * size * 1.2);
+          ctx.lineTo(Math.cos(a) * size * 1.6, size * 0.45 + Math.sin(a) * size * 1.6);
+          ctx.stroke();
+        }
+      } else if (kind === 'screecho') {
+        // (v15.7) the echo monster's spiky diamond with the Alarm's bars of sound above it: the Screecho
+        const C = [[0, -0.95], [0.75, 0], [0, 0.95], [-0.75, 0]];
+        C.forEach(([cx, cy], i) => (i ? ctx.lineTo(cx * size, cy * size + size * 0.3) : ctx.moveTo(cx * size, cy * size + size * 0.3)));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.lineWidth = Math.max(1.3, size * 0.18);
+        for (const a of [-2.2, -Math.PI / 2, -0.94]) {
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * size * 1.0, size * 0.3 + Math.sin(a) * size * 1.0);
+          ctx.lineTo(Math.cos(a) * size * 1.45, size * 0.3 + Math.sin(a) * size * 1.45);
+          ctx.stroke();
+        }
       } else if (kind === 'drip') {
         // a falling drop: water (levels 14 and 16), and on level 14 the drop that rings on the key
         ctx.moveTo(0, -1.25 * size);

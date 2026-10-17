@@ -69,9 +69,12 @@ depends on the editor: any source (the editor today; sharing or importing later)
 
 The kinds are the game's own list, `MONSTER_TYPES` in `js/level.js` - the editor, the loader and `makeEnemy` all read
 it, so a monster added to the game is accepted here by being added there. Today: `echo`, `scent`, `mimic`, `stalker`,
-`muffler`, `singer`, and `warden` with `variant` `regular` (the editor calls it "Level 15 monster") or `upgraded`
-("Level 16 monster") - the variants are `js/warden.js` `VARIANTS`. A `warden` with no `variant` is read as the first
-variant. Positions are tiles; a monster stands at the tile's centre.
+`muffler`, `singer`, `warden` with `variant` `regular` (the editor calls it "Level 15 monster") or `upgraded`
+("Level 16 monster") - the variants are `js/warden.js` `VARIANTS` - and (since v15.7) `alarm` and `screecho`. A `warden` with no
+`variant` is read as the first variant. The `alarm` and the `screecho` are **unreleased**: they exist only in the level editor and
+in custom levels (`UNRELEASED_CONTENT` in `js/level.js`), and an older version of the game reads a level that holds one as
+"from a newer version" (it keeps them aside and will not open it in the editor). No schema change was needed: a monster
+kind is a word, not a field. Positions are tiles; a monster stands at the tile's centre.
 
 ## Playable or unfinished
 
@@ -234,7 +237,7 @@ added to at the end: a number past the end of a list means the code is from a ne
 
 | Lists (format 1) | |
 | --- | --- |
-| monster | echo, scent, mimic, stalker, muffler, singer, warden |
+| monster | echo, scent, mimic, stalker, muffler, singer, warden, alarm, screecho (the last two since v15.7) |
 | variant | - (none), regular, upgraded |
 | object | puddle, decoy, key, note |
 | style / effect / shape | note, recording / light, glow / rect, circle |

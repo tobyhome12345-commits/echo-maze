@@ -212,9 +212,9 @@ $save = @"
     localStorage.setItem(P + 'seen', JSON.stringify($seenJs));
     localStorage.setItem(P + 'lore', JSON.stringify($loreJson)); // every lore fragment found (v13.0)
     localStorage.setItem(P + 'editor', '1'); // the Level Editor's warning already accepted (v15.0)
+    const SAMPLES = $samplesJs;
     // (v15.1: 'samples2' - a copy that already had v15.0's samples gets the new ones and the folders, once)
     if (!localStorage.getItem(P + 'samples2')) {
-      const SAMPLES = $samplesJs;
       for (const lv of SAMPLES) if (!localStorage.getItem(P + 'level.' + lv.id)) localStorage.setItem(P + 'level.' + lv.id, JSON.stringify(lv));
       if (!localStorage.getItem(P + 'folders')) {
         const FOLDERS = $foldersJs;
@@ -223,6 +223,11 @@ $save = @"
       }
       localStorage.setItem(P + 'samples', '1');
       localStorage.setItem(P + 'samples2', '1');
+    }
+    // (v15.7: 'samples3' - a copy that already had those gets the three with the unreleased monsters in them, once)
+    if (!localStorage.getItem(P + 'samples3')) {
+      for (const lv of SAMPLES) if (!localStorage.getItem(P + 'level.' + lv.id)) localStorage.setItem(P + 'level.' + lv.id, JSON.stringify(lv));
+      localStorage.setItem(P + 'samples3', '1');
     }
     // (v15.2) two bonus levels already done, so the Bonus Levels tab shows its ticks - once ('bonus2'), and only
     // ever added to: a tick the tester earns or clears stays as it is
@@ -268,6 +273,10 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     them are saved in the older v15.0 format on purpose, to show they still load),
     and the folders $folderNames holding some of them.
     They are added only once: delete or change one and it stays that way.
+  * the unreleased monsters (the Alarm and the Screecho): the Level Editor shows its
+    unreleased-content warning every time you open it - that is on purpose - and the samples
+    "Alarm in a Dead End", "Screecho" and "Chorus" use them (Chorus mixes both with other
+    monsters and a Level 15 monster), so you can try them straight away from My Levels.
   * the Bonus Levels tab (beside My Levels) has $($bonusIds.Count) levels that come with the game,
     and $doneTitles are already ticked as done (once only, like the samples)
   * level sharing: to try it, open the Level Editor, press "Enter code" in My Levels

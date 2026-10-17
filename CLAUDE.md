@@ -78,7 +78,8 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v15.3 | 01693cb | MINOR: **LEVEL SHARING** (the editor, part 3 of 3) - **share codes** with no server: the code IS the level (`js/sharecode.js`, format in `docs/level-format.md` "Share codes": `ECHO1L` / `ECHO1F` + base-62 payload + CRC-32; packed, deflated when shorter; the game's own inflate as the fallback). **Share** on a playable level, **Share folder** (playable levels only, up to 20, skipped ones named), **Copy** with a select-by-hand fallback, the length shown; **Enter code** (behind the editor's warnings): a preview, nothing saved before **Import** - one level to Unsorted, a folder as a new folder ("Name (2)" on a clash), all or nothing (`EchoLevelStore.importShared`), "you already have this" by content. Codes read as untrusted (size / unpack / count caps, cleaned text, the normal loader and checker; a folder with one bad level refused whole). An optional **creator name** (editor Level settings) goes into codes; imported levels show "by ..." and keep it until edited (`tools/share-test.js`, `tools/sample-codes.txt`). Levels 0-16 byte-identical (`9097b344`, identity games and story-bot = v15.2) |
 | v15.4 | 03a773f | MINOR, one line of feedback: the faster Warden's death tip "...Follow the water and do not stop." (level 16's advice) is said only on level 16; on a custom or bonus level its third tip is "...Know your way and do not stop." (`js/feedback.js` `upgradedElsewhere`, `WATER_LEVEL`). Level 16's tips are exactly as before (same pick for the same death); nothing else changed. Levels 0-16 byte-identical (`9097b344`) |
 | v15.5 | a80d4be | MINOR, UI only: **the title screen polished** - no inner scroll at 1280x720 / 1366x768 / 125% / 150% zoom; the controls, rules and legend moved to a **How to play** screen that shows only what the player has met (the rest "???"); Continue takes the lead for a returning player (Enter presses whichever is lit); themed switches for Calm / Visual cues; a calmer selected difficulty; rewritten mode lines; a headphones note by Begin; a click ripple; scales up on big screens (`--s`); usable held upright on a phone or tablet; focus rings, radiogroup arrows; a version tag read from the folder name; meta / social tags and `social.jpg` (`tools/title-test.js`). Levels 0-16 byte-identical (`9097b344`) |
-| v15.6 | eb0c2c9 | MINOR, no change to the game itself: **an installable web app** - `manifest.webmanifest` (full screen, the dark colours), `icons/` (made from the favicon), `sw.js` (a network-first service worker: the newest version whenever there is a connection, the last one offline), iOS home-screen tags; all only over http(s), so the `file://` copies are untouched. Levels 0-16 byte-identical (`9097b344`) (latest) |
+| v15.6 | eb0c2c9 | MINOR, no change to the game itself: **an installable web app** - `manifest.webmanifest` (full screen, the dark colours), `icons/` (made from the favicon), `sw.js` (a network-first service worker: the newest version whenever there is a connection, the last one offline), iOS home-screen tags; all only over http(s), so the `file://` copies are untouched. Levels 0-16 byte-identical (`9097b344`) |
+| v15.7 | PENDING | MINOR (the owner's "next minor version"): two **UNRELEASED** monsters, in the level editor and custom levels only - the **Alarm** (never moves, harmless; the wave of one of YOUR ripples reaching it makes it scream ONCE: every monster but the Wardens goes to where you were at that moment; then spent, silent, dim; a faint positional hum-tick before) and the **Screecho** (an echo monster in every rule, that also screams when a ripple reaches it, at most once per `SCREECHO_COOLDOWN` = 20 s). Tagged "Unreleased" in the editor; share-code words added at the end; an **unreleased-content warning** every time the editor is opened from the title, driven by one list (`UNRELEASED_CONTENT`, js/level.js); three test-copy samples (`tools/monster-test.js`). Levels 0-16 byte-identical (`9097b344`; eight identity games = v15.6) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -100,6 +101,7 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **first deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
 - **Levels 14-16** (`js/story.js`, v14.0) are hand-drawn in the same way, take no medals, and hand straight on to one another; the end-of-game stub comes after 16. Level 15's false light is the **second deliberate exception**, held to the same rule (clipped to the player's own line of sight). The Warden that hunts on 15-16 is tuned by exactly two numbers, `WARDEN_SPEED` / `WARDEN_UPGRADED_SPEED` in `js/level.js` (fractions of the player's walking speed), and has **no abilities until the owner names them** - add one as an entry in `ABILITIES` in `js/warden.js` and its name in a variant's list; never by rewriting the hunt. **Prove 16 is still fair after any change near it** with `tools/story-bot.js` (a clean run, wrong turns, pauses - see v14.0).
 - **The level editor and custom levels** (v15.0, see its section): a custom level is played with `levelNum` = `CUSTOM_LEVEL` (-1), so **`scored()` is false and it must write nothing** - no progress, medals, stats, fragments, seen, "levels cleared". **Every write to the save goes behind `scored()`** (v15.0 had to gate three that were not: `bump('marked')`, `bump('decoys')`, `addDeath`); `tools/editor-test.js` `noWrites()` proves it - run it after touching any save code. **`MONSTER_TYPES` in `js/level.js` is the one list of monsters**: a new monster goes there (with `name`, `roams`, `art`, `role`, `pitch`), and the editor, the loader and `makeEnemy` all pick it up; a Warden variant needs a `label` and a `pitch` in `js/warden.js` `VARIANTS`. **The saved format is written down in `docs/level-format.md`** - change it and `js/levelformat.js` together, never one without the other. All three parts are built (v15.0, v15.1, v15.3). **Sharing is codes only (v15.3): no network calls, no server, no accounts, ever, for version 1 codes** - a code holds the level itself. **A code holds only level content, titles and the optional creator name** - never an id, a date, a folder of the player's or any save data (`tools/share-test.js` authors / noWrites prove it); **every decoded code is untrusted** (`EchoShare.decode`: caps first, then `normalise` + `EchoLevelCheck`; text from a code only ever set with `textContent`); **imports are all or nothing** (`importShared`); **the WORDS lists in js/sharecode.js are frozen for format 1 - only add to their ends**, and anything that changes what a code means needs a new format version (and a resolver: `EchoShare.register`). Since v15.1: **every read of the way out goes through `exitsOf()`** in game.js (a custom level has `level.exits`, up to 8; every other level has `level.exit` alone, and the code it runs is unchanged); **a custom level's difficulty is its own** (`customConfig(difficulty)`, the player's title-screen mode is not read - see v15.1); **effect zones are drawing only, clipped to the player's line of sight, under the ripples, and never draw a monster, object or way out** (js/effects.js); **a custom note is read through the lore reader and nothing about it is kept**; **folders are never inside a level** (js/levelstore.js keeps them in `echomaze.folders`); and **editor text names a monster, never says what it does** (the hunter check says "too close to the way out"). Since v15.2: **the bonus levels are data** (`js/bonus-levels.js`, schema 2, read through the same loader and checker as everything else - add one by adding an entry, then prove it can be finished with `tools/bonus-test.js` routes); **they are read-only** (the store's `bonus` source refuses to save, delete or duplicate, `local` refuses their ids, the editor refuses them - the player gets a copy); **they are not the campaign** (played as custom levels, `scored()` false); and **their one write is the Done tick**, in its own key (`echomaze.bonus`), only when one is finished from Bonus Levels.
+- **Unreleased content** (v15.7): `UNRELEASED_CONTENT` in `js/level.js` is the ONE list of things in the game's files that are not in the campaign yet (today: `'alarm'`, `'screecho'`). While it is not empty the level editor shows its unreleased-content warning EVERY time it is opened from the title (`openEditorScreens`: spoiler warning once -> this one every time -> the touch warning when touch is on; never when moving about inside the editor's screens or coming back from a test play), and the editor tags each monster in it "Unreleased" (`monsterChoices().unreleased`). **To release them, empty the list** - the warning and the tags go with it and nothing else needs to change (then give the monsters a place in the campaign, a legend entry and a How to play line). Nothing in the campaign, the tutorial, levels 13-16 or the bonus levels may use anything in the list; `tools/monster-test.js` `campaign()` checks.
 - **Lore fragments** (`js/lore.js`, v13.0) are the one thing added TO levels 1-12 since they were built, at the owner's request. They must stay unable to move anything else: placed AFTER `generateLevel` from their own random stream, never drawing from the generator's sequence or `Math.random`, never blocking movement or a ripple, never read by anything that decides an outcome. **Prove it after any change near them** with `tools/generator-fingerprint.js` (`9097b344` as of v13.0) and `tools/identity-test.js` runs that use `visit`/`at` so a fragment is really read.
 
 ## Ripple range (owner's request; tools will build on it later)
@@ -1780,6 +1782,74 @@ Owner: an app on the phone, not from any app store, that updates without downloa
 - Saves are the same `localStorage` as the website's (Android shares it with Chrome; an iPhone's home-screen app has its own, apart from Safari's).
 - **Checked in headless Edge** (`pwa-check.js` in the scratchpad: a tiny Node server + the DevTools protocol): no manifest errors, no installability errors, the worker active and in control, 30 files saved, and with the network cut the page, its styling and every script still load (and `?debug` too). Not checked: a real install on a real phone - the owner does that.
 - **The export and the test copy include the three new things**; `tools/update-test-copy.ps1` knows them.
+
+## v15.7: the Alarm and the Screecho - unreleased, editor only (owner's brief, MINOR)
+
+Owner: two new monsters, built like the existing ones, **only in the level editor and custom levels for now** (the
+campaign, bonus levels, tutorial and every hand-authored level must not use them; the generator unchanged); an
+"Unreleased" tag in the editor; share-code words at the end of the frozen list; an unreleased-content warning every
+time the editor is opened, driven by one list. Introduced in the campaign in a later update.
+
+- **Definitions** (`js/level.js`): two `MONSTER_TYPES` entries (`alarm` 'Alarm', `screecho` 'Screecho', both `roams: false`,
+  own `art` / `role` / `pitch`), so the editor, the loader, `makeEnemy`, the checker and the codes pick them up as for any
+  monster. `SCREECHO_COOLDOWN` = 20 (seconds) beside the other monster constants. `UNRELEASED_CONTENT` (above).
+- **The Alarm** (`js/game.js`): `T_ALARM` = 13. It never moves (`updateEnemy` gives it no AI), never kills (skipped by the
+  catch loop, the heartbeat/danger loop and near misses), and a decoy does not call it. It is set off ONLY in
+  `touchMonsters` - the physical "the outgoing wavefront really passes over it" test every echo monster uses - which runs
+  only for the player's own ripples (never a singer's song, never a drip; crouching sends none). Then `scream(e)` once and
+  `e.spent = true`: silent (no hum), drawn at 0.42 with no sound-bars and a crack. **Its hum** (`alarmAudio`): `audio.alarmHum`,
+  a faint two-note tick every `ALARM_HUM_GAP` 1.15 s, positional (`spatial` over `ALARM_HUM_RANGE` 520 px) and wall-muffled
+  like every monster sound, with an `'alarm'` cue glyph. **The decoy (owner asked me to choose):** its call is NOT a ripple
+  (`callMonsters` is a straight-line radius, not `castRipple`), so it does not set an Alarm off - nothing "fell out
+  naturally", and I did not add it.
+- **The scream** (`scream(src)`, both monsters): the spot is `player.x/y` at that instant, fixed. Every monster except
+  Wardens and Alarms is sent there by `summon`: an echo monster / Screecho via `alertEnemy` (hunt -> search, the ripple
+  behaviour; one already tracking you keeps tracking); a mimic is revealed first (`revealMimic`) and then the same; the kinds
+  that roam go to a new state `summoned` (walk there at their own `speedOf`, wait `cfg.searchTime`, then `releaseLured` back to
+  their round; a stalker or muffler that hears you on the way switches to its own hunt). A decoy's hold wins (lured / trapped
+  are left alone); a singer in mid-leap is left to land. `audio.scream` (a three-octave rising saw+square shriek with a fast
+  flutter and a hiss; the Screecho's lower, slower-fluttering, with the echo moan under it), never muffled, calm x0.4; a
+  ring mark; a 5 px shake (none in calm); a cue and a caption (`[an alarm shrieks]` / `[a shrieking howl]`), set LAST so the
+  summoned monsters' own screech captions do not cover it.
+- **The Screecho**: `T_SCREECHO` = 14, `updateEcho` (so the same speed - `cfg.enemySpeed`, with the monster-speed scale and
+  the 169 cap - hearing, listening window, lock-on, catch, tips). In `touchMonsters`, when the wave reaches it and it is not
+  held by a decoy and `screamCd` is 0: `scream` + `screamCd = SCREECHO_COOLDOWN`; otherwise it hears the ripple exactly as an
+  echo monster does. Voice: the echo voice plus a thin square-wave whine near the Alarm's pitch (`createEnemyVoice` kind
+  'screecho'); `echoScreecho` = the moan + a siren blip.
+- **Look** (`js/art.js`): `alarm` (a dome on a plate, a round horn, three sound bars) and `screecho` (the echo monster's body,
+  smaller and set back, with a flared horn mouth and two sound arcs - the Alarm's bars); cue glyphs `alarm` / `screecho` in
+  `js/cues.js`. **Colours** (two new palette roles, picked with `tools/palette-check.js`, CIEDE2000 to the nearest other colour
+  under the palette's visions): Default Alarm `255,236,40` siren yellow (13.5, key) / Screecho `40,255,240` aqua (18.9, exit) -
+  both further than Default's own worst pair 11.9; High contrast the same two (12.5 / 16.6 vs its 17.2); red-green
+  `225,255,0` / `240,105,195` (12.1 / 10.9 vs 16.9); blue-yellow `120,135,45` / `180,120,255` (16.8 / 12.6 vs 13.7). The
+  crowded palettes could not fit two more colours as far apart as their own worst pair without going dull - reported to
+  the owner; the shapes are what tells them apart there.
+- **Editor**: `monsterChoices()` carries `unreleased`; the list button gets a small "Unreleased" tag (`.ed-tag`). Thumbnails
+  draw no monsters, so nothing there. Placement and validation are the shared rules.
+- **Codes**: `WORDS.monster` + `alarm`, `screecho` at the END (format 1 unchanged; no schema bump - a kind is a word).
+  Measured: v15.6 opening such a code says "This code was made in a newer version..."; a SAVED level with them is read
+  by v15.6 as foreign (playable without them, not editable - the v15.0 rule).
+- **The warning** (`#editor-unreleased`): see "Unreleased content" in Constraints. Focus goes to I understand; Esc is Back.
+- **Older test suites**: editor-test / editor-test-2 / bonus-test / share-test / title-test step through the new warning with
+  a `passUnreleased()` helper (the warning has its own tests); editor-test's storage suite now spaces its "one of every
+  monster" row one tile apart (two more monsters no longer fitted the gallery).
+
+### Tests (`tools/monster-test.js`, headless Edge)
+
+alarm 24/24 (standing on it, walking through it, crouching + pressing ripple: nothing; the hum: 4 ticks in 4 s at 200 px,
+placed, a cue, silent at 700 px; a ripple from 160 px: one scream 0.28 s later, the spot = where you stood, echo / scent /
+mimic (revealed) / stalker / muffler / singer all sent - the farthest 963 px away - the Level 15 monster not; you move away
+and they still go to the old spot; spent, no second scream, no hum); alarmOthers 5/5 (a dropped decoy's call beside it, a
+singer singing beside it: no scream); screecho 9/9 (speed MEASURED 140.0 px/s = `cfg.enemySpeed`; listens at the spot,
+footsteps lock it on, touch kills with "The echo found you."; cooldown MEASURED: pinged every 1.5 s for 26 s, screams at
+0 and 20.8 s - 20 s + the recharge and the wave's travel - and only twice); tuning 14/14 (monster speed x0.5 / x1.5 exact,
+the 169 cap, Hardcore-rated faster and still Try again; calm: shake 0 vs 5, `audio.calm`, the cue and the caption in both);
+gate 22/22 + gateFinished 4/4; sharing 6/6 (round trip, deterministic, the v15.3 sample codes still decode, 160
+characters); editor 13/13 (the list and tags, placed with the mouse, refused on the start / in a wall like any monster,
+test play); campaign 4/4 (204 generated levels 0-16 - four modes x three seeds, the bonus levels, levels played: neither kind); noWrites
+2/2; soak 2 x 25 random levels x 40 s = 120,000 frames, 169 screams, 422 catches, 0 exceptions. Also: generator
+`9097b344`; the eight identity games identical to v15.6; every v15.0-v15.3 and v15.5 suite passes.
+**Not judged by ear or eye**: the hum, the scream, the Screecho's whine, the art and the colours.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

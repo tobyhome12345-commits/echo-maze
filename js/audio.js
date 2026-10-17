@@ -726,6 +726,28 @@ class SoundEngine {
     lfo2.connect(lfo2Depth);
     lfo2Depth.connect(lp.frequency);
 
+    // (v15.7) the Screecho: an echo monster's voice with a thin, wavering siren-whine on top of it - near the
+    // Alarm's own hum, so the two are heard as one family
+    const whine = [];
+    if (kind === 'screecho') {
+      const w = c.createOscillator();
+      w.type = 'square';
+      w.frequency.value = pitch * 26;
+      const wob = c.createOscillator();
+      wob.frequency.value = 7 + Math.random() * 2;
+      const wobD = c.createGain();
+      wobD.gain.value = pitch * 0.9;
+      wob.connect(wobD);
+      wobD.connect(w.frequency);
+      const wb = this._filter('bandpass', pitch * 30, 4);
+      const wg = c.createGain();
+      wg.gain.value = 0.05;
+      w.connect(wb);
+      wb.connect(wg);
+      wg.connect(out);
+      whine.push(w, wob);
+    }
+
     // wall muffling sits after the voice: out -> low-pass -> gain -> pan -> master (see setMuffle)
     const { mf, mfg } = this._muffleStage();
     out.connect(mf);
@@ -744,6 +766,7 @@ class SoundEngine {
 
     const oscs = [o1, o2, o3, lfo, lfo2];
     if (hiss) oscs.push(hiss);
+    oscs.push(...whine);
     oscs.forEach((o) => o.start(t));
     return { out, mf, mfg, pan, lp, o1, o2, o3, lfo, pitch, kind, oscs };
   }
@@ -1084,6 +1107,102 @@ class SoundEngine {
     o.connect(og);
     this._route(this._muffle(og, muffled), pan, 0.15);
     this._track(n);
+  }
+
+  // ------------------------------------------------- the Alarm and the Screecho (v15.7, unreleased)
+
+  /**
+   * The Alarm, before it has screamed: a faint, regular two-note hum-tick - high and thin, like a device that is
+   * waiting. Placed and wall-muffled like every monster's sound, so a careful player can hear where it is.
+   */
+  alarmHum(pan, gain, muffled = false) {
+    if (this.calm) gain *= 0.7;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    [[1320, 0], [990, 0.11]].forEach(([f, dt], i) => {
+      const o = this._osc('sine', f, t + dt, 0.12);
+      const g = this._env(t + dt, 0.012, 0.2 * gain, 0.07);
+      o.connect(g);
+      this._route(this._muffle(g, muffled), pan, 0.3);
+      if (i === 0) this._track(o);
+    });
+  }
+
+  /**
+   * THE SCREAM - the Alarm's, and the Screecho's: an unpleasant, rising shriek. Two harsh oscillators climbing
+   * three octaves through a band-pass that climbs with them, a fast flutter on the loudness, and a hiss of noise.
+   * The Screecho's is the same family but its own: it starts lower, flutters slower and has the echo monster's
+   * moan under it. It is a warning, so it is never muffled; calm mode softens it (as it does every alert).
+   */
+  scream(pan, gain, screecho = false) {
+    if (this.calm) gain *= 0.4;
+    if (!this.ctx || gain < 0.01) return; // (not subject to the polyphony limit: this one must be heard)
+    const c = this.ctx;
+    const t = c.currentTime;
+    this.duck(0.75, 1.2);
+    const f0 = screecho ? 300 : 380;
+    const f1 = screecho ? 2200 : 2600;
+    const bp = this._filter('bandpass', 900, 3);
+    bp.frequency.exponentialRampToValueAtTime(3200, t + 1.1);
+    const flutter = c.createGain();
+    flutter.gain.value = 0.65;
+    const lfo = this._osc('sine', screecho ? 15 : 22, t, 1.4);
+    const lfoG = c.createGain();
+    lfoG.gain.value = 0.35;
+    lfo.connect(lfoG);
+    lfoG.connect(flutter.gain);
+    const env = this._env(t, 0.04, 0.55 * gain, 1.2);
+    for (const [type, k] of [['sawtooth', 1], ['square', 1.07]]) {
+      const o = this._osc(type, f0 * k, t, 1.4);
+      o.frequency.exponentialRampToValueAtTime(f1 * k, t + 1.1);
+      o.connect(bp);
+      if (k === 1) this._track(o);
+    }
+    bp.connect(flutter);
+    flutter.connect(env);
+    this._route(env, pan, 0.45);
+    const n = this._noise(t, 1.0);
+    const hp = this._filter('highpass', 2500, 0.8);
+    const ng = this._env(t, 0.02, 0.22 * gain, 0.85);
+    n.connect(hp);
+    hp.connect(ng);
+    this._route(ng, pan, 0.35);
+    if (screecho) {
+      const m = this._osc('sawtooth', 110, t, 1.2);
+      m.frequency.exponentialRampToValueAtTime(165, t + 0.9);
+      const mb = this._filter('bandpass', 420, 2);
+      const mg = this._env(t, 0.05, 0.4 * gain, 1.0);
+      m.connect(mb);
+      mb.connect(mg);
+      this._route(mg, pan, 0.4);
+    }
+  }
+
+  /** A ripple comes back off an Alarm: a small, hard, metallic ping. */
+  echoAlarm(pan, vol) {
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    [1760, 2640].forEach((f, i) => {
+      const o = this._osc('sine', f, t, 0.45);
+      const g = this._env(t, 0.004, (i ? 0.16 : 0.3) * vol, 0.35);
+      o.connect(g);
+      this._route(g, pan, 0.4);
+      if (i === 0) this._track(o);
+    });
+  }
+
+  /** A ripple comes back off a Screecho: the echo monster's moan, with a thin whine of its siren on top. */
+  echoScreecho(pan, vol, dist) {
+    this.echoEnemy(pan, vol * 0.85, dist);
+    if (this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('square', 1500, t, 0.5);
+    o.frequency.exponentialRampToValueAtTime(1800, t + 0.4);
+    const bp = this._filter('bandpass', 1700, 4);
+    const g = this._env(t, 0.03, 0.12 * vol, 0.4);
+    o.connect(bp);
+    bp.connect(g);
+    this._route(g, pan, 0.4);
   }
 
   /** Screech when a monster hears you and starts hunting. */

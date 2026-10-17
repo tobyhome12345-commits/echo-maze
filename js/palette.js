@@ -36,7 +36,9 @@ const EchoPalette = (() => {
   // 'key' is level 14's key (js/story.js) and is kept out of the nine-way check for the same reason: the gaol
   // holds walls, bars (obstacle), the door (exit) and the key, and nothing else - so the key is checked against
   // exactly those, under every vision, on its own (see CLAUDE.md, v14.0).
-  const ROLES = RIPPLE_ROLES.concat(['muffler', 'heart', 'warden', 'key']);
+  // (v15.7) 'alarm' and 'screecho' - the two unreleased monsters (custom levels only). Checked by
+  // tools/palette-check.js against every other colour in their palette, under every vision it is for - see CLAUDE.md.
+  const ROLES = RIPPLE_ROLES.concat(['muffler', 'heart', 'warden', 'key', 'alarm', 'screecho']);
 
   const PALETTES = {
     default: {
@@ -57,6 +59,8 @@ const EchoPalette = (() => {
         heart: '255,132,150',
         warden: '255,232,224',
         key: '235,210,135', // level 14's key: old brass (picked by tools/palette-check.js - see CLAUDE.md, v14.0)
+        alarm: '255,236,40', // (v15.7) siren yellow
+        screecho: '40,255,240', // (v15.7) electric aqua
       },
       // named so the default look is exactly what it was (elsewhere these are derived - see coreOf)
       core: {
@@ -94,6 +98,8 @@ const EchoPalette = (() => {
         heart: '242,198,88',
         warden: '196,150,120',
         key: '235,205,130',
+        alarm: '225,255,0',
+        screecho: '240,105,195',
       },
     },
     // Worst pair: 13.6 (under normal vision and tritanopia). Terrain is cool and green, monsters are warm -
@@ -117,6 +123,8 @@ const EchoPalette = (() => {
         heart: '220,179,165',
         warden: '206,142,150',
         key: '240,205,125',
+        alarm: '120,135,45',
+        screecho: '180,120,255',
       },
     },
     // Worst pair: 17.0 under normal vision, where the Default palette manages 11.9 - the same colour language
@@ -140,6 +148,8 @@ const EchoPalette = (() => {
         heart: '255,127,144',
         warden: '255,232,224',
         key: '215,220,175',
+        alarm: '255,236,40',
+        screecho: '40,255,240',
       },
     },
   };
