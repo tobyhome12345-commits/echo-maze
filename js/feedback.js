@@ -99,9 +99,17 @@ const EchoFeedback = (() => {
         'It gains a little every second. A dead end gave it the rest.',
         'You cannot outrun it for long - only out-choose it. Follow the water and do not stop.',
       ],
+      // (v15.4) the same Warden anywhere but level 16 - a custom or bonus level has no water to follow
+      upgradedElsewhere: [
+        'This one is faster than you. Every wrong turn and every pause is ground it takes back.',
+        'It gains a little every second. A dead end gave it the rest.',
+        'You cannot outrun it for long - only out-choose it. Know your way and do not stop.',
+      ],
       blind: ['You walked straight into it.'],
     },
   };
+  /** The one level where the way out is along dripping water (js/story.js): only its tips may say so. */
+  const WATER_LEVEL = 16;
 
   /** A small, stable hash of a string - not the game's random numbers, and nothing to do with them. */
   function hash(str) {
@@ -119,7 +127,10 @@ const EchoFeedback = (() => {
    */
   function tipFor(cause, why, level = 1, atMs = 0) {
     const byCause = TIPS[cause] || TIPS.echo;
-    const list = byCause[why] || byCause.any || byCause.blind || [];
+    // (the faster Warden off level 16 - a custom or bonus level - gets the lines that do not mention its water;
+    //  the pick below still hashes `why`, so level 16's tips are exactly what they were)
+    const key = cause === 'warden' && why === 'upgraded' && level !== WATER_LEVEL ? 'upgradedElsewhere' : why;
+    const list = byCause[key] || byCause.any || byCause.blind || [];
     if (!list.length) return '';
     return list[hash(`${cause}|${why}|${level}|${atMs}`) % list.length];
   }
