@@ -29,9 +29,14 @@ function Fail($msg) {
   Write-Host "STOPPED: $msg" -ForegroundColor Red
   exit 1
 }
-function Git {
-  $out = & git @args 2>&1
-  if ($LASTEXITCODE -ne 0) { Fail "git $($args -join ' ') failed: $out" }
+function Invoke-Git {
+  # (git prints ordinary progress on stderr; Windows PowerShell would treat that as an error under 'Stop')
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  $out = & git.exe @args 2>&1 | ForEach-Object { "$_" }
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+  if ($code -ne 0) { Fail "git $($args -join ' ') failed: $out" }
   return $out
 }
 
@@ -47,21 +52,21 @@ if ($Description -match '[\\/:*?"<>|]' -or -not $Description.Trim()) { Fail "-De
 if (-not (Test-Path $versionsDir)) { Fail "$versionsDir is not here - this script is for the owner's PC only" }
 
 Set-Location $repo
-if (Git status --porcelain) { Fail "the repo at $repo has uncommitted changes - commit or stash them first" }
-if ((Git rev-parse --abbrev-ref HEAD) -ne 'main') {
+if (Invoke-Git status --porcelain) { Fail "the repo at $repo has uncommitted changes - commit or stash them first" }
+if ((Invoke-Git rev-parse --abbrev-ref HEAD) -ne 'main') {
   Write-Host 'switching to main'
-  Git checkout main | Out-Null
+  Invoke-Git checkout main | Out-Null
 }
-Git fetch origin | Out-Null
-Git pull --ff-only origin main | Out-Null
-$sha = if ($Commit) { Git rev-parse --verify "$Commit^{commit}" } else { Git rev-parse HEAD }
+Invoke-Git fetch origin | Out-Null
+Invoke-Git pull --ff-only origin main | Out-Null
+$sha = if ($Commit) { Invoke-Git rev-parse --verify "$Commit^{commit}" } else { Invoke-Git rev-parse HEAD }
 & git merge-base --is-ancestor $sha HEAD
 if ($LASTEXITCODE -ne 0) { Fail "commit $Commit is not on main" }
-$short = Git rev-parse --short $sha
-$subject = Git log -1 --format=%s $sha
+$short = Invoke-Git rev-parse --short $sha
+$subject = Invoke-Git log -1 --format=%s $sha
 
 # the version table should already have the row (the pull request adds it)
-$claude = (Git show "$($sha):CLAUDE.md") -join "`n"
+$claude = (Invoke-Git show "$($sha):CLAUDE.md") -join "`n"
 $row = ($claude -split "`n") | Where-Object { $_ -match "^\| $([regex]::Escape($Version)) \|" } | Select-Object -First 1
 if (-not $row) { Write-Warning "CLAUDE.md at $short has no row for $Version in the version table - is this the right version number?" }
 
@@ -69,7 +74,7 @@ $existing = Get-ChildItem $versionsDir -Directory | Where-Object { $_.Name -eq $
 if ($existing) { Fail "a folder for $Version already exists: $($existing.Name -join ', ') - nothing was changed" }
 $name = "$Version - $($Description.Trim())"
 $dest = Join-Path $versionsDir $name
-$entries = Git ls-tree --name-only $sha | Where-Object { $repoOnly -notcontains $_ }
+$entries = Invoke-Git ls-tree --name-only $sha | Where-Object { $repoOnly -notcontains $_ }
 
 Write-Host ''
 Write-Host "Release $Version from $short ($subject)"
@@ -86,7 +91,7 @@ if ($DryRun) {
 
 # the folder
 $zip = Join-Path $env:TEMP "echo-maze-$Version-$short.zip"
-Git archive --format=zip -o $zip $sha @entries | Out-Null
+Invoke-Git archive --format=zip -o $zip $sha @entries | Out-Null
 Expand-Archive $zip $dest
 Write-Host "made $dest ($((Get-ChildItem $dest | Select-Object -ExpandProperty Name) -join ', '))"
 
