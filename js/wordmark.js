@@ -103,6 +103,7 @@ const EchoWordmark = (() => {
     let cssH = 0;
     let lines = []; // [{ glyphs: [{ ch, x }], width, left, y }]
     let size = MAX_SIZE;
+    let scale = 1; // (v15.5) the title screen's scale on a big screen (style.css --s): the whole wordmark grows with it
     let capH = MAX_SIZE * 0.72;
     let dirty = true;
     let t = -1; // 0..1 through the sweep, or -1 while resting
@@ -158,7 +159,8 @@ const EchoWordmark = (() => {
 
     function layout(availW) {
       const room = Math.max(60, availW - 10); // a little air either side for the halo
-      let px = MAX_SIZE;
+      const maxPx = Math.round(MAX_SIZE * scale); // (v15.5) bigger on a big screen - every proportion goes with it
+      let px = maxPx;
       let L = oneLine(px);
       if (L.width > room) {
         px = Math.max(MIN_SIZE, Math.floor((px * room) / L.width));
@@ -169,7 +171,7 @@ const EchoWordmark = (() => {
         lines = [L];
       } else {
         // too wide even at the smallest single-line size: stack the two words
-        px = MAX_SIZE;
+        px = maxPx;
         let a = measureWord(WORDS[0], px);
         let b = measureWord(WORDS[1], px);
         const widest = Math.max(a.width, b.width);
@@ -245,8 +247,10 @@ const EchoWordmark = (() => {
       // the title is hidden: keep the layout we had rather than re-fitting the letters to a width of nothing
       if (availW < 40) return;
       const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
-      if (!dirty && availW === cssW && nextDpr === dpr) return;
+      const nextScale = Math.max(1, Math.min(2, parseFloat(getComputedStyle(h1).getPropertyValue('--s')) || 1));
+      if (!dirty && availW === cssW && nextDpr === dpr && nextScale === scale) return;
       dpr = nextDpr;
+      scale = nextScale;
       layout(availW);
       host.style.width = '100%';
       host.style.height = `${cssH}px`;

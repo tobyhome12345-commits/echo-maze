@@ -6,6 +6,8 @@ Press **SPACE** to send out a sonar ripple. It expands from your position, bounc
 
 No build step, no dependencies, no audio files. Open `index.html` in a browser (or serve the folder with any static server) and click **Begin**. New here? The first Begin walks you through a short **Tutorial** first, and there is a **Tutorial** button on the title screen whenever you want it again.
 
+The title screen keeps to the essentials: the difficulty, Calm mode and Visual cues, and **Begin** (or **Continue**, which takes the lead once you have a run going - `Enter` presses whichever is lit). The controls, the rules and the legend are behind **How to play**, which only describes what you have already met; anything still ahead of you shows as **???**.
+
 ## Controls
 
 | Key | Action |
@@ -21,7 +23,7 @@ No build step, no dependencies, no audio files. Open `index.html` in a browser (
 | `Enter` | Confirm on the Try again / Next level screens |
 | `Enter` / `Space` / `Esc` | Skip the intro cutscene (or click **Skip**) |
 
-**Every key in that table can be changed** in **Settings -> Controls** (two keys per action if you like). `Esc` always means back or pause and `Enter` always confirms, so those two are fixed. The title screen and the pause menu always list the keys you are actually using.
+**Every key in that table can be changed** in **Settings -> Controls** (two keys per action if you like). `Esc` always means back or pause and `Enter` always confirms, so those two are fixed. **How to play** (on the title screen) and the pause menu always list the keys you are actually using.
 
 On a touch device the controls are on screen instead (see **Touch controls** below).
 
@@ -44,7 +46,7 @@ Headphones recommended: echoes and monsters are stereo-panned, muffled by walls,
 | Brass | The key (level 14) | an **old iron key**: a ring with a hole through it, a straight shaft, two teeth |
 | Green | The way out | a **portal**: concentric rings, a slowly rotating arc, a little doorway and a few soft sparkles |
 
-Colour is never the only clue: every thing has its own silhouette and texture (drawn by [`js/art.js`](js/art.js)), and the title screen's legend shows them. See **How things look** below. The colours above are the Default palette - **Settings -> Display** has three others, including two for colour blindness (see **Colour palettes**), and the legend always shows the one you are using.
+Colour is never the only clue: every thing has its own silhouette and texture (drawn by [`js/art.js`](js/art.js)), and the legend in **How to play** shows them (only the ones you have met). See **How things look** below. The colours above are the Default palette - **Settings -> Display** has three others, including two for colour blindness (see **Colour palettes**), and the legend always shows the one you are using.
 
 ## The tutorial (level 0)
 
@@ -569,8 +571,9 @@ On touch devices (a coarse pointer, or the first touch) the game shows on-screen
 ## Project layout
 
 ```
-index.html      page + overlay screens (title, replay, settings, pause, tutorial complete, caught, level complete, ending, the level editor's four: two warnings, My Levels, the editor) + a custom level's title card + the touch layer
+index.html      page + overlay screens (title, How to play, replay, settings, pause, tutorial complete, caught, level complete, ending, the level editor's four: two warnings, My Levels, the editor) + a custom level's title card + the touch layer
 style.css       styling (everything for touch is under `body.touch`)
+social.jpg      the picture a link to the game shows when shared (1200 x 630)
 js/profile.js   everything saved that is not progress: your keys, volumes, palette, medals and stats
 js/palette.js   the four colour palettes, and who they hand their colours to
 js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling, Doppler, the two buses)
@@ -612,6 +615,8 @@ tools/          developer tools, not part of the game and not exported with a ve
                 the key first), bonus-test.js (v15.2: every bonus level through the loader, played through along
                 written routes with several random seeds, the warnings in front of them, nothing saved but the ticks,
                 Copy to My Levels playing identically, read-only, the ticks, broken data, a soak),
+                title-test.js (v15.5: the title screen - keys, How to play and what it hides, every button, Begin
+                on every difficulty with Calm / Visual cues, touch, nothing saved),
                 share-test.js (v15.3: share codes - round trips, lengths, bad / hostile / oversized codes, the screens,
                 creator names, imported levels playing identically, nothing written, fuzzing), sample-codes.txt (the
                 codes in the test copy's READ ME),

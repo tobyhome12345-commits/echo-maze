@@ -120,7 +120,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'editor-touch', 'mylevels', 'editor'];
+  const overlays = ['title', 'howto', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'editor-touch', 'mylevels', 'editor'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
   //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after
   //         level 16) | editor (v15.0: the level editor's screens - its warning, My Levels, the editor itself; no
@@ -418,6 +418,12 @@
     canvas.width = Math.floor(W * DPR);
     canvas.height = Math.floor(H * DPR);
     viewScale = Math.max(0.55, Math.min(W / 1000, H / 620));
+    // (v15.5) the title screen grows with a big screen - never shrinks below its own size (a small screen keeps it)
+    const ts = String(+Math.max(1, Math.min(2, W / 1280, H / 800)).toFixed(3));
+    for (const id of ['title', 'howto']) {
+      const el = document.getElementById(id);
+      if (el) el.style.setProperty('--s', ts);
+    }
   }
 
   /** Highest level unlocked in a mode (1 = nothing cleared yet). Each mode keeps its own. */
@@ -3023,6 +3029,7 @@
 
   function showOverlay(id) {
     clearTimeout(overlayHideTimer);
+    document.body.classList.toggle('on-title', state === 'title'); // (v15.5: as soon as a screen changes - the frame keeps it true after)
     for (const o of overlays) {
       const el = $(o);
       if (o === id) {
@@ -3785,10 +3792,10 @@
   }
 
   const MODE_INFO = {
-    easy: 'Slower monsters, fewer of them, longer ripples, and they lose you sooner. Unlimited retries.',
-    normal: 'The intended game, a touch gentler than it used to be. Unlimited retries.',
-    hard: 'Faster and more monsters, sharper ears, shorter ripples. Unlimited retries.',
-    hardcore: 'A little harder than Hard — and you only get one life. Get caught and you are sent back to the title screen; there is no resuming.',
+    easy: 'Slower monsters that give up sooner, and longer ripples. Unlimited retries.',
+    normal: 'The game as it is meant to be played. Unlimited retries.',
+    hard: 'More monsters, faster and sharper-eared, and shorter ripples. Unlimited retries.',
+    hardcore: 'Harder than Hard, with one life: get caught and the run is over.',
   };
 
   /** A best level past the last real level means the game was finished. */
@@ -3803,6 +3810,7 @@
       const m = b.dataset.mode;
       b.classList.toggle('active', m === mode);
       b.setAttribute('aria-checked', m === mode ? 'true' : 'false');
+      b.tabIndex = m === mode ? 0 : -1; // (v15.5) one stop in the Tab order; the arrow keys move inside the group
       const best = getBest(m);
       const tag = b.querySelector('small');
       if (MODES[m].oneLife) tag.textContent = progress[m] ? `High score: ${scoreShort(progress[m])}` : '';
@@ -3820,6 +3828,11 @@
     // ...and nothing to continue once the game has been finished (there is no level after the last)
     btn.classList.toggle('hidden', best <= 1 || !!MODES[mode].oneLife || isFinished(best));
     btn.textContent = `Continue (Level ${best})`;
+    // (v15.5) one main action: Continue when there is a game to go back to, Begin when there is not
+    const resume = !btn.classList.contains('hidden');
+    btn.classList.toggle('primary', resume);
+    $('btn-start').classList.toggle('primary', !resume);
+    $('title-first').classList.toggle('hidden', !newPlayer());
     document.querySelectorAll('.calm-toggle').forEach((c) => {
       c.checked = calm;
     });
@@ -3943,6 +3956,84 @@
       list.appendChild(b);
     }
     showOverlay('replay');
+  }
+
+  // ------------------------------------------------------------ how to play (v15.5)
+  /**
+   * WHAT THE PLAYER HAS MET, for How to play - so it never names a monster or a thing before the game has shown
+   * it. Two records, both already kept for other reasons and never written here:
+   *   - the cutscene that introduces each one (`echomaze.seen`, set the moment it starts playing - just before the
+   *     level it leads into: hasSeen), and
+   *   - how far the player has got in any mode (`echomaze.progress`: furthestReached) - for saves from before a
+   *     scene existed, and for the things that have no scene of their own.
+   * Basics (walls, obstacles, the way out, echo monsters - the intro shows one - and the heartbeat) are always known.
+   */
+  function metThings() {
+    const reached = furthestReached(); // the level the player is up to (it has been entered, or is next)
+    const cleared = reached - 1;
+    const byScene = (kind, level) => hasSeen(kind) || cleared >= level;
+    return {
+      basic: true,
+      scent: byScene('scent', SCENT_FROM_LEVEL), // the scent monster and its puddles arrive together on level 6
+      mimic: byScene('mimic', 8),
+      decoy: byScene('decoy', DECOY_FROM_LEVEL),
+      stalker: byScene('stalker', 10),
+      muffler: byScene('muffler', 11),
+      singer: byScene('singer', 12),
+      fragment: EchoLore.count() > 0, // something left behind: only once one has been found
+      water: reached >= 14, // the drips of levels 14 and 16 (a cue shape)
+      heavy: reached >= 15, // what comes for you on 15 and 16 (a cue shape - never named)
+    };
+  }
+  function fillHowTo() {
+    const met = metThings();
+    let unknown = 0;
+    document.querySelectorAll('#howto [data-meet]').forEach((el) => {
+      const known = !!met[el.dataset.meet];
+      if (el.tagName === 'LI') {
+        // a legend chip: what it is, or a blank chip with nothing on it
+        if (!el.dataset.html) el.dataset.html = el.innerHTML;
+        el.classList.toggle('unmet', !known);
+        if (known) {
+          if (el.dataset.blank) {
+            el.innerHTML = el.dataset.html;
+            delete el.dataset.blank;
+          }
+        } else {
+          el.textContent = '???';
+          el.dataset.blank = '1';
+          el.style.removeProperty('--glow'); // (not even its colour: that would say what it is)
+          if (el.closest('#legend')) unknown++;
+        }
+        el.setAttribute('aria-label', known ? '' : 'Not met yet');
+        if (known) el.removeAttribute('aria-label');
+      } else {
+        el.classList.toggle('hidden', !known); // a rule: not there at all until it applies
+      }
+    });
+    drawLegend(); // (a chip that came back has its canvas again)
+    $('howto-more').textContent = unknown ? 'Deeper in, there is more to meet. It will be added here once you have.' : '';
+    $('howto-more').classList.toggle('hidden', !unknown);
+    const crouch = $('howto-crouch-key');
+    if (crouch) crouch.textContent = EchoProfile.keysText('crouch');
+  }
+  function openHowTo() {
+    if (state !== 'title') return;
+    audio.init();
+    audio.uiClick();
+    fillHowTo();
+    showOverlay('howto');
+    setTimeout(() => {
+      const back = $('btn-howto-back');
+      if (back && !$('howto').classList.contains('hidden')) back.focus({ preventScroll: true });
+    }, 30);
+  }
+  function closeHowTo() {
+    audio.uiClick();
+    refreshTitle();
+    showOverlay('title');
+    wordmark.reveal(false);
+    setTimeout(() => $('btn-howto').focus({ preventScroll: true }), 30);
   }
 
   function openReplay() {
@@ -4520,13 +4611,18 @@
         } else if (!$('archive').classList.contains('hidden')) {
           // the fragments screen, the same way
           if (e.code === 'Escape') closeArchive();
+        } else if (!$('howto').classList.contains('hidden')) {
+          // (v15.5) How to play, the same way
+          if (e.code === 'Escape') closeHowTo();
         } else if (e.code === 'Enter') {
-          // a focused button (tabbed to) handles its own Enter; otherwise Enter means Begin
+          // a focused button (tabbed to) handles its own Enter; otherwise Enter is the main action: Begin - or,
+          // since v15.5, Continue when there is a game to continue (it is the one lit up)
           if (document.activeElement && document.activeElement.tagName === 'BUTTON') break;
           e.preventDefault();
           audio.init();
           audio.uiClick();
-          go(() => newRun(1, true));
+          if (!$('btn-continue').classList.contains('hidden')) go(() => newRun(getBest()));
+          else go(() => newRun(1, true));
         }
         break;
       case 'cutscene':
@@ -4616,21 +4712,41 @@
   }
 
   document.querySelectorAll('.mode').forEach((b) => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', (e) => {
       setMode(b.dataset.mode);
-      b.blur();
+      if (e.detail > 0) b.blur(); // (a mouse click; a key press keeps the focus where the keyboard is)
     });
   });
+  // (v15.5) the difficulty is ONE choice: Tab stops on the picked one, the arrow keys move the choice
+  $('modes').addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.code];
+    const list = [...document.querySelectorAll('#modes .mode')];
+    let to = null;
+    if (step) to = list[(list.findIndex((b) => b.dataset.mode === mode) + step + list.length) % list.length];
+    else if (e.code === 'Home') to = list[0];
+    else if (e.code === 'End') to = list[list.length - 1];
+    if (!to) return;
+    e.preventDefault();
+    e.stopPropagation();
+    audio.uiClick();
+    setMode(to.dataset.mode);
+    to.focus();
+  });
+  // (a switch the keyboard changed on the title keeps its focus; anywhere else it lets go of it, so SPACE / ENTER
+  //  never re-toggle it while playing)
+  const letGo = (c) => {
+    if (state !== 'title') c.blur();
+  };
   document.querySelectorAll('.calm-toggle').forEach((c) => {
     c.addEventListener('change', () => {
       setCalm(c.checked);
-      c.blur(); // so SPACE / ENTER never re-toggle it while playing
+      letGo(c);
     });
   });
   document.querySelectorAll('.cues-toggle').forEach((c) => {
     c.addEventListener('change', () => {
       setVisualCues(c.checked);
-      c.blur();
+      letGo(c);
     });
   });
   document.querySelectorAll('.touch-toggle').forEach((c) => {
@@ -4726,6 +4842,8 @@
   $('btn-archive').addEventListener('click', openArchive);
   $('btn-archive-back').addEventListener('click', closeArchive);
   $('btn-settings').addEventListener('click', () => openSettings('title'));
+  $('btn-howto').addEventListener('click', openHowTo); // (v15.5)
+  $('btn-howto-back').addEventListener('click', closeHowTo);
   $('btn-pause-settings').addEventListener('click', () => openSettings('pause'));
   $('btn-resume').addEventListener('click', () => {
     audio.uiClick();
@@ -4833,6 +4951,10 @@
     $('tut-hint').classList.toggle('show', teaching && !!tutHint);
     $('btn-tut-skip').classList.toggle('hidden', !teaching);
 
+    // (v15.5) the title (and what opens over it) can be used held upright; a level still asks to be turned sideways
+    const onTitle = state === 'title';
+    if (document.body.classList.contains('on-title') !== onTitle) document.body.classList.toggle('on-title', onTitle);
+
     // touch controls: shown only while playing (and released the moment they are not)
     if (touchOn && state === 'play' && window.innerHeight > window.innerWidth) pause(); // portrait: the "rotate your device" note is up
     touch.setVisible(touchOn && state === 'play' && !scriptLock); // (not while a beat on 14-16 has the controls)
@@ -4879,6 +5001,33 @@
 
   resize();
   EchoDialog.init({ click: () => audio.uiClick() }); // the editor's and My Levels' questions (v15.0)
+
+  // (v15.5) The version, in the title's corner - read from the folder the game was opened from ("v15.5 - ..."),
+  // because the number is never written into the game's own files (CLAUDE.md). Anywhere else (a dev server, the
+  // test copy) there is simply none.
+  (() => {
+    let path = '';
+    try {
+      path = decodeURIComponent(location.pathname);
+    } catch (e) {
+      path = location.pathname;
+    }
+    const m = /[\\/]v(\d+\.\d+)(?: - [^\\/]*)?[\\/][^\\/]*$/.exec(path);
+    const tag = $('version-tag');
+    if (m && tag) {
+      tag.textContent = `v${m[1]}`;
+      tag.classList.remove('hidden');
+    }
+  })();
+
+  // (v15.5) A soft ripple where the title is clicked - the screen's own rings, one more. Never in calm mode or
+  // with reduced motion, never on a button or a switch, and it is drawing only.
+  $('title').addEventListener('pointerdown', (e) => {
+    if (state !== 'title' || calm || EchoWordmark.reduceMotion()) return;
+    if (e.target.closest('button, label, input, a, kbd')) return;
+    if (titleRipples.length > 12) return;
+    titleRipples.push({ x: e.clientX, y: e.clientY, t: 0 });
+  });
   EchoPalette.set(EchoPalette.id); // paint the saved palette into the art, the cues, the CSS and the legend
   drawLegend();
   settings.renderHowTo(); // the title / pause how-to, written with the player's own keys
@@ -4911,6 +5060,10 @@
         startCutscene(kind);
       },
       advance: () => advanceLevel(),
+      toTitle: () => toTitle(), // (v15.5: the title-screen tests go back to it between runs)
+      metThings: () => metThings(), // (v15.5: what How to play may show)
+      openHowTo: () => openHowTo(),
+      closeHowTo: () => closeHowTo(),
       ripples: () => ripples,
       marks: () => marks,
       crouch: () => ({ crouching: !!(player && player.crouching), glimmerOff, held: crouchHeld() }),

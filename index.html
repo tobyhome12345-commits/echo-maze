@@ -6,6 +6,22 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Echo Maze</title>
+  <meta name="description" content="Find your way out of a maze in total darkness, one ripple of sound at a time - and hope nothing else notices.">
+  <meta name="theme-color" content="#010206">
+  <meta name="color-scheme" content="dark">
+  <!-- (v15.5) how a link to the game looks when it is pasted into a chat app -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Echo Maze">
+  <meta property="og:description" content="Find your way out of a maze in total darkness, one ripple of sound at a time - and hope nothing else notices.">
+  <meta property="og:image" content="social.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ECHO MAZE in glowing green letters over faint sonar rings in the dark">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Echo Maze">
+  <meta name="twitter:description" content="Find your way out of a maze in total darkness, one ripple of sound at a time - and hope nothing else notices.">
+  <meta name="twitter:image" content="social.jpg">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2303070d%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%235dffa0%22%20stroke-linecap%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%225%22%20fill%3D%22%235dffa0%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M20%2032a12%2012%200%200%201%2024%200%22%20stroke-width%3D%224%22%20opacity%3D%22.9%22%2F%3E%3Cpath%20d%3D%22M12%2032a20%2020%200%200%201%2040%200%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M20%2032a12%2012%200%200%200%2024%200M12%2032a20%2020%200%200%200%2040%200%22%20stroke%3D%22%235fd4ff%22%20stroke-width%3D%223%22%20opacity%3D%22.45%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -74,12 +90,69 @@
 
   <section id="title" class="overlay">
     <div class="panel">
-      <!-- the wordmark is drawn (js/wordmark.js); the text inside stays for screen readers, and shows instead
+      <!-- the wordmark is drawn (js/wordmark.js); the text inside it stays for screen readers, and shows instead
            if a canvas cannot be had (h1.no-canvas in style.css) -->
       <h1><canvas id="wordmark" aria-hidden="true"></canvas><span class="wordmark-text">ECHO MAZE</span></h1>
       <p class="tagline">You can't see. Neither can they &mdash; until your echo touches them.</p>
       <p id="title-notice" class="notice hidden"></p>
 
+      <!-- (v15.5) one line of controls; the whole reference is in How to play. Filled from the player's own keys
+           (js/settings.js renderHowTo) -->
+      <p id="title-hint" class="title-hint kb-only" aria-label="Controls"></p>
+      <p class="title-hint touch-only" aria-label="Controls"><kbd class="wide">DRAG</kbd><span>on the left to move</span><kbd class="wide">RIPPLE</kbd><span>send a ripple</span><kbd class="wide">CROUCH</kbd><span>hold to crouch</span></p>
+
+      <div class="modes" id="modes" role="radiogroup" aria-label="Difficulty" aria-describedby="mode-desc">
+        <button type="button" class="mode" role="radio" data-mode="easy"><b>Easy</b><small data-best="easy"></small></button>
+        <button type="button" class="mode" role="radio" data-mode="normal"><b>Normal</b><small data-best="normal"></small></button>
+        <button type="button" class="mode" role="radio" data-mode="hard"><b>Hard</b><small data-best="hard"></small></button>
+        <button type="button" class="mode" role="radio" data-mode="hardcore"><b>Hardcore</b><small data-best="hardcore"></small></button>
+      </div>
+      <p id="mode-desc" class="mode-desc"></p>
+      <p id="mode-score" class="mode-score hidden"></p>
+
+      <!-- (v15.5) the two options as switches: the same checkboxes underneath (keyboard, and the code that reads them) -->
+      <div class="title-options">
+        <label class="calm switch" title="Softer, slower sound and visuals - on any difficulty (C)">
+          <input type="checkbox" class="calm-toggle" role="switch">
+          <span class="switch-track" aria-hidden="true"></span>
+          <span class="switch-text"><b>Calm mode</b><small>gentler sound and visuals</small></span>
+          <kbd class="kb-only" aria-hidden="true">C</kbd>
+        </label>
+        <label class="calm switch" title="Sounds shown as shapes around you - on any difficulty (V)">
+          <input type="checkbox" class="cues-toggle" role="switch">
+          <span class="switch-track" aria-hidden="true"></span>
+          <span class="switch-text"><b>Visual cues</b><small>sounds shown as shapes</small></span>
+          <kbd class="kb-only" aria-hidden="true">V</kbd>
+        </label>
+      </div>
+
+      <div class="buttons dock">
+        <button id="btn-continue" class="hidden">Continue</button>
+        <button id="btn-start" class="primary">Begin</button>
+      </div>
+      <p id="title-first" class="title-first hidden">First time? Begin starts with a short tutorial.</p>
+      <p class="sound-note"><span aria-hidden="true">&#127911;</span> Headphones recommended &mdash; the sound starts with the game.</p>
+
+      <div class="buttons title-more">
+        <button id="btn-howto" class="quiet">How to play</button>
+        <button id="btn-tutorial" class="quiet">Tutorial</button>
+        <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
+        <button id="btn-archive" class="quiet hidden">Fragments</button>
+        <button id="btn-editor" class="quiet">Level Editor</button>
+        <button id="btn-settings" class="quiet">Settings</button>
+      </div>
+      <p id="title-medals" class="medal-summary hidden"></p>
+    </div>
+    <!-- (v15.5) which version this is: read from the folder the game was opened from, never written in the files -->
+    <p id="version-tag" class="version-tag hidden"></p>
+  </section>
+
+  <!-- (v15.5) How to play: the whole controls reference, the rules and the legend - only what the player has met -->
+  <section id="howto" class="overlay hidden" aria-labelledby="howto-head">
+    <div class="panel howto-panel">
+      <h2 id="howto-head">How to play</h2>
+
+      <h3>Controls</h3>
       <!-- filled in from the player's own key bindings (js/settings.js renderHowTo) -->
       <div class="controls kb-only" id="howto-title"></div>
       <div class="controls touch-only">
@@ -89,67 +162,54 @@
         <div><kbd class="wide">ITEM</kbd><span>use an item you have found</span><kbd>II</kbd><span>pause</span></div>
       </div>
 
-      <!-- each swatch is a little canvas the game fills with the very art a ripple lights things up with (js/art.js) -->
-      <ul class="legend" id="legend">
-        <li><canvas class="swatch" data-art="wall" width="40" height="32"></canvas>Walls</li>
-        <li><canvas class="swatch" data-art="boulder" width="32" height="32"></canvas><canvas class="swatch" data-art="pillar" width="32" height="32"></canvas>Obstacles</li>
-        <li><canvas class="swatch" data-art="echo" width="32" height="32"></canvas>Echo monsters</li>
-        <li><canvas class="swatch" data-art="scent" width="32" height="32"></canvas>Scent monsters</li>
-        <li><canvas class="swatch" data-art="stalker" width="32" height="32"></canvas>Stalkers</li>
-        <li class="text-only"><span class="unseen">Muffler:</span> can't be seen, only heard</li>
-        <li><canvas class="swatch" data-art="singer" width="32" height="32"></canvas>Singers</li>
-        <li><canvas class="swatch" data-art="puddle" width="32" height="32"></canvas>Smell puddles</li>
-        <li><canvas class="swatch" data-art="decoy" width="32" height="32"></canvas>Sonar decoy</li>
-        <li><canvas class="swatch" data-art="note" width="32" height="32"></canvas><canvas class="swatch" data-art="log" width="32" height="32"></canvas>Left behind</li>
-        <li><canvas class="swatch" data-art="exit" width="32" height="32"></canvas>The way out</li>
-      </ul>
-
-      <!-- shown only while Visual cues is on: the shapes that mark each kind of sound around you -->
-      <ul class="legend cue-legend" aria-label="Visual cue shapes">
-        <li><svg class="glyph" data-cue="echo" viewBox="-10 -10 20 20"><path d="M0.0,-8.5 L2.3,-5.6 L5.4,-5.9 L4.4,-2.9 L6.7,0.0 L4.4,2.9 L5.4,5.9 L2.3,5.6 L0.0,8.5 L-2.3,5.6 L-5.4,5.9 L-4.4,2.9 L-6.7,0.0 L-4.4,-2.9 L-5.4,-5.9 L-2.3,-5.6 Z"/></svg>Echo monster: spiky diamond</li>
-        <li><svg class="glyph" data-cue="scent" viewBox="-10 -10 20 20"><path d="M7.2,0.0 L8.3,1.5 L7.9,2.9 L6.2,3.6 L4.6,3.8 L3.8,4.6 L3.6,6.2 L2.9,7.9 L1.5,8.3 L0.0,7.2 L-1.0,5.9 L-2.0,5.6 L-3.6,6.2 L-5.4,6.5 L-6.5,5.4 L-6.2,3.6 L-5.6,2.0 L-5.9,1.0 L-7.2,0.0 L-8.3,-1.5 L-7.9,-2.9 L-6.2,-3.6 L-4.6,-3.8 L-3.8,-4.6 L-3.6,-6.2 L-2.9,-7.9 L-1.5,-8.3 L0.0,-7.2 L1.0,-5.9 L2.0,-5.6 L3.6,-6.2 L5.4,-6.5 L6.5,-5.4 L6.2,-3.6 L5.6,-2.0 L5.9,-1.0 Z"/><circle class="hole" cx="2.2" cy="-1.6" r="1.5"/></svg>Scent monster: wavy circle</li>
-        <li><svg class="glyph" data-cue="stalker" viewBox="-10 -10 20 20"><ellipse cx="-6" cy="0" rx="1.9" ry="4.6"/><ellipse cx="0" cy="0" rx="1.9" ry="4.6"/><ellipse cx="6" cy="0" rx="1.9" ry="4.6"/></svg>Stalker: tall thin capsules</li>
-        <li><svg class="glyph line" data-cue="exit" viewBox="-10 -10 20 20"><path d="M-4,-8 L5,0 L-4,8"/><path class="arc" d="M-1.5,-9.4 A10.2,10.2 0 0 1 -1.5,9.4"/></svg>Exit chime: chevron</li>
-        <li><svg class="glyph" data-cue="decoy" viewBox="-10 -10 20 20"><path d="M0.0,-9.0 L2.4,-2.4 L9.0,0.0 L2.4,2.4 L0.0,9.0 L-2.4,2.4 L-9.0,0.0 L-2.4,-2.4 Z" transform="scale(0.72)"/><circle class="ring" cx="0" cy="0" r="9"/></svg>Sonar decoy: star in a ring</li>
-        <li><svg class="glyph line" data-cue="muffler" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="6" fill="none"/><path d="M-9.5,0 L9.5,0"/></svg>Muffler: hollow ring with a dash</li>
-        <li><svg class="glyph line" data-cue="singer" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="3.6" fill="none"/><path class="arc" d="M-4.6,-6.2 A7.7,7.7 0 0 1 4.6,-6.2"/><path class="arc" d="M6.9,3.1 A7.7,7.7 0 0 1 2.4,7.3"/><path class="arc" d="M-2.4,7.3 A7.7,7.7 0 0 1 -6.9,3.1"/></svg>Singer: ring with three arcs</li>
-        <li><svg class="glyph line" data-cue="heart" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="7" fill="none"/></svg>Heartbeat: ring</li>
-        <li><svg class="glyph" data-cue="wall" viewBox="-10 -10 20 20"><path d="M0,-8.8 C4.3,-2.8 6.4,1.5 0,6.7 C-6.4,1.5 -4.3,-2.8 0,-8.8 Z"/></svg>Dripping water: a drop</li>
-        <li><svg class="glyph" data-cue="warden" viewBox="-10 -10 20 20"><path d="M-6.7,-3.9 L-2.1,-7 L4.9,-5.7 L7.1,0.7 L3.9,6.7 L-3.5,6.3 L-7.1,1.8 Z"/></svg>Something heavy, coming: a block of stone</li>
-      </ul>
-
-      <p class="note">Ripples reveal the maze &mdash; but a monster your ripple hits will go to the spot you sent it from, so move on. If you stay close it can hear your footsteps, and then it follows you until you get away. Touch one and you're dead. <span class="kb-only">Hold Shift to crouch</span><span class="touch-only">Hold CROUCH to crouch</span>: you make no sound and cannot send a ripple, and crouching wipes everything your ripples had shown you. Later, some things are never seen &mdash; listen for them &mdash; and something sings: if its song marks you, keep moving. Find the green resonance and get out.</p>
-
-      <div class="modes" role="radiogroup" aria-label="Difficulty">
-        <button type="button" class="mode" role="radio" data-mode="easy"><b>Easy</b><small data-best="easy"></small></button>
-        <button type="button" class="mode" role="radio" data-mode="normal"><b>Normal</b><small data-best="normal"></small></button>
-        <button type="button" class="mode" role="radio" data-mode="hard"><b>Hard</b><small data-best="hard"></small></button>
-        <button type="button" class="mode" role="radio" data-mode="hardcore"><b>Hardcore</b><small data-best="hardcore"></small></button>
+      <h3>The rules</h3>
+      <div class="howto-rules" id="howto-rules">
+        <p data-meet="basic">Ripples show you the maze: send one and the walls light up as the wave passes. Find the green glow of the way out and walk into it.</p>
+        <p data-meet="basic">A monster your ripple touches goes to the spot you sent it from &mdash; so move on. Stay close and it can hear your footsteps, and then it follows you until you get away. Touch one and you are caught.</p>
+        <p data-meet="basic"><span class="kb-only">Hold <b id="howto-crouch-key">Shift</b> to crouch</span><span class="touch-only">Hold CROUCH to crouch</span>: you make no sound, but you cannot send a ripple, and crouching wipes everything your ripples had shown you.</p>
+        <p data-meet="scent">Some monsters do not listen at all: they follow your smell. Step in a puddle and you leave a trail for a while.</p>
+        <p data-meet="mimic">Not everything that glows is a way out.</p>
+        <p data-meet="decoy">A sonar decoy, once dropped, calls everything nearby to it a few seconds later.</p>
+        <p data-meet="stalker">Some things hear you even standing still. Only a crouch is silent.</p>
+        <p data-meet="muffler">Some things are never seen. Listen for them.</p>
+        <p data-meet="singer">If a song marks you, keep moving.</p>
       </div>
-      <p id="mode-desc" class="mode-desc"></p>
-      <p id="mode-score" class="mode-score hidden"></p>
-      <label class="calm">
-        <input type="checkbox" class="calm-toggle">
-        <span><b>Calm mode</b> &mdash; softer visuals and sound, on any difficulty <kbd>C</kbd></span>
-      </label>
-      <label class="calm">
-        <input type="checkbox" class="cues-toggle">
-        <span><b>Visual cues</b> &mdash; sounds shown as glyphs around you, on any difficulty <kbd>V</kbd></span>
-      </label>
+
+      <h3>What a ripple shows you</h3>
+      <!-- each swatch is a little canvas the game fills with the very art a ripple lights things up with (js/art.js) -->
+      <ul class="legend" id="legend" aria-label="What a ripple shows you">
+        <li data-meet="basic"><canvas class="swatch" data-art="wall" width="40" height="32"></canvas>Walls</li>
+        <li data-meet="basic"><canvas class="swatch" data-art="boulder" width="32" height="32"></canvas><canvas class="swatch" data-art="pillar" width="32" height="32"></canvas>Obstacles</li>
+        <li data-meet="basic"><canvas class="swatch" data-art="echo" width="32" height="32"></canvas>Echo monsters</li>
+        <li data-meet="scent"><canvas class="swatch" data-art="scent" width="32" height="32"></canvas>Scent monsters</li>
+        <li data-meet="stalker"><canvas class="swatch" data-art="stalker" width="32" height="32"></canvas>Stalkers</li>
+        <li class="text-only" data-meet="muffler"><span class="unseen">Muffler:</span> can't be seen, only heard</li>
+        <li data-meet="singer"><canvas class="swatch" data-art="singer" width="32" height="32"></canvas>Singers</li>
+        <li data-meet="scent"><canvas class="swatch" data-art="puddle" width="32" height="32"></canvas>Smell puddles</li>
+        <li data-meet="decoy"><canvas class="swatch" data-art="decoy" width="32" height="32"></canvas>Sonar decoy</li>
+        <li data-meet="fragment"><canvas class="swatch" data-art="note" width="32" height="32"></canvas><canvas class="swatch" data-art="log" width="32" height="32"></canvas>Left behind</li>
+        <li data-meet="basic"><canvas class="swatch" data-art="exit" width="32" height="32"></canvas>The way out</li>
+      </ul>
+      <p id="howto-more" class="howto-more"></p>
+
+      <h3>Visual cues</h3>
+      <p class="howto-small">With Visual cues on, every sound you can hear is drawn as a shape on a ring around you:</p>
+      <ul class="legend cue-legend" id="cue-legend" aria-label="Visual cue shapes">
+        <li data-meet="basic"><svg class="glyph" data-cue="echo" viewBox="-10 -10 20 20"><path d="M0.0,-8.5 L2.3,-5.6 L5.4,-5.9 L4.4,-2.9 L6.7,0.0 L4.4,2.9 L5.4,5.9 L2.3,5.6 L0.0,8.5 L-2.3,5.6 L-5.4,5.9 L-4.4,2.9 L-6.7,0.0 L-4.4,-2.9 L-5.4,-5.9 L-2.3,-5.6 Z"/></svg>Echo monster: spiky diamond</li>
+        <li data-meet="scent"><svg class="glyph" data-cue="scent" viewBox="-10 -10 20 20"><path d="M7.2,0.0 L8.3,1.5 L7.9,2.9 L6.2,3.6 L4.6,3.8 L3.8,4.6 L3.6,6.2 L2.9,7.9 L1.5,8.3 L0.0,7.2 L-1.0,5.9 L-2.0,5.6 L-3.6,6.2 L-5.4,6.5 L-6.5,5.4 L-6.2,3.6 L-5.6,2.0 L-5.9,1.0 L-7.2,0.0 L-8.3,-1.5 L-7.9,-2.9 L-6.2,-3.6 L-4.6,-3.8 L-3.8,-4.6 L-3.6,-6.2 L-2.9,-7.9 L-1.5,-8.3 L0.0,-7.2 L1.0,-5.9 L2.0,-5.6 L3.6,-6.2 L5.4,-6.5 L6.5,-5.4 L6.2,-3.6 L5.6,-2.0 L5.9,-1.0 Z"/><circle class="hole" cx="2.2" cy="-1.6" r="1.5"/></svg>Scent monster: wavy circle</li>
+        <li data-meet="stalker"><svg class="glyph" data-cue="stalker" viewBox="-10 -10 20 20"><ellipse cx="-6" cy="0" rx="1.9" ry="4.6"/><ellipse cx="0" cy="0" rx="1.9" ry="4.6"/><ellipse cx="6" cy="0" rx="1.9" ry="4.6"/></svg>Stalker: tall thin capsules</li>
+        <li data-meet="basic"><svg class="glyph line" data-cue="exit" viewBox="-10 -10 20 20"><path d="M-4,-8 L5,0 L-4,8"/><path class="arc" d="M-1.5,-9.4 A10.2,10.2 0 0 1 -1.5,9.4"/></svg>Exit chime: chevron</li>
+        <li data-meet="decoy"><svg class="glyph" data-cue="decoy" viewBox="-10 -10 20 20"><path d="M0.0,-9.0 L2.4,-2.4 L9.0,0.0 L2.4,2.4 L0.0,9.0 L-2.4,2.4 L-9.0,0.0 L-2.4,-2.4 Z" transform="scale(0.72)"/><circle class="ring" cx="0" cy="0" r="9"/></svg>Sonar decoy: star in a ring</li>
+        <li data-meet="muffler"><svg class="glyph line" data-cue="muffler" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="6" fill="none"/><path d="M-9.5,0 L9.5,0"/></svg>Muffler: hollow ring with a dash</li>
+        <li data-meet="singer"><svg class="glyph line" data-cue="singer" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="3.6" fill="none"/><path class="arc" d="M-4.6,-6.2 A7.7,7.7 0 0 1 4.6,-6.2"/><path class="arc" d="M6.9,3.1 A7.7,7.7 0 0 1 2.4,7.3"/><path class="arc" d="M-2.4,7.3 A7.7,7.7 0 0 1 -6.9,3.1"/></svg>Singer: ring with three arcs</li>
+        <li data-meet="basic"><svg class="glyph line" data-cue="heart" viewBox="-10 -10 20 20"><circle cx="0" cy="0" r="7" fill="none"/></svg>Heartbeat: ring</li>
+        <li data-meet="water"><svg class="glyph" data-cue="wall" viewBox="-10 -10 20 20"><path d="M0,-8.8 C4.3,-2.8 6.4,1.5 0,6.7 C-6.4,1.5 -4.3,-2.8 0,-8.8 Z"/></svg>Dripping water: a drop</li>
+        <li data-meet="heavy"><svg class="glyph" data-cue="warden" viewBox="-10 -10 20 20"><path d="M-6.7,-3.9 L-2.1,-7 L4.9,-5.7 L7.1,0.7 L3.9,6.7 L-3.5,6.3 L-7.1,1.8 Z"/></svg>Something heavy, coming: a block of stone</li>
+      </ul>
 
       <div class="buttons dock">
-        <button id="btn-start" class="primary">Begin</button>
-        <button id="btn-continue" class="hidden">Continue</button>
+        <button id="btn-howto-back" class="primary">Back <span class="key">Esc</span></button>
       </div>
-      <div class="buttons">
-        <button id="btn-tutorial" class="quiet">Tutorial</button>
-        <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
-        <button id="btn-archive" class="quiet hidden">Fragments</button>
-        <button id="btn-editor" class="quiet">Level Editor</button>
-        <button id="btn-settings" class="quiet">Settings</button>
-      </div>
-      <p id="title-medals" class="medal-summary hidden"></p>
-      <p class="fine">&#127911; Headphones recommended. Clicking Begin turns on the sound.</p>
     </div>
   </section>
 

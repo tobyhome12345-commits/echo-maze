@@ -398,8 +398,20 @@ const EchoSettings = (() => {
         [...caps('crouch'), 'hold to crouch: silent, but no ripples'],
         [...caps('mute'), 'mute', ...caps('pause'), 'pause', ...caps('calm'), 'calm', ...caps('cues'), 'visual cues'],
         [...caps('item'), 'use an item you have found'],
-        ['New here? Tutorial below walks you through it in the dark.'],
+        ['New here? The Tutorial, on the title screen, walks you through it in the dark.'],
       ]);
+      // (v15.5) the title's one line: the first key of each, to move, ripple and crouch (the rest is in How to play)
+      const first = (action) => caps(action).slice(0, 1);
+      const hint = $('title-hint');
+      if (hint) {
+        build(hint, [[...first('up'), ...first('left'), ...first('down'), ...first('right'), 'move', ...first('ripple'), 'send a ripple', ...first('crouch'), 'hold to crouch']]);
+        // build() makes one <div> per row: the hint is a single line, so its parts go straight into the <p>
+        const row = hint.firstElementChild;
+        if (row) {
+          while (row.firstChild) hint.appendChild(row.firstChild);
+          row.remove();
+        }
+      }
       build($('howto-pause'), [
         [...move, 'move'],
         [...caps('ripple'), 'send a ripple'],

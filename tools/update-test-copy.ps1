@@ -20,7 +20,7 @@
     * READ ME - test copy.txt - generated; (v15.3) with the sample share codes from tools\sample-codes.txt to paste
                            into My Levels > Enter code (nothing else of sharing goes into the test save)
     * READ ME - test copy.txt - generated
-  Everything else (style.css, README.md, the game code) is copied unchanged. The script checks all of this
+  Everything else (style.css, README.md, social.jpg, the game code) is copied unchanged. The script checks all of this
   when it is done and stops with an error if anything did not come out as expected.
 
   It never edits the version folders, only reads them. ASCII only, so PowerShell 5.1 reads it correctly.
@@ -51,14 +51,14 @@ $leaf = Split-Path $Source -Leaf
 $label = if ($leaf -match '^(v\d+\.\d+)') { $Matches[1] } else { $leaf }
 
 # ---- the version folder must hold only what this script knows how to copy
-$known = @('index.html', 'style.css', 'README.md', 'js')
+$known = @('index.html', 'style.css', 'README.md', 'social.jpg', 'js')
 $unknown = Get-ChildItem $Source | Where-Object { $known -notcontains $_.Name } | ForEach-Object { $_.Name }
 if ($unknown) { Fail "$leaf has files this script does not know how to copy: $($unknown -join ', ') - teach the script (and the test copy) about them first" }
 
 New-Item -ItemType Directory -Force (Join-Path $target 'js') | Out-Null
 
 # ---- plain copies
-foreach ($f in 'style.css', 'README.md') { Copy-Item (Join-Path $Source $f) (Join-Path $target $f) -Force }
+foreach ($f in 'style.css', 'README.md', 'social.jpg') { Copy-Item (Join-Path $Source $f) (Join-Path $target $f) -Force }
 
 # ---- js: same code, but its own save slot
 $jsNames = Get-ChildItem (Join-Path $Source 'js') -File | ForEach-Object { $_.Name }
@@ -297,7 +297,7 @@ Set-Text (Join-Path $target 'READ ME - test copy.txt') (($readme -replace "`r`n"
 
 # ---- check the result against the source
 $problems = @()
-foreach ($f in 'style.css', 'README.md') {
+foreach ($f in 'style.css', 'README.md', 'social.jpg') {
   if ((Get-FileHash (Join-Path $Source $f)).Hash -ne (Get-FileHash (Join-Path $target $f)).Hash) { $problems += "$f is not identical to the source" }
 }
 foreach ($n in $jsNames) {
@@ -308,7 +308,7 @@ $srcLines = (Get-Text (Join-Path $Source 'index.html')).Split("`n").Count
 $dstLines = (Get-Text (Join-Path $target 'index.html')).Split("`n").Count
 if ($dstLines -ne $srcLines + 2) { $problems += "index.html should have exactly 2 extra lines (has $($dstLines - $srcLines))" }
 $extra = Get-ChildItem $target -Recurse -File | ForEach-Object { $_.FullName.Substring($target.Length + 1) } |
-  Where-Object { @('index.html', 'style.css', 'README.md', 'test-save.js', 'READ ME - test copy.txt') -notcontains $_ -and $_ -notmatch '^js\\' }
+  Where-Object { @('index.html', 'style.css', 'README.md', 'social.jpg', 'test-save.js', 'READ ME - test copy.txt') -notcontains $_ -and $_ -notmatch '^js\\' }
 if ($extra) { Write-Warning "files in the test copy that are not part of it (left alone): $($extra -join ', ')" }
 $stale = Get-ChildItem (Join-Path $target 'js') -File | Where-Object { $jsNames -notcontains $_.Name } | ForEach-Object { $_.Name }
 if ($stale) { Write-Warning "js files in the test copy that the source no longer has (left alone, but nothing loads them unless index.html does): $($stale -join ', ')" }

@@ -3469,3 +3469,633 @@ body.touch button.ed-monster {
   font-size: 13px;
   color: rgb(var(--exit-rgb));
 }
+
+/* ==========================================================================
+   THE TITLE SCREEN, POLISHED (v15.5)
+
+   The same look (v11.4) and the same one interface (v11.5); the screen is
+   reorganised so that everything a player needs to start fits on one screen
+   with no scrolling at 1280 x 720, and nothing on it names a later monster.
+   The controls reference, the rules and the legend live in How to play
+   (#howto), which shows only what the player has met (js/game.js).
+
+   --s is the screen's scale: 1 up to about 1280 x 800, rising to 2 on
+   big screens (js/game.js titleScale, set on #title and #howto). Every size
+   in this block is multiplied by it, and so is the wordmark's (js/wordmark.js
+   reads the same number), so the screen grows as one piece.
+   ========================================================================== */
+#title,
+#howto {
+  --s: 1;
+}
+
+/* -- scrollbars, wherever a panel still has to scroll (phones) ----------- */
+.panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ui-rgb), 0.32) transparent;
+}
+
+.panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel::-webkit-scrollbar-thumb {
+  background: rgba(var(--ui-rgb), 0.28);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 10px;
+}
+
+.panel::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(var(--ui-rgb), 0.45);
+}
+
+/* -- the panel ------------------------------------------------------------ */
+#title .panel {
+  width: min(calc(660px * var(--s)), calc(100vw - 32px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  padding: calc(18px * var(--s)) calc(38px * var(--s)) calc(22px * var(--s));
+}
+
+/* The wordmark's canvas keeps room above and below the letters for its glow to fade into. That room is what made
+   the big gap under it: the glow may now spill over the panel's edge and the tagline instead. The letters and the
+   glow are drawn exactly as before - only placed. */
+#title h1 {
+  position: relative;
+  margin: calc(-30px * var(--s)) 0 calc(-38px * var(--s));
+  pointer-events: none;
+}
+
+#title .tagline {
+  max-width: 34em;
+  margin: 0 auto calc(16px * var(--s));
+  padding-bottom: calc(16px * var(--s));
+  font-size: calc(16px * var(--s));
+  color: #a3bac7;
+}
+
+#title .notice {
+  margin: 0 0 calc(14px * var(--s));
+  font-size: calc(14px * var(--s));
+}
+
+/* -- one line of controls ------------------------------------------------- */
+.title-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: calc(6px * var(--s)) calc(6px * var(--s));
+  margin: 0 0 calc(18px * var(--s));
+  font-size: calc(14px * var(--s));
+  line-height: 1.4;
+  color: #a3bac7;
+}
+
+.title-hint span {
+  margin: 0 calc(14px * var(--s)) 0 calc(4px * var(--s));
+}
+
+.title-hint span:last-child {
+  margin-right: 0;
+}
+
+#title .title-hint kbd {
+  font-size: calc(12px * var(--s));
+  padding: calc(4px * var(--s)) calc(7px * var(--s));
+  min-width: calc(26px * var(--s));
+}
+
+#title .title-hint kbd.wide {
+  padding-left: calc(11px * var(--s));
+  padding-right: calc(11px * var(--s));
+}
+
+body.touch p.title-hint.touch-only {
+  display: flex !important;
+}
+
+/* -- difficulty: picked = an outline and a bar, never the Begin colour ----- */
+#title .modes {
+  gap: calc(10px * var(--s));
+  margin: 0;
+}
+
+#title button.mode {
+  padding: calc(11px * var(--s)) calc(6px * var(--s)) calc(9px * var(--s));
+  font-size: calc(13px * var(--s));
+  color: #a3bac7;
+  border-color: rgba(var(--ui-rgb), 0.22);
+}
+
+#title button.mode small:empty {
+  display: none;
+}
+
+#title button.mode {
+  justify-content: center;
+}
+
+#title button.mode small:empty {
+  display: none;
+}
+
+#title button.mode {
+  justify-content: center;
+}
+
+#title button.mode small {
+  min-height: calc(13px * var(--s));
+  font-size: calc(11px * var(--s));
+  color: #93abb8;
+  opacity: 1;
+}
+
+#title button.mode.active {
+  color: #eaf8ff;
+  background: linear-gradient(180deg, rgba(var(--ui-rgb), 0.16), rgba(var(--ui-rgb), 0.05));
+  border-color: rgba(var(--ui-rgb), 0.85);
+  box-shadow: inset 0 calc(-3px * var(--s)) 0 rgba(var(--ui-rgb), 0.9), 0 0 16px rgba(var(--ui-rgb), 0.18);
+}
+
+#title button.mode.active small {
+  color: #cfe9f5;
+}
+
+#title button.mode[data-mode='hardcore'].active {
+  color: #ffe3e8;
+  background: linear-gradient(180deg, rgba(var(--danger-rgb), 0.16), rgba(var(--danger-rgb), 0.05));
+  border-color: rgba(var(--danger-rgb), 0.85);
+  box-shadow: inset 0 calc(-3px * var(--s)) 0 rgba(var(--danger-rgb), 0.9), 0 0 16px rgba(var(--danger-rgb), 0.2);
+}
+
+#title .mode-desc {
+  min-height: 0;
+  margin: calc(10px * var(--s)) 0 calc(4px * var(--s));
+  font-size: calc(14px * var(--s));
+  color: #a9c0cc;
+}
+
+#title .mode-score {
+  margin: calc(4px * var(--s)) 0 0;
+  font-size: calc(14px * var(--s));
+}
+
+/* -- the two options: switches on one row ---------------------------------- */
+.title-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(10px * var(--s));
+  margin: calc(14px * var(--s)) 0 calc(18px * var(--s));
+}
+
+#title .title-options label.switch.calm {
+  position: relative;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  max-width: none;
+  margin: 0;
+  padding: calc(8px * var(--s)) calc(14px * var(--s)) calc(8px * var(--s)) calc(10px * var(--s));
+  font-size: calc(14px * var(--s));
+  text-align: left;
+  border: 1px solid rgba(var(--ui-rgb), 0.14);
+  border-radius: calc(12px * var(--s));
+  background: rgba(var(--ui-rgb), 0.03);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+#title label.switch:hover {
+  border-color: rgba(var(--ui-rgb), 0.32);
+  background: rgba(var(--ui-rgb), 0.06);
+}
+
+/* the real checkbox is still there (Tab reaches it, Space flips it, screen readers call it a switch) - unseen */
+#title label.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.switch-track {
+  position: relative;
+  flex: none;
+  width: calc(40px * var(--s));
+  height: calc(22px * var(--s));
+  border-radius: 999px;
+  background: rgba(var(--ui-rgb), 0.08);
+  border: 1px solid rgba(var(--ui-rgb), 0.45);
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: calc(2px * var(--s));
+  left: calc(2px * var(--s));
+  width: calc(16px * var(--s));
+  height: calc(16px * var(--s));
+  border-radius: 50%;
+  background: #7f98a6;
+  transition: transform 0.18s ease, background 0.18s;
+}
+
+#title label.switch input:checked + .switch-track {
+  background: rgba(var(--ui-rgb), 0.32);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(var(--ui-rgb), 0.35);
+}
+
+#title label.switch input:checked + .switch-track::after {
+  transform: translateX(calc(18px * var(--s)));
+  background: #eaf8ff;
+}
+
+#title label.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.switch-text b {
+  display: block;
+  font-size: calc(14px * var(--s));
+  color: var(--ink);
+}
+
+.switch-text small {
+  display: block;
+  font-size: calc(12px * var(--s));
+  color: #93abb8;
+}
+
+#title label.switch kbd {
+  font-size: calc(11px * var(--s));
+}
+
+/* -- the main action ------------------------------------------------------- */
+#title .buttons.dock {
+  margin-top: 0;
+  gap: calc(12px * var(--s));
+}
+
+#title .buttons.dock button {
+  padding: calc(12px * var(--s)) calc(30px * var(--s));
+  font-size: calc(14px * var(--s));
+}
+
+#title .buttons.dock button.primary {
+  padding: calc(15px * var(--s)) calc(52px * var(--s));
+  font-size: calc(16px * var(--s));
+}
+
+.title-first {
+  margin: calc(10px * var(--s)) 0 0;
+  font-size: calc(14px * var(--s));
+  color: rgba(var(--exit-rgb), 0.85);
+}
+
+.sound-note {
+  margin: calc(10px * var(--s)) 0 calc(18px * var(--s));
+  font-size: calc(13px * var(--s));
+  color: #9ab1be;
+}
+
+/* -- everything else: one set of equal buttons ----------------------------- */
+#title .buttons.title-more {
+  gap: calc(10px * var(--s));
+  margin: 0;
+  padding-top: calc(18px * var(--s));
+  border-top: 1px solid rgba(var(--ui-rgb), 0.1);
+}
+
+#title .title-more button {
+  flex: 0 1 calc((100% - 20px * var(--s)) / 3);
+  min-height: calc(42px * var(--s));
+  padding: calc(10px * var(--s)) calc(8px * var(--s));
+  font-size: calc(13px * var(--s));
+  color: #c3dbe7;
+  border-color: rgba(var(--ui-rgb), 0.24);
+}
+
+#title .medal-summary {
+  margin: calc(14px * var(--s)) 0 0;
+  font-size: calc(13px * var(--s));
+}
+
+/* -- keyboard focus: a ring, not only the glow a hover gives -------------- */
+#title button:focus-visible,
+#howto button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* -- the version, in the corner (read from the folder name, js/game.js) ----- */
+.version-tag {
+  position: fixed;
+  right: 14px;
+  bottom: 10px;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #7b93a0;
+  pointer-events: none;
+}
+
+/* -- How to play ----------------------------------------------------------- */
+#howto .howto-panel {
+  width: min(calc(700px * var(--s)), calc(100vw - 32px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  padding: calc(26px * var(--s)) calc(36px * var(--s)) calc(22px * var(--s));
+  font-size: calc(14px * var(--s));
+  text-align: center;
+  background: linear-gradient(180deg, rgba(10, 20, 30, 0.9), rgba(3, 7, 13, 0.95));
+}
+
+#howto h2 {
+  font-size: calc(26px * var(--s));
+}
+
+#howto h3 {
+  margin: calc(20px * var(--s)) 0 calc(10px * var(--s));
+  font-size: calc(12px * var(--s));
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8fb3c5;
+}
+
+#howto .controls {
+  gap: calc(9px * var(--s)) 0;
+  padding: calc(14px * var(--s)) calc(16px * var(--s));
+  font-size: calc(14px * var(--s));
+  border: 1px solid rgba(var(--ui-rgb), 0.14);
+  border-radius: 12px;
+  background: rgba(var(--ui-rgb), 0.028);
+}
+
+#howto .controls > div {
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+#howto .controls > div > span {
+  margin-right: 6px;
+  color: #a3bac7;
+}
+
+#howto #howto-title > div:last-child:not(:first-child) {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--ui-rgb), 0.1);
+  color: rgba(var(--exit-rgb), 0.8);
+  font-style: italic;
+}
+
+.howto-rules {
+  text-align: left;
+  padding: calc(4px * var(--s)) calc(18px * var(--s));
+  border-left: 2px solid rgba(var(--exit-rgb), 0.3);
+  background: rgba(var(--ui-rgb), 0.022);
+  border-radius: 0 10px 10px 0;
+}
+
+.howto-rules p {
+  margin: calc(10px * var(--s)) 0;
+  font-size: calc(14px * var(--s));
+  line-height: 1.6;
+  color: #b0c7d3;
+}
+
+.howto-rules b {
+  color: var(--ink);
+}
+
+#howto .legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px 8px;
+  margin: 0;
+  font-size: calc(13px * var(--s));
+}
+
+#howto .legend li {
+  --glow: var(--ui-rgb);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 13px 5px 7px;
+  border: 1px solid rgba(var(--glow), 0.26);
+  border-radius: 999px;
+  background: radial-gradient(120% 160% at 14% 50%, rgba(var(--glow), 0.13), rgba(var(--glow), 0.02) 62%, transparent);
+  box-shadow: inset 0 0 16px rgba(var(--glow), 0.06);
+  color: #b7ccd8;
+}
+
+#howto .legend canvas.swatch {
+  filter: drop-shadow(0 0 5px rgba(var(--glow), 0.5));
+}
+
+#howto .legend li.text-only {
+  --glow: var(--muffler-rgb);
+  gap: 6px;
+  padding-left: 13px;
+  border-style: dashed;
+  background: none;
+}
+
+/* something not met yet: a dashed chip that says nothing */
+#howto .legend li.unmet {
+  --glow: var(--ui-rgb);
+  padding: 5px 16px;
+  border-style: dashed;
+  background: none;
+  box-shadow: none;
+  color: #6f8794;
+  letter-spacing: 0.2em;
+}
+
+#howto .cue-legend {
+  display: flex;
+}
+
+#howto .cue-legend li {
+  gap: 0;
+  padding-left: 11px;
+}
+
+.howto-more,
+.howto-small {
+  margin: calc(10px * var(--s)) 0 0;
+  font-size: calc(13px * var(--s));
+  color: #93abb8;
+}
+
+#howto .buttons.dock {
+  margin-top: calc(22px * var(--s));
+}
+
+/* -- a short screen (a laptop at 125-150% zoom, a phone held sideways) ----- */
+@media (max-height: 660px) {
+  #title .panel {
+    padding-top: 10px;
+    padding-bottom: 14px;
+  }
+
+  #title h1 {
+    margin: -34px 0 -44px;
+  }
+
+  #title .tagline {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    font-size: 15px;
+  }
+
+  .title-hint {
+    margin-bottom: 12px;
+  }
+
+  .title-options {
+    margin: 10px 0 12px;
+  }
+
+  #title .mode-desc {
+    margin-top: 8px;
+  }
+
+  .sound-note {
+    margin: 8px 0 12px;
+  }
+
+  #title .buttons.title-more {
+    padding-top: 12px;
+  }
+
+  #title .title-more button {
+    min-height: 36px;
+    padding: 7px 8px;
+  }
+
+  #title .buttons.dock button.primary {
+    padding: 12px 44px;
+  }
+
+  #title .title-options label.switch.calm {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+}
+
+/* ...and shorter still (150% zoom): the switches keep their names and lose their second line */
+@media (max-height: 540px) {
+  #title .panel {
+    padding-top: 6px;
+    padding-bottom: 10px;
+  }
+
+  #title h1 {
+    margin: -40px 0 -52px;
+  }
+
+  .title-first {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  #title .tagline {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+  }
+
+  .switch-text small {
+    display: none;
+  }
+
+  .title-options {
+    margin: 6px 0 8px;
+  }
+
+  #title button.mode {
+    padding-top: 8px;
+    padding-bottom: 6px;
+  }
+
+  #title .mode-desc {
+    margin: 6px 0 2px;
+  }
+
+  .sound-note {
+    margin: 6px 0 10px;
+  }
+
+  #title .buttons.title-more {
+    gap: 8px;
+    padding-top: 10px;
+  }
+
+  #title .title-more button {
+    min-height: 32px;
+    padding: 6px 8px;
+  }
+
+  #title .buttons.dock button,
+  #title .buttons.dock button.primary {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
+
+/* -- narrow screens (a phone held upright) ------------------------------- */
+@media (max-width: 560px) {
+  #title .panel,
+  #howto .howto-panel {
+    width: calc(100vw - 20px);
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  #title .modes {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .title-options {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #title .title-options label.switch.calm {
+    justify-content: flex-start;
+  }
+
+  #title .title-more button {
+    flex-basis: calc((100% - 10px) / 2);
+  }
+
+  .title-hint span {
+    margin-right: 8px;
+  }
+}
+
+/* the menus work held upright too: only a level asks to be turned sideways (js/game.js toggles .on-title) */
+body.touch.on-title #rotate {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-track::after,
+  #title label.switch {
+    transition: none;
+  }
+}
