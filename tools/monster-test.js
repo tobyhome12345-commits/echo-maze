@@ -178,13 +178,9 @@ window.MonsterTest = (() => {
     T.check('it hums - a regular tick, about every 1.15 s', hums.length >= 3 && hums.length <= 5, hums.length);
     T.check('the hum is placed (gain > 0 at 200 px, panned to its side)', g.every((v) => v > 0.05) && hums.every((c) => c[0] > 0), hums.map((c) => [+c[0].toFixed(2), +c[1].toFixed(3)]));
     T.check('...with its own glyph in the Visual cues', sawCue);
-    const far = spy('alarmHum');
-    E().tp(a.x + 700, a.y);
-    step(2.5);
-    far.restore();
-    T.check('heard only near it (at 700 px the hum has no loudness at all)', far.every((c) => c[1] === 0), far.map((c) => c[1]));
 
     // THE RIPPLE
+    T.check('(still playing - nothing has caught you)', E().info().state === 'play', E().info().state);
     E().tp(a.x - 160, a.y);
     step(0.05);
     const at = { x: P().x, y: P().y };
@@ -198,7 +194,7 @@ window.MonsterTest = (() => {
     }
     screamSpy.restore();
     const s = screams()[0];
-    T.check('one of your ripples reaching it: it screams', !!s && s.by === 'alarm' && screamSpy.length === 1, { s, calls: screamSpy.length });
+    T.check('one of your ripples reaching it: it screams', !!s && s.by === 'alarm' && screamSpy.length === 1, { s, calls: screamSpy.length, crouch: E().crouch(), mine: E().ripples().filter((r) => !r.singer && !r.ambient).map((r) => [Math.round(r.x), Math.round(r.y), Math.round(r.R)]), player: [Math.round(P().x), Math.round(P().y)], alarm: [a.x, a.y], state: E().info().state });
     T.note(`wave reached it ${t.toFixed(2)} s after the ping (160 px)`);
     T.check('...from the spot where you were at that moment', !!s && Math.hypot(s.x - at.x, s.y - at.y) < 0.01, s);
     const wanted = ['echo', 'scent', 'stalker', 'muffler', 'singer'];
@@ -236,6 +232,13 @@ window.MonsterTest = (() => {
     T.check('a second ripple reaching it: no second scream', screams().length === 1, screams().length);
     T.check('...and it is silent now (no hum)', hums2.length === 0, hums2.length);
     E().setVisualCues(false);
+    // heard only near it - on a level with nothing else in it (a monster parked beside you could catch you)
+    await play(field(31, 9, { start: { x: 2, y: 4 }, enemies: [{ kind: 'alarm', x: 3, y: 1 }] }));
+    const far = spy('alarmHum');
+    E().tp(px(3) + 700, px(1));
+    step(2.5);
+    far.restore();
+    T.check('heard only near it (at 700 px the hum has no loudness at all)', far.length >= 1 && far.every((c) => c[1] === 0), far.map((c) => c[1]));
     return T.done();
   }
 
