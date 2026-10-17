@@ -625,6 +625,12 @@ tools/          developer tools, not part of the game and not exported with a ve
                 the key first), bonus-test.js (v15.2: every bonus level through the loader, played through along
                 written routes with several random seeds, the warnings in front of them, nothing saved but the ticks,
                 Copy to My Levels playing identically, read-only, the ticks, broken data, a soak),
+                check.js (the standard checks in one command - every file parses, the game loads with no console
+                error, the generator fingerprint, the quick test suites; --full for all of them), serve.js (a static
+                server for the game and the test pages), headless.js (runs an expression in a headless Chrome / Edge,
+                optionally a screenshot - Windows, macOS or Linux), test-copy-check.js (checks the finished test copy),
+                local-release.ps1 (the owner's PC: makes a merged version's folder, re-points the shortcut, rebuilds the
+                test copy),
                 monster-test.js (v15.7: the Alarm and the Screecho - what sets them off, the scream, the cooldown and the speed
                 measured, calm mode, Visual cues, the unreleased-content warning, share codes, the editor, never in the campaign,
                 nothing saved, a soak),
