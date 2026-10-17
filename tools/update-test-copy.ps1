@@ -51,14 +51,15 @@ $leaf = Split-Path $Source -Leaf
 $label = if ($leaf -match '^(v\d+\.\d+)') { $Matches[1] } else { $leaf }
 
 # ---- the version folder must hold only what this script knows how to copy
-$known = @('index.html', 'style.css', 'README.md', 'social.jpg', 'js')
+$known = @('index.html', 'style.css', 'README.md', 'social.jpg', 'manifest.webmanifest', 'sw.js', 'icons', 'js')
 $unknown = Get-ChildItem $Source | Where-Object { $known -notcontains $_.Name } | ForEach-Object { $_.Name }
 if ($unknown) { Fail "$leaf has files this script does not know how to copy: $($unknown -join ', ') - teach the script (and the test copy) about them first" }
 
 New-Item -ItemType Directory -Force (Join-Path $target 'js') | Out-Null
 
 # ---- plain copies
-foreach ($f in 'style.css', 'README.md', 'social.jpg') { Copy-Item (Join-Path $Source $f) (Join-Path $target $f) -Force }
+foreach ($f in 'style.css', 'README.md', 'social.jpg', 'manifest.webmanifest', 'sw.js') { Copy-Item (Join-Path $Source $f) (Join-Path $target $f) -Force }
+Copy-Item (Join-Path $Source 'icons') $target -Recurse -Force
 
 # ---- js: same code, but its own save slot
 $jsNames = Get-ChildItem (Join-Path $Source 'js') -File | ForEach-Object { $_.Name }
@@ -297,7 +298,7 @@ Set-Text (Join-Path $target 'READ ME - test copy.txt') (($readme -replace "`r`n"
 
 # ---- check the result against the source
 $problems = @()
-foreach ($f in 'style.css', 'README.md', 'social.jpg') {
+foreach ($f in 'style.css', 'README.md', 'social.jpg', 'manifest.webmanifest', 'sw.js') {
   if ((Get-FileHash (Join-Path $Source $f)).Hash -ne (Get-FileHash (Join-Path $target $f)).Hash) { $problems += "$f is not identical to the source" }
 }
 foreach ($n in $jsNames) {
@@ -308,7 +309,7 @@ $srcLines = (Get-Text (Join-Path $Source 'index.html')).Split("`n").Count
 $dstLines = (Get-Text (Join-Path $target 'index.html')).Split("`n").Count
 if ($dstLines -ne $srcLines + 2) { $problems += "index.html should have exactly 2 extra lines (has $($dstLines - $srcLines))" }
 $extra = Get-ChildItem $target -Recurse -File | ForEach-Object { $_.FullName.Substring($target.Length + 1) } |
-  Where-Object { @('index.html', 'style.css', 'README.md', 'social.jpg', 'test-save.js', 'READ ME - test copy.txt') -notcontains $_ -and $_ -notmatch '^js\\' }
+  Where-Object { @('index.html', 'style.css', 'README.md', 'social.jpg', 'manifest.webmanifest', 'sw.js', 'test-save.js', 'READ ME - test copy.txt') -notcontains $_ -and $_ -notmatch '^(js|icons)\\' }
 if ($extra) { Write-Warning "files in the test copy that are not part of it (left alone): $($extra -join ', ')" }
 $stale = Get-ChildItem (Join-Path $target 'js') -File | Where-Object { $jsNames -notcontains $_.Name } | ForEach-Object { $_.Name }
 if ($stale) { Write-Warning "js files in the test copy that the source no longer has (left alone, but nothing loads them unless index.html does): $($stale -join ', ')" }

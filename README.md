@@ -6,6 +6,8 @@ Press **SPACE** to send out a sonar ripple. It expands from your position, bounc
 
 No build step, no dependencies, no audio files. Open `index.html` in a browser (or serve the folder with any static server) and click **Begin**. New here? The first Begin walks you through a short **Tutorial** first, and there is a **Tutorial** button on the title screen whenever you want it again.
 
+**Play it on your phone, as an app:** open https://tobyhome12345-commits.github.io/echo-maze/ and install it - on Android in Chrome, **Install app** (or the menu, then *Install app*); on an iPhone in Safari, **Share**, then *Add to Home Screen*. It gets its own icon, opens full screen, plays offline once it has been opened, and updates itself whenever it is opened with a connection - nothing to download again. Progress is kept on that phone. (On an iPhone the home-screen app keeps its own progress, apart from Safari's.)
+
 The title screen keeps to the essentials: the difficulty, Calm mode and Visual cues, and **Begin** (or **Continue**, which takes the lead once you have a run going - `Enter` presses whichever is lit). The controls, the rules and the legend are behind **How to play**, which only describes what you have already met; anything still ahead of you shows as **???**.
 
 ## Controls
@@ -574,6 +576,7 @@ On touch devices (a coarse pointer, or the first touch) the game shows on-screen
 index.html      page + overlay screens (title, How to play, replay, settings, pause, tutorial complete, caught, level complete, ending, the level editor's four: two warnings, My Levels, the editor) + a custom level's title card + the touch layer
 style.css       styling (everything for touch is under `body.touch`)
 social.jpg      the picture a link to the game shows when shared (1200 x 630)
+manifest.webmanifest, sw.js, icons/   the installable web app: its name, icons and full screen, and the service worker that lets it open offline (network first, so it is always the newest version when there is a connection)
 js/profile.js   everything saved that is not progress: your keys, volumes, palette, medals and stats
 js/palette.js   the four colour palettes, and who they hand their colours to
 js/audio.js     SoundEngine - procedural Web Audio synthesis (incl. wall muffling, Doppler, the two buses)

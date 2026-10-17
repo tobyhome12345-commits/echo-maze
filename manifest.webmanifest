@@ -1,0 +1,17 @@
+{
+  "name": "Echo Maze",
+  "short_name": "Echo Maze",
+  "description": "Find your way out of a maze in total darkness, one ripple of sound at a time - and hope nothing else notices.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#010206",
+  "theme_color": "#010206",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

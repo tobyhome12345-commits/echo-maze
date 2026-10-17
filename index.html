@@ -22,6 +22,21 @@
   <meta name="twitter:description" content="Find your way out of a maze in total darkness, one ripple of sound at a time - and hope nothing else notices.">
   <meta name="twitter:image" content="social.jpg">
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2303070d%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%235dffa0%22%20stroke-linecap%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%225%22%20fill%3D%22%235dffa0%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M20%2032a12%2012%200%200%201%2024%200%22%20stroke-width%3D%224%22%20opacity%3D%22.9%22%2F%3E%3Cpath%20d%3D%22M12%2032a20%2020%200%200%201%2040%200%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M20%2032a12%2012%200%200%200%2024%200M12%2032a20%2020%200%200%200%2040%200%22%20stroke%3D%22%235fd4ff%22%20stroke-width%3D%223%22%20opacity%3D%22.45%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+  <!-- (v15.6) the installable web app: the icon a phone puts on its home screen -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Echo Maze">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <script>
+    // The app description and the offline helper (sw.js) only make sense over http(s) - a copy opened from a
+    // folder has nothing to install, and its browser would only complain about them.
+    if (/^https?:$/.test(location.protocol)) {
+      const m = document.createElement('link');
+      m.rel = 'manifest';
+      m.href = 'manifest.webmanifest';
+      document.head.appendChild(m);
+      if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
