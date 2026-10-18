@@ -1,69 +1,228 @@
 # Echo Maze - notes for Claude
 
-## FIRST: where is this session running? (it decides how changes are released)
+## FIRST: how a change is released (the owner's flow since 2026-10-18 - read this before changing anything)
 
-- **A LOCAL session** runs on the owner's Windows PC: the folder `C:\Claude\echo game` exists (version folders, shortcuts, the test copy). Follow everything below as written - the release steps in "Keep a copy of every version" included.
-- **A CLOUD session** (Claude Code on the web / from the Claude app, working on a fresh clone of the GitHub repo) has NO access to the owner's PC: `C:\Claude\echo game` does not exist (usually the machine is Linux). Follow **"Cloud sessions"** below instead of the PC-only steps. **A cloud session NEVER pushes to `main`** - it works on a branch and opens a pull request, and the owner merges it after testing.
-- Not sure which? Treat it as a cloud session (branch + pull request) and say so.
+**One prompt to a session does the whole release.** The owner pastes an update prompt into a session (usually a CLOUD
+session - Claude Code on the web or in the Claude app, on a fresh clone with no access to the owner's PC). The session:
 
-**Why it matters: `main` IS the public game.** GitHub Pages publishes `main` automatically on every push (about a minute), and the installed phone app updates from it the next time it is opened. Anything pushed to `main` is live for everyone at once.
+1. does the work, and **updates the version everywhere** (see "Releasing: the version" below);
+2. **runs the release gate**, `node tools/check.js --release` (every check and suite, the version check, a headless
+   browser load and three screenshots - see "The release gate");
+3. **if EVERY check passed** (the gate prints `RELEASE GATE: PASSED` and exits 0): commits and **pushes straight to
+   `main`** - GitHub Pages republishes the website from `main` in about a minute, and the installed phone app picks it
+   up the next time it is opened;
+   **if ANY check failed** (or could not run): it **must not touch `main`**. It pushes a branch, opens a pull request,
+   and tells the owner exactly what failed (see "When the gate fails");
+4. **never force-pushes and never rewrites history** - not on `main`, not anywhere that has been pushed. No
+   `push --force`, no `reset` of a pushed branch, no amending or rebasing pushed commits. To take something back, add a
+   new commit (see "Undoing a release").
 
-## Keep the GitHub repo up to date
+**The owner's PC then catches up by itself** - no session does anything there: the PC updater (a Windows scheduled
+task, see "The PC updater") notices the new version on `main` within 10 minutes, makes the new version folder
+`C:\Claude\echo game\Echo Maze\vX.Y - title`, points "Play Echo Maze" at it, and rebuilds and checks the
+"Test - everything finished" copy - exactly the steps local sessions used to do by hand.
 
-This repo is the home of the game. **In a LOCAL session: every time the game is changed, commit and push the change to `origin/main`** (owner requested this explicitly). Do it at the end of each round of changes — don't wait to be asked. Use clear commit messages that say what changed in the game. (If `main` has been protected so that it needs a pull request - see "Protecting main" under Cloud sessions - a local session works the cloud way too: a branch, a pull request, and the owner merges.) **In a CLOUD session: never push to `main`** - see "Cloud sessions".
+**A LOCAL session** (on the owner's Windows PC: `C:\Claude\echo game` exists) follows the same flow: the same gate, the
+same push-to-`main`-only-if-it-passed rule. It does NOT make the version folder, the shortcut or the test copy by hand
+any more - the PC updater does, from `main`, a few minutes after the push (run it by hand to have it at once:
+`powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Claude\echo game\Updater\pc-updater.ps1"`).
+
+**Why it matters: `main` IS the public game.** Anything pushed to `main` is live for everyone at once - which is why
+nothing reaches it that has not passed every check.
 
 ## The website (GitHub Pages, since 2026-10-17)
 
-The repo is **public** and GitHub Pages serves `main` (root) at **https://tobyhome12345-commits.github.io/echo-maze/** - the owner plays it there on their phone. Every push to `main` republishes it automatically (about a minute), so pushing after each change (above) is all it needs. Anything committed to `main` is live on the site, so never push half-finished game changes to `main` - and a cloud session never pushes to it at all. Other branches are never published (Pages builds from `main` only). The version tag in the corner shows nothing there (it reads the number from a `vX.Y - ...` folder name), and the link preview (`social.jpg`) works there. **Since v15.6 it is an installable web app** (see v15.6): the owner may have it installed on their phone, and it picks up every push the next time it is opened online.
+The repo is **public** and GitHub Pages serves `main` (root) at **https://tobyhome12345-commits.github.io/echo-maze/** -
+the owner plays it there on their phone. Every push to `main` republishes it (about a minute). Other branches are never
+published. The version tag in the title's corner shows nothing there (it reads the number from a `vX.Y - ...` folder
+name), and the link preview (`social.jpg`) works there. **Since v15.6 it is an installable web app** (see v15.6): the
+owner has it installed on their phone, and it picks up every push the next time it is opened online.
 
 ## Cloud sessions (Claude Code on the web / in the Claude app)
 
-A cloud session works on a fresh clone of the repo with no access to the owner's PC. Everything a development session needs is in the repo (checked with a fresh clone, 2026-10-18): the game, this file, `docs/`, and every tool in `tools/` - including the server, the headless browser driver and the standard checks below. What is NOT in the repo, and lives only on the owner's PC: the version folders, the "Play Echo Maze" shortcuts, the finished test copy (built by `tools/update-test-copy.ps1`, which only runs there), the owner's Claude memory, and the Claude desktop app's preview config.
+A cloud session works on a fresh clone of the repo with no access to the owner's PC. Everything a development session
+needs is in the repo: the game, this file, `docs/`, and every tool in `tools/` - including the server, the headless
+browser driver and the checks. What is NOT in the repo, and lives only on the owner's PC: the version folders, the
+"Play Echo Maze" shortcuts, the finished test copy, the PC updater's own clone and log, and the owner's Claude memory.
 
-### The release steps in a cloud session (instead of the version folder, shortcut and test copy)
+### What a cloud session SKIPS (the PC does these by itself - never try them from the cloud)
 
-1. **Branch**: start from an up-to-date `main` and work on a new branch named after the version and the feature, e.g. `v16.0-jail-cutscene` (lower case, hyphens). One version per branch and pull request.
-2. **The version number**: work it out as in "The next version number" below, and say in the pull request which it is and whether it is major or minor (and why, if it was a judgement call).
-3. **Where the game shows or stores its version: nowhere, on purpose** (the owner's rule: "the number is only in the folder name, NOT inside the game's files"). The corner tag on the title reads the number from a `vX.Y - ...` folder name, so it shows nothing on the website or in a clone. **The service worker needs no cache version**: `sw.js` is network-first (every file is fetched fresh, revalidated, whenever there is a connection; its cache `echo-maze` is only the offline copy), so the installed phone app picks up a merged change the next time it is opened online - nothing to bump. (Only if `sw.js` is ever changed to cache-first, or files get versioned names, would a cache version be needed - then add one in `sw.js` and bump it every release.) So "bumping the version" in a cloud session means: **add the row to the version table in this file** (see below) and nothing in the game files.
-4. **The version table**: add the new row exactly like the others, with `PENDING` in the Commit column (the merge commit does not exist yet) and "(latest)" moved to it, and add the version's own section in this file as local sessions do. **If an earlier row still says `PENDING`** and its pull request has been merged, put its merge commit's short hash in (`git log --first-parent --oneline main`) in this pull request too.
-5. **Commits**: the project's pattern - a subject line in the imperative that says what changed in the game, with the version in brackets (`Add the jail cutscene (v16.0)`), a short body of what changed, and the attribution line (`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` - or whatever the session's attribution reminder says). Write the message to a file and commit with `git commit -F`.
-6. **Keep README.md and docs/ current**, as in a local session.
-7. **Run the checks** (below) and fix what fails.
-8. **Push the branch and open a pull request** (`git push -u origin <branch>`, then `gh pr create` if the gh tool is there, or the session's own pull request tool). **Never push to `main`, never merge the pull request, never enable auto-merge** - the owner merges after testing. The pull request description lists:
-   - **Version**: `vX.Y` (major / minor) and the folder name the local release should use, e.g. `v16.0 - jail cutscene`;
-   - **What changed** (for the player, then for the code);
-   - **How it was tested** (each check and suite, with its numbers - the same standard as a local session's report);
-   - **What could not be checked** (by ear, by eye, on a real phone, anything the cloud machine could not run);
-   - **Decisions made** on anything the brief did not say.
-   The checks also run by themselves on every pull request (`.github/workflows/checks.yml`, the quick set on Linux + Chrome); look at their result before saying it is done.
+- making the version folder `C:\Claude\echo game\Echo Maze\vX.Y - title`;
+- re-pointing the shortcuts "Play Echo Maze" / "Play Echo Maze (test - finished)";
+- rebuilding the finished test copy (`tools/update-test-copy.ps1`) and checking it (`tools/test-copy-check.js`).
+The PC updater does all three from `main` (see "The PC updater"). What the cloud session DOES do is everything that
+makes the updater do them right: VERSION.json, the version table row, the README line.
 
-### The next version number (when there are no version folders to look at)
+### Releasing: the version
 
-The current version is **the last row of the version table in this file** (the one marked "(latest)"; `git log --oneline main` agrees - each version's commit subject ends in `(vX.Y)`). The game files hold no version number. The next one follows the owner's rule in "Version numbers" below: a **major** update (a new enemy, new lore/cutscene, or another big new feature/system) goes to the next whole number and the decimal resets (`15.7` -> `16.0`); a **minor** tweak goes to the next decimal (`15.7` -> `15.8`; after `15.9` comes `15.10`). If the owner's brief names the number or says "minor" / "major", that wins. If it is unclear, pick one and say which.
+1. **The version number**: the current one is in **`VERSION.json`** (and the last row of the version table below, marked
+   "(latest)"). The next one follows the owner's rule in "Version numbers" below: a **major** update (a new enemy, new
+   lore/cutscene, or another big new feature/system) goes to the next whole number and the decimal resets (`16.0` ->
+   `17.0`); a **minor** tweak goes to the next decimal (`16.0` -> `16.1`; after `16.9` comes `16.10`). If the owner's
+   brief names the number or says "minor" / "major", that wins. If it is unclear, pick one and say which. **Never reuse
+   a number** - not even one that was undone (its folder is still on the PC, and the updater never overwrites a folder).
+   A change that is not a game change (docs, tools only) is **not a release**: leave VERSION.json alone.
+2. **Update all of these, together, in the same commit:**
+   - **`VERSION.json`** - `{ "version": "v16.1", "title": "jail cutscene" }`. The title is the version folder's
+     description on the PC (`v16.1 - jail cutscene`): a few plain lower-case words, at most 40 characters, nothing a
+     folder name cannot hold;
+   - **the version table** in this file - a new last row, "(latest)" moved to it, `PENDING` in the Commit column (a
+     commit cannot hold its own hash; the next release fills the previous `PENDING` in from
+     `git log --first-parent --oneline main`) - and the version's own section, as before;
+   - **README.md** - its one line `**Current version:** v16.1 - jail cutscene` (near the top).
+   **Where the game itself stores its version: nowhere, on purpose** (the owner's rule: the number is only in the folder
+   name, never inside the game's files). The title screen's corner tag reads it from the version folder's name, so on
+   the PC it always matches VERSION.json (the updater names the folder from it) and on the website it shows nothing;
+   **`sw.js` has no cache version** - it is network-first (every file fetched fresh whenever there is a connection; its
+   cache `echo-maze` is only the offline copy), so nothing needs bumping there. `VERSION.json` is repo-only: it is never
+   copied into a version folder or the test copy. **The version check** (in every `tools/check.js` run) fails if
+   VERSION.json, the "(latest)" row and the README line disagree, if the title is not folder-safe, or if a hard-coded
+   version appears in `sw.js` or the title's tag - so a forgotten one cannot reach `main`.
+3. **Commits**: the project's pattern - a subject line in the imperative that says what changed in the game, with the
+   version in brackets (`Add the jail cutscene (v16.1)`), a short body of what changed, and the attribution line
+   (`Co-Authored-By: ...` - whatever the session's attribution reminder says). Write the message to a file and commit
+   with `git commit -F`. Keep README.md and docs/ current, as always.
+
+### The release gate
+
+```
+node tools/check.js --release
+```
+runs: every `.js` file parses and every `.json` file is valid; **the version check** (above); the game **loads in a
+headless browser with no console error or exception**; the **generator fingerprint is `9097b344`** (with a real level
+12 as its sanity line); **every test suite of `--full`**; and **three screenshots** in `tools/out/release/` (ignored by
+git): the title on a laptop, the title on a phone, level 1 lit by a ripple - each also has to load with no error. Plus
+whatever tests the brief itself asks for (identity games, story-bot, a new harness - see "Testing"), which the session
+runs and must also pass. The last line says `RELEASE GATE: PASSED - main may be pushed` or `RELEASE GATE: FAILED`.
+**PASSED is the only thing that allows a push to `main`.** A check reported as NOT RUN (no browser found) counts as a
+failure here. Screenshots are taken because the release needs them; look at them only if something looks wrong in the
+numbers (the owner does not want screenshot passes otherwise, to save usage).
+
+Then, if it passed:
+```
+git fetch origin && git status          # main must not have moved on meanwhile
+git push origin HEAD:main               # a plain fast-forward push - never --force
+```
+If `main` moved on while the session worked: merge `origin/main` into the work (never rebase pushed commits), **run the
+gate again**, and push only if it passes again. If GitHub refuses the push for any reason (branch protection, a rule,
+the cloud environment only allowing its own branch): do not try to get round it - fall back to the pull request below
+and say why.
+
+### When the gate fails (or the push is refused)
+
+`main` is not touched. The session:
+1. pushes its work to a branch named after the version and feature (`v16.1-jail-cutscene`, lower case, hyphens);
+2. opens a pull request (`gh pr create`, or the session's own pull request tool) whose description says **which checks
+   failed and their output**, what was changed, what was tested, and what could not be checked;
+3. tells the owner, plainly, that the release did NOT go live and why. The owner decides: fix it in that session, or
+   merge it anyway after looking. Never merge it, never enable auto-merge.
+The checks also run on every pull request and every push to `main` (`.github/workflows/checks.yml`, the quick set on
+Linux + Chrome), so a bad `main` is visible on GitHub as a red cross.
+
+### What a cloud session can never check
+
+Sound by ear, how it looks and feels to a person in motion, a real phone or touch screen, the owner's PC copies. List
+them in the final message (and the pull request, if there is one).
 
 ### Testing in a cloud session (the same requirements as locally, as far as they go)
 
 Everything runs from the repo with Node (22 or newer; no packages):
 
-- `node tools/check.js` - **the standard checks**: every .js file parses, every .json file is valid, the game loads in a headless browser with **no console error**, the **generator fingerprint is `9097b344`** (with a real level 12 as its sanity line), and the quick test suites (formats and share codes, the monsters). `node tools/check.js --full` runs every suite that is not a soak (about two minutes). Exit code 0 = all passed. Run it after every change and put its summary in the report.
-- `node tools/serve.js [port]` - the repo on `http://localhost:8121/` (`?debug` for the test hooks); no caching, any origin allowed (so another build's page can load these files - e.g. `git worktree add ../old <old-commit>` + `node tools/serve.js 8122 ../old` for an old-vs-new identity run).
-- `node tools/headless.js <url> --eval script.js [--save save.json] [--shot out.png] [--size 1366x768] [--mobile]` - run any expression in the page (e.g. load a `tools/*-test.js` harness and call its suites, exactly as the sections below describe) and print the result and any console errors; `--shot` saves a PNG. **Screenshots only when a brief asks for them** - the owner checks the look by eye and does not want them taken otherwise (to save usage).
-- No browser on the machine? `npx -y playwright install chromium` (tools/headless.js finds it), or set `ECHO_BROWSER` to one. Without any, `tools/check.js` still does the syntax / JSON checks and works the generator fingerprint out in Node, and reports the browser suites as NOT RUN - say so in the pull request.
-- What a cloud session can never check: sound by ear, how it looks to a person, a real phone or touch screen, the owner's PC copies. List them under "What could not be checked".
+- `node tools/check.js` - **the standard checks**, quick set (about a minute): everything the gate runs except the
+  long suites and the screenshots. `node tools/check.js --full` adds every suite that is not a soak.
+  `node tools/check.js --release` is the gate (above).
+- `node tools/serve.js [port]` - the repo on `http://localhost:8121/` (`?debug` for the test hooks); no caching, any
+  origin allowed (so another build's page can load these files - e.g. `git worktree add ../old <old-commit>` +
+  `node tools/serve.js 8122 ../old` for an old-vs-new identity run).
+- `node tools/headless.js <url> --eval script.js [--save save.json] [--shot out.png] [--size 1366x768] [--mobile]` -
+  run any expression in the page (e.g. load a `tools/*-test.js` harness and call its suites, exactly as the sections
+  below describe) and print the result and any console errors; `--shot` saves a PNG.
+- No browser on the machine? `npx -y playwright install chromium` (tools/headless.js finds it), or set `ECHO_BROWSER`
+  to one. Without any, `tools/check.js` still does the syntax / JSON / version checks and works the generator
+  fingerprint out in Node, and reports the browser suites as NOT RUN - which **fails the release gate**.
 
-### Protecting main (the owner's choice - a session never changes GitHub settings)
+### GitHub settings (the owner's choice - a session never changes them)
 
-On 2026-10-18 `main` had no branch protection and no rulesets; Pages builds from `main` (root) only. To make it impossible to push to `main` by accident: on GitHub, the repo -> **Settings** -> **Branches** -> **Add branch ruleset** (or "Add classic branch protection rule") for `main` with **Require a pull request before merging** and **Block force pushes** (and, for the ruleset, **Restrict deletions**); leave the bypass list empty so it applies to everyone. With that on, local sessions use branches and pull requests too (see "Keep the GitHub repo up to date").
+The flow needs a session to be able to push to `main`. On 2026-10-18 `main` had a ruleset "Protect main" that
+**requires a pull request** - with that on, every push to `main` is refused and every release falls back to a pull
+request. What the owner should have (Settings -> Rules -> Rulesets -> "Protect main"): **Restrict deletions** ON,
+**Block force pushes** ON (these two enforce "never rewrite history"), **Require a pull request before merging** OFF.
+A session never changes GitHub settings; if a push is refused, it falls back to a pull request and says why.
 
-## The local release of a merged version (owner's PC only)
+## The PC updater (owner's PC only)
 
-When the owner says **"do the local release for the latest merged version"** (or names one), a LOCAL session does this and nothing else:
+`tools/pc-updater.ps1`, installed by `tools/install-pc-updater.ps1` (run that again after changing the updater -
+the scheduled task runs the installed COPY, so nothing pushed to `main` changes the updater itself):
+
+| | |
+| --- | --- |
+| the installed script | `C:\Claude\echo game\Updater\pc-updater.ps1` |
+| its own clone of the repo | `C:\Claude\echo game\Updater\repo` - pulled fast-forward only; never edit it (it stops if it has local changes) |
+| its log | `C:\Claude\echo game\Updater\updater.log` (what it did; a quiet run adds nothing) and `last-run.txt` (when it last ran, and the result) |
+| its memory | `state.json` (what it last said, the last undo it followed, a test copy still to rebuild); `updater.lock` stops two runs overlapping |
+| the scheduled task | "Echo Maze updater": at log-on and every 10 minutes, catches up a run missed while the PC was off or asleep, hidden (`conhost --headless`), one at a time, at most 30 minutes |
+
+**Every run**: fetch `main` into its own clone (fast-forward only - if `main` no longer contains what it pulled before,
+i.e. history was rewritten, it logs an error and changes nothing); read `VERSION.json` and its history along `main`'s
+first-parent line. **If a folder for that version already exists** (`vX.Y` or `vX.Y - anything`), **it does nothing**
+- except two things that touch no version folder: following an **undo** (VERSION.json went DOWN: "Play Echo Maze" goes
+back to that version's folder and the test copy is rebuilt from it, once), and retrying a test copy that failed last
+time. **Otherwise** it makes the folder for every released version it does not have yet (one missed while the PC was
+off is made from its OWN last commit, not the newest; an undone version is skipped), exactly as releases always were
+made (the commit's top-level game files, without the repo-only `CLAUDE.md`, `VERSION.json`, `.gitignore`, `tools`,
+`docs`, `.github`; LF line endings, whatever this PC's git does), points "Play Echo Maze" at the newest, rebuilds "Test
+- everything finished" with `tools/update-test-copy.ps1` and the same test save as always, checks it with
+`tools/test-copy-check.js` and makes sure "Play Echo Maze (test - finished)" points at it. It never overwrites, renames
+or deletes a version folder, never touches the game's saves (they are in the browser), and never commits or pushes.
+**Note**: it runs `tools/update-test-copy.ps1` and `tools/test-copy-check.js` from `main` - so a change to those
+tools reaches the owner's PC with the next release; test them like game code.
+
+For the owner:
+```
+Get-Content "C:\Claude\echo game\Updater\updater.log" -Tail 30                       # what it has done
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Claude\echo game\Updater\pc-updater.ps1"   # run it now, by hand
+Start-ScheduledTask -TaskName "Echo Maze updater"                                    # or run the task now
+Disable-ScheduledTask -TaskName "Echo Maze updater"                                  # turn it off (Enable-ScheduledTask: back on)
+Unregister-ScheduledTask -TaskName "Echo Maze updater" -Confirm:$false               # remove it for good
+```
+`tools/local-release.ps1` still works as the manual way to make one version's folder (for example with the task off).
+
+## Undoing a release
+
+If a release turns out bad, **never force-push and never delete anything**. Add a new commit that puts `main` back as
+it was at the end of the previous release:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\undo-release.ps1 -DryRun     # look first
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\undo-release.ps1             # then type UNDO
+```
+It works in its own clone (`C:\Claude\echo game\Updater\undo-repo`), finds the version `main` is on and the release
+before it (from VERSION.json's history, skipping releases already undone), and adds ONE commit,
+`Undo release v16.1 (back to v16.0)`, whose files are exactly `main` at the end of v16.0 - a plain fast-forward push.
+The bad release stays in the history. If the push is refused it pushes a branch `undo-v16.1-...` and opens a pull
+request instead. Then: **the website** goes back within a minute or two of `main` changing; **the PC** follows by
+itself at the updater's next run (within 10 minutes): "Play Echo Maze" back to the v16.0 folder, the test copy rebuilt
+from it; **the v16.1 folder stays** where it is (nothing is deleted). **The fixed release then needs a new number**
+(v16.2). To undo one more, run it again.
+
+**From a cloud session** ("undo the last release"): do the same by hand - find the previous release's last commit on
+`main` (`git log --first-parent -- VERSION.json`), then `git read-tree -u --reset <that commit>`, commit
+`Undo release vX.Y (back to vW.Z)` with a short body, run the release gate, and push to `main` if it passes (else a
+branch and a pull request). Never `git reset` or `git revert --no-commit` a range and force-push; never edit history.
+The PC follows by itself, as above.
+
+## The local release of one version by hand (owner's PC; normally the PC updater does this)
+
+When the owner asks for a version's folder to be made by hand (the updater turned off, or a version from before
+VERSION.json existed), a LOCAL session:
 
 1. `git checkout main` and `git pull --ff-only` (if the working tree has uncommitted changes, stop and say so).
-2. Find the version: the newest row in this file's version table (and the merged pull request: `gh pr list --state merged --limit 3 --json number,title,headRefName,mergeCommit`). Its pull request names the folder, e.g. `v16.0 - jail cutscene`; if it does not, make one from the branch name (`v16.0-jail-cutscene` -> `jail cutscene`).
+2. Find the version and its title: `VERSION.json` (or the version table and the merged pull request).
 3. Look first: `powershell -NoProfile -ExecutionPolicy Bypass -File tools\local-release.ps1 -Version v16.0 -Description "jail cutscene" -DryRun`.
-4. Then run it without `-DryRun`. It makes the NEW version folder from `main` (refusing if one exists - nothing is ever overwritten, renamed or deleted), re-points "Play Echo Maze", rebuilds the finished test copy and checks it (`node tools\test-copy-check.js`). It commits and pushes nothing.
-5. Tell the owner what it printed: the folder, the commit, the shortcut, the test copy's checks. If the version's row still says `PENDING`, say which commit was released - the next pull request fills the hash in (or, when `main` is not protected, a local session may commit it as the usual doc-only follow-up).
+4. Then run it without `-DryRun`. It makes the NEW version folder from `main` (refusing if one exists - nothing is ever
+   overwritten, renamed or deleted), re-points "Play Echo Maze", rebuilds the finished test copy and checks it. It
+   commits and pushes nothing.
+5. Tell the owner what it printed.
 
 ## Keep a copy of every version in `C:\Claude\echo game` (owner's PC)
 
@@ -81,7 +240,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\update-test-copy.ps1
 
 It rebuilds the test copy from the newest version folder (nothing is deleted, the version folders are only read). It reads `CAMPAIGN_LEVELS` and the cutscene lists (`SCENE_LEADS_TO`, `SCENES`) from `js/game.js`, so new levels and new cutscenes are marked finished/seen automatically, and it stops with an error if the version folder holds a file it does not know or `index.html`/`game.js` changed shape - then fix the script rather than the copy by hand. Since v15.0 it also unlocks the level editor (`echomaze.test.editor`) and puts the sample levels from `tools/sample-levels.json` into My Levels - and since v15.1 the folders in `tools/sample-folders.json` (`echomaze.test.folders`) - **once** (`echomaze.test.samples2`; v15.0's flag was `samples`), so a tester's deletes and edits stick until the storage is cleared. Since v16.0 its `test-save.js` also honours `echomaze.test.unseen` (a comma list of scene kinds, e.g. `keeper`): those scenes are taken out of `seen` on every load, so a tester can watch a once-unskippable scene as a first-timer again and again; the READ ME says how. Three of the samples are kept in the **v15.0 format (schema 1) on purpose**, so the copy shows old levels being read. After it runs, open the copy once (preview config on the test folder, audio muted, do not click Begin), check the title says "Finished" in all four modes, that the replay screen lists every level and cutscene, and that **Level Editor** opens straight onto My Levels with the samples (all Playable but "Half Built", Unfinished) and the folders Showcase (3) and Puzzles (2), and (v15.2) that its **Bonus Levels** tab lists the six with the first two ticked Done ("2/6" - ticked once, `echomaze.test.bonus2`), and (v15.3) that a sample code from its READ ME (`tools/sample-codes.txt`: one level, one folder, and the Showcase folder again for "you already have" + "Showcase (2)") previews and imports - nothing of sharing goes into the test save - then clear its `echomaze.test.*` storage, close the tab and stop the server. Never put a version number in the game files; the READ ME the script writes may say which version the copy was built from.
 
-The owner wants old versions preserved, **never overwritten**. Whenever the game itself changes (doc-only edits don't count), after committing and pushing (in a local session; for a version merged from a pull request, `tools\local-release.ps1` does steps 1-2 and the test copy - see "The local release of a merged version"):
+**Since 2026-10-18 the PC updater does all of this by itself**, from `main` (see "The PC updater"): steps 1-2 below and the test copy, for every version in VERSION.json. What follows is what it does - and how it was done by hand before. The owner wants old versions preserved, **never overwritten**. Whenever the game itself changes (doc-only edits don't count):
 
 1. Save the committed tree as a **new** folder `C:\Claude\echo game\Echo Maze\vX.Y - short description` (e.g. `git archive --format=zip -o x.zip <commit> index.html style.css README.md social.jpg manifest.webmanifest sw.js icons js` - `social.jpg` since v15.5, `manifest.webmanifest`, `sw.js` and `icons` since v15.6 - then `Expand-Archive`, so `CLAUDE.md` and `.gitignore` never land in the copy). Never edit, rename or delete earlier version folders, and never edit the files inside them.
 2. Re-point the shortcut `C:\Claude\echo game\Play Echo Maze.lnk` at the new folder's `index.html`.
@@ -137,7 +296,7 @@ The owner wants old versions preserved, **never overwritten**. Whenever the game
 | v15.5 | a80d4be | MINOR, UI only: **the title screen polished** - no inner scroll at 1280x720 / 1366x768 / 125% / 150% zoom; the controls, rules and legend moved to a **How to play** screen that shows only what the player has met (the rest "???"); Continue takes the lead for a returning player (Enter presses whichever is lit); themed switches for Calm / Visual cues; a calmer selected difficulty; rewritten mode lines; a headphones note by Begin; a click ripple; scales up on big screens (`--s`); usable held upright on a phone or tablet; focus rings, radiogroup arrows; a version tag read from the folder name; meta / social tags and `social.jpg` (`tools/title-test.js`). Levels 0-16 byte-identical (`9097b344`) |
 | v15.6 | eb0c2c9 | MINOR, no change to the game itself: **an installable web app** - `manifest.webmanifest` (full screen, the dark colours), `icons/` (made from the favicon), `sw.js` (a network-first service worker: the newest version whenever there is a connection, the last one offline), iOS home-screen tags; all only over http(s), so the `file://` copies are untouched. Levels 0-16 byte-identical (`9097b344`) |
 | v15.7 | da53643 | MINOR (the owner's "next minor version"): two **UNRELEASED** monsters, in the level editor and custom levels only - the **Alarm** (never moves, harmless; the wave of one of YOUR ripples reaching it makes it scream ONCE: every monster but the Wardens goes to where you were at that moment; then spent, silent, dim; a faint positional hum-tick before) and the **Screecho** (an echo monster in every rule, that also screams when a ripple reaches it, at most once per `SCREECHO_COOLDOWN` = 20 s). Tagged "Unreleased" in the editor; share-code words added at the end; an **unreleased-content warning** every time the editor is opened from the title, driven by one list (`UNRELEASED_CONTENT`, js/level.js); three test-copy samples (`tools/monster-test.js`). Levels 0-16 byte-identical (`9097b344`; eight identity games = v15.6) |
-| v16.0 | PENDING | MAJOR (new lore/cutscene): **the keeper scene** - an eighth story cutscene between level 13's capture and level 14's wake-up. The Warden carries the unconscious explorer into the gaol, lays them in their cell, the cell's gate clangs shut, it locks the gaol door from outside and slides the key back in under it; the key skids away out of sight; the steps fade, a single drop, cut to level 14. About 31 s, no text but Visual cues captions, lit only by drips, on level 14's own map. **Unskippable until it has been seen once** (and it counts as seen only when it has played to its END - `SEEN_AT_END`), skippable after; **P pauses any cutscene** (new, all eight). In the replay screen as "Somewhere Deeper"; the v7.1 catch-up rule plays it before level 14 on Continue / level select when unseen. Test copy: `echomaze.test.unseen` re-creates a first viewing (`tools/keeper-test.js`). Levels 0-16 byte-identical (`9097b344`) (latest) |
+| v16.0 | 31ad3fc | MAJOR (new lore/cutscene): **the keeper scene** - an eighth story cutscene between level 13's capture and level 14's wake-up. The Warden carries the unconscious explorer into the gaol, lays them in their cell, the cell's gate clangs shut, it locks the gaol door from outside and slides the key back in under it; the key skids away out of sight; the steps fade, a single drop, cut to level 14. About 31 s, no text but Visual cues captions, lit only by drips, on level 14's own map. **Unskippable until it has been seen once** (and it counts as seen only when it has played to its END - `SEEN_AT_END`), skippable after; **P pauses any cutscene** (new, all eight). In the replay screen as "Somewhere Deeper"; the v7.1 catch-up rule plays it before level 14 on Continue / level select when unseen. Test copy: `echomaze.test.unseen` re-creates a first viewing (`tools/keeper-test.js`). Levels 0-16 byte-identical (`9097b344`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 

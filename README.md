@@ -1,5 +1,7 @@
 # Echo Maze
 
+**Current version:** v16.0 - gaol cutscene
+
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
 Press **SPACE** to send out a sonar ripple. It expands from your position, bounces off invisible walls, obstacles and monsters, and reveals them for a moment as it echoes back — with a sound for every bounce. But the **echo monsters** are blind: the only way one learns where you are is if your ripple wave hits it — or if it touches you.
@@ -631,7 +633,10 @@ tools/          developer tools, not part of the game and not exported with a ve
                 server for the game and the test pages), headless.js (runs an expression in a headless Chrome / Edge,
                 optionally a screenshot - Windows, macOS or Linux), test-copy-check.js (checks the finished test copy),
                 local-release.ps1 (the owner's PC: makes a merged version's folder, re-points the shortcut, rebuilds the
-                test copy),
+                test copy), pc-updater.ps1 and install-pc-updater.ps1 (the owner's PC keeps up with main by itself:
+                a scheduled task makes each new version's folder from VERSION.json, re-points the shortcuts and rebuilds
+                the test copy), undo-release.ps1 (takes a bad release back off main with one new commit - nothing
+                deleted, no force-push),
                 monster-test.js (v15.7: the Alarm and the Screecho - what sets them off, the scream, the cooldown and the speed
                 measured, calm mode, Visual cues, the unreleased-content warning, share codes, the editor, never in the campaign,
                 nothing saved, a soak),
