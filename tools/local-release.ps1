@@ -91,7 +91,7 @@ if ($DryRun) {
 
 # the folder
 $zip = Join-Path $env:TEMP "echo-maze-$Version-$short.zip"
-Invoke-Git archive --format=zip -o $zip $sha @entries | Out-Null
+Invoke-Git -c core.autocrlf=false archive --format=zip -o $zip $sha @entries | Out-Null   # (LF, as the game files are - whatever this PC's git does with line endings)
 Expand-Archive $zip $dest
 Write-Host "made $dest ($((Get-ChildItem $dest | Select-Object -ExpandProperty Name) -join ', '))"
 

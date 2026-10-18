@@ -1,9 +1,12 @@
-# The standard checks (tools/check.js) on every pull request, in a fresh Linux machine with Chrome - the same
-# thing a cloud session runs. It only reads the repo: it deploys nothing (the site is published from main by
-# GitHub Pages, never from here) and it needs no secrets.
+# The standard checks (tools/check.js) on every pull request and every push to main, in a fresh Linux machine with
+# Chrome - the same thing a cloud session runs (a release runs the full gate, `check.js --release`, before it pushes;
+# this is the second look that makes a bad main show as a red cross on GitHub). It only reads the repo: it deploys
+# nothing (the site is published from main by GitHub Pages, never from here) and it needs no secrets.
 name: checks
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

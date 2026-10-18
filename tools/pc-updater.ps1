@@ -76,12 +76,14 @@ function Note([string]$msg) {
   if ($script:state.lastNote -ne $msg) { Log $msg }
   $script:state.lastNote = $msg
 }
+# (after it has done something, the next quiet run has nothing new to say: its note is remembered as already said)
+function Idle-Note([string]$head, [string]$version, [string]$folderName) { "nothing new: main ($head) is $version, and $folderName already exists - nothing changed" }
 
 function Invoke-Git {
   # (git prints ordinary progress on stderr; Windows PowerShell would treat that as an error under 'Stop')
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  $out = & git.exe -C $repo @args 2>&1 | ForEach-Object { "$_" }
+  $out = & git.exe -c core.autocrlf=false -C $repo @args 2>&1 | ForEach-Object { "$_" }
   $code = $LASTEXITCODE
   $ErrorActionPreference = $prev
   if ($code -ne 0) { throw "git $($args -join ' ') failed: $($out -join ' ')" }
@@ -90,7 +92,7 @@ function Invoke-Git {
 function Try-Git {
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  $out = & git.exe -C $repo @args 2>$null
+  $out = & git.exe -c core.autocrlf=false -C $repo @args 2>$null
   $code = $LASTEXITCODE
   $ErrorActionPreference = $prev
   if ($code -ne 0) { return $null }
@@ -217,7 +219,7 @@ try {
     Log "first run: cloning $RepoUrl into $repo"
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    $out = & git.exe clone --quiet --branch main $RepoUrl $repo 2>&1 | ForEach-Object { "$_" }
+    $out = & git.exe -c core.autocrlf=false clone --quiet --config core.autocrlf=false --branch main $RepoUrl $repo 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
     $ErrorActionPreference = $prev
     if ($code -ne 0) { throw "git clone failed: $($out -join ' ')" }
@@ -231,7 +233,7 @@ try {
   }
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  & git.exe -C $repo merge-base --is-ancestor HEAD origin/main 2>$null
+  & git.exe -c core.autocrlf=false -C $repo merge-base --is-ancestor HEAD origin/main 2>$null
   $ancestor = $LASTEXITCODE -eq 0
   $ErrorActionPreference = $prev
   if (-not $ancestor) { throw "main on GitHub no longer contains $(Invoke-Git rev-parse --short HEAD), which this PC pulled before - its history was rewritten. Not following it; nothing was changed. See CLAUDE.md, 'The PC updater'" }
@@ -239,8 +241,8 @@ try {
   $head = Invoke-Git rev-parse --short HEAD
 
   # 2. what main says
-  & git.exe -C $repo cat-file -e HEAD:VERSION.json 2>$null
-  if ($LASTEXITCODE -ne 0) {
+  $hasVersion = Try-Git cat-file -t HEAD:VERSION.json   # ("blob", or nothing)
+  if (-not $hasVersion) {
     Note "main ($head) has no VERSION.json yet - nothing to release"
     throw 'quiet'
   }
@@ -259,26 +261,25 @@ try {
       Save-State $state
       Update-TestCopy $folder
       Log "done: the PC is back on $($have[0].Name) (no folder was removed)"
-      $state.lastNote = ''
+      $state.lastNote = (Idle-Note $head $current.Version $have[0].Name)
     } elseif ($state.testCopyPending -and $state.testCopyPending -eq $have[0].Name) {
       Log "the test copy for $($have[0].Name) did not finish last time - trying again"
       Update-TestCopy $folder
       Log 'done: the test copy is rebuilt'
-      $state.lastNote = ''
+      $state.lastNote = (Idle-Note $head $current.Version $have[0].Name)
     } else {
-      Note "nothing new: main ($head) is $($current.Version), and $($have[0].Name) already exists - nothing changed"
+      Note (Idle-Note $head $current.Version $have[0].Name)
     }
   } else {
     # 4. a new version (and any it missed): new folders, the shortcut, the test copy
     $missing = @($rel.kept | Where-Object { -not (Folder-For $_.Version) })
     Log "new on main ($head): $(($missing | ForEach-Object { "$($_.Version) - $($_.Title)" }) -join ', ')"
-
     foreach ($r in $missing) { New-VersionFolder $r | Out-Null }
     $currentFolder = (Folder-For $current.Version)[0].FullName
     Set-Shortcut $playLnk (Join-Path $currentFolder 'index.html') | Out-Null
     Update-TestCopy $currentFolder
     Log "done: $($current.Version) is in $currentFolder, Play Echo Maze points at it, and the test copy is rebuilt"
-    $state.lastNote = ''
+    $state.lastNote = (Idle-Note $head $current.Version (Split-Path $currentFolder -Leaf))
     if ($rel.lastUndo) { $state.handledUndo = $rel.lastUndo }
   }
 } catch {

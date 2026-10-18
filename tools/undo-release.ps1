@@ -36,7 +36,7 @@ function Fail($msg) {
 function Invoke-Git {
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  $out = & git.exe -C $repo @args 2>&1 | ForEach-Object { "$_" }
+  $out = & git.exe -c core.autocrlf=false -C $repo @args 2>&1 | ForEach-Object { "$_" }
   $code = $LASTEXITCODE
   $ErrorActionPreference = $prev
   if ($code -ne 0) { Fail "git $($args -join ' ') failed: $out" }
@@ -45,7 +45,7 @@ function Invoke-Git {
 function Try-Git {
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  $out = & git.exe -C $repo @args 2>$null
+  $out = & git.exe -c core.autocrlf=false -C $repo @args 2>$null
   $code = $LASTEXITCODE
   $ErrorActionPreference = $prev
   if ($code -ne 0) { return $null }
@@ -82,7 +82,7 @@ if (-not (Test-Path (Join-Path $repo '.git'))) {
   New-Item -ItemType Directory -Force (Split-Path $repo -Parent) | Out-Null
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  & git.exe clone --quiet $RepoUrl $repo 2>&1 | Out-Null
+  & git.exe -c core.autocrlf=false clone --quiet --config core.autocrlf=false $RepoUrl $repo 2>&1 | Out-Null
   $ErrorActionPreference = $prev
   if ($LASTEXITCODE -ne 0) { Fail "could not clone $RepoUrl" }
 }
@@ -137,7 +137,7 @@ Write-Host "made $undo  Undo release $($bad.Version) (back to $($good.Version))"
 
 $prev = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
-$push = & git.exe -C $repo push origin HEAD:refs/heads/main 2>&1 | ForEach-Object { "$_" }
+$push = & git.exe -c core.autocrlf=false -C $repo push origin HEAD:refs/heads/main 2>&1 | ForEach-Object { "$_" }
 $code = $LASTEXITCODE
 $ErrorActionPreference = $prev
 if ($code -eq 0) {
