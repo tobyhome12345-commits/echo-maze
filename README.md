@@ -1,5 +1,7 @@
 # Echo Maze
 
+**Current version:** v16.0 - gaol cutscene
+
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
 Press **SPACE** to send out a sonar ripple. It expands from your position, bounces off invisible walls, obstacles and monsters, and reveals them for a moment as it echoes back — with a sound for every bounce. But the **echo monsters** are blind: the only way one learns where you are is if your ripple wave hits it — or if it touches you.

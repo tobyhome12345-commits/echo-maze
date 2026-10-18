@@ -45,7 +45,7 @@ $gameRoot = 'C:\Claude\echo game'
 $versionsDir = Join-Path $gameRoot 'Echo Maze'
 $shortcut = Join-Path $gameRoot 'Play Echo Maze.lnk'
 # the repo-only top-level entries: never part of a version folder
-$repoOnly = @('CLAUDE.md', '.gitignore', '.gitattributes', 'tools', 'docs', '.github', '.claude')
+$repoOnly = @('CLAUDE.md', '.gitignore', '.gitattributes', 'tools', 'docs', '.github', '.claude', 'VERSION.json')
 
 if ($Version -notmatch '^v\d+\.\d+$') { Fail "-Version must look like v16.0 (got '$Version')" }
 if ($Description -match '[\\/:*?"<>|]' -or -not $Description.Trim()) { Fail "-Description must be a few plain words for the folder name (no \ / : * ? `" < > |)" }
