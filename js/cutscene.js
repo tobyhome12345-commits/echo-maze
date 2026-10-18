@@ -14,6 +14,10 @@
  *                              A hum, slow thumps; even a crouched creep is heard from close up. Blackout.
  *   'singer'  (level 11 -> 12) something far off sings a magenta ripple; when it reaches an explorer they are marked
  *                              (sting, ticking countdown). It leaps to the spot they were at - they kept moving.
+ *   'keeper'  (level 13 -> 14, v16.0) after the capture: the Warden carries the explorer, out cold, through the gaol,
+ *                              lays them in their cell, shuts the gaol's door and locks it - then slides the key back
+ *                              in. No words at all. Lit only by drops of water. Unskippable the first time (the game
+ *                              decides: env.canSkip), and marked seen only once it has played to the end.
  *
  * Everything runs off one clock (`time`, seconds since the cutscene began), and
  * everything you hear is synthesised - including the mumble of the explorer's
@@ -275,10 +279,55 @@ const EchoCutscene = (() => {
   const PINK = '255,122,217'; // the sonar decoy's pink
   const ORANGE = '255,116,16'; // the stalker's orange
 
+  // ------------------------------------------------- the keeper scene (v16.0)
+  // Between level 13's capture and level 14's wake: the Warden carries the explorer into the gaol, lays them in
+  // their cell and locks the gaol's door - then slides the key back in. NO text of any kind (no cards, lines or
+  // subtitles; only the Visual cues option's [sound captions], as every scene has). Its stage is level 14's own
+  // map (EchoStory.build(14)), so every cell, bar and the door are exactly where the player wakes among them.
+  // Lit by nothing but drops of water: each one is the game's real ripple (castRipple, ambient) and, for the
+  // things the ripple system does not draw (the Warden, the explorer, the tally marks, the shape, the gate, the
+  // door and the key), the same ring of light worked out here (kpLit). The Warden never makes any light.
+  const KP_S = 0;
+  const KP_END = 31.6; // finish() - on into level 14
+  const KP_WAVE = 520; // px/s: the game's RIPPLE_SPEED
+  const KP_DRIP_R = 128; // px: how far a drop's ring reaches here (the game's own drips reach 76: these are the glimpses)
+  const KP_WARDEN_R = 19; // px: the hunting Warden's size (js/warden.js drawHunter), a little over the game's 18
+  const KP_STRIDE = 64; // px between its steps: slow and heavy
+  const KP_CELL = { x: 140, y: 100 }; // where the explorer is laid: level 14's S (and its wake drop lands beside it)
+  const KP_GATE_Y = 140; // the row of bars across the front of the player's cell (level 14 row 3)
+  const KP_DOOR = { x: 940, y: 180 }; // level 14's gaol door (D at 23,4)
+  // the Warden's way in: up the passage from the way out, through the door (open), west along the cells
+  const KP_IN = [[0, 1020, 300], [1.6, 1020, 180], [2.8, 940, 180], [12.8, 150, 180]];
+  const KP_LAY = [13.6, 15.2]; // it lays them down
+  const KP_BACK = [16.4, 17.4]; // ... pauses, and backs away
+  const KP_GATE = [16.6, 17.3, 18.1, 19.3]; // the gate is drawn shut (clang) - and swings back open: it does not latch
+  const KP_OUT = [[18.0, 175, 182], [21.2, 430, 182]]; // walking away from the cell, into the dark
+  const KP_CUT = [20.4, 21.2, 22.0]; // to black - and back in, at the gaol door, from outside
+  const KP_DOOR_SHUT = [21.6, 23.0]; // the door swings shut
+  const KP_LOCK = 23.5; // the lock turns
+  const KP_KEY = [24.6, 27.0]; // the key is slid back in under the door and skids away into the dark
+  const KP_KEY_PATH = [[925, 188], [560, 192], [540, 262]]; // ... west down the corridor and into the open cell where level 14 keeps it
+  const KP_AWAY = [27.4, 31.0]; // its steps go back down the passage and fade
+  const KP_LAST_DROP = 29.9;
+  const KP_FADE = 30.6; // to black, for level 14's wake
+  // the drops: [time, x, y, reach]. Each lights a glimpse: the Warden coming in; the bent bars; the shape in the
+  // corner of a shut cell; an empty cell; the tally marks; the cell; and the gaol door from outside
+  const KP_DRIPS = [
+    [2.4, 900, 176], [4.0, 745, 92], [5.6, 742, 268], [7.6, 545, 96], [9.9, 335, 94], [12.4, 205, 180],
+    [14.0, 100, 176], [16.6, 200, 182], [19.3, 330, 182], [21.9, 875, 180], [25.0, 815, 184], [KP_LAST_DROP, 860, 182, 76],
+  ];
+  // the shut cell across from the bent bars has something in its far corner. It is NOT a monster and not any
+  // known thing: a low, still, uneven heap, stone-coloured. Nothing about it is explained.
+  const KP_SHAPE = { x: 782, y: 298 };
+  // tally marks scratched into the back wall of the shut cell at 7-9 (groups of five, and one unfinished)
+  const KP_TALLY = { x: 292, y: 44, groups: 3, extra: 2 };
+  const PAL_KEEPER = { glow: '150,160,176', cone: '150,160,176', body: '176,184,198', hand: '186,192,204', head: '206,212,222', lamp: '226,232,240' }; // no lamp lit: only what the drops show
+  const KP_STONE = '95,212,255'; // what a drop shows stone as (the ripple's wall colour)
+
   // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
-  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S };
-  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER };
-  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12 };
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER };
+  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14 };
 
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
@@ -390,6 +439,8 @@ const EchoCutscene = (() => {
     let trail = null; // the smell trail behind the explorer: { pts, active }
     let scentMon = null; // the scent monster: { x, state: 'patrol' | 'follow', stepDist }
     let lunge = 0; // 0..1: the last rush at the explorer
+    // keeper scene state (v16.0): the Warden, the explorer, the gate, the door and the key - see updateKeeperScene
+    let kp = null;
 
     // -------------------------------------------------------------- helpers
     const sceneT = () => time - sceneStart;
@@ -1448,8 +1499,342 @@ const EchoCutscene = (() => {
 
     // ----------------------------------------------------------------- flow
     /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8), 'decoy' (8 -> 9), 'stalker' (9 -> 10), 'muffler' (10 -> 11) or 'singer' (11 -> 12). */
+    // ------------------------------------------------- the keeper scene (v16.0)
+    /** A clear line between two points, over the stage's walls (the game's hasLOS, done here by sampling). */
+    function kpSees(x0, y0, x1, y1) {
+      const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 6);
+      for (let i = 1; i < n; i++) {
+        const x = x0 + ((x1 - x0) * i) / n;
+        const y = y0 + ((y1 - y0) * i) / n;
+        if (stage.walls[Math.floor(y / TILE) * stage.W + Math.floor(x / TILE)]) return false;
+        // (the gaol door, once it is shut, is as solid to the light as the wall around it)
+        if (kp && kp.swing < 0.5 && Math.abs(x - KP_DOOR.x) < 6 && Math.abs(y - KP_DOOR.y) < 20) return false;
+      }
+      return true;
+    }
+    /** How brightly the drops light the point (x, y) right now: each one's ring, as it passes, fading like a ripple's. */
+    function kpLit(x, y) {
+      let best = 0;
+      for (const [t0, dx, dy, R = KP_DRIP_R] of KP_DRIPS) {
+        if (time < t0) break;
+        const d = Math.hypot(x - dx, y - dy);
+        if (d > R) continue;
+        const hit = t0 + d / KP_WAVE;
+        if (time < hit || !kpSees(dx, dy, x, y)) continue;
+        best = Math.max(best, Math.exp(-(time - hit) / 1.3) * (1 - (0.55 * d) / R));
+      }
+      return best * (isCalm() ? 0.8 : 1); // (calm mode: a little softer)
+    }
+    /** Pan and loudness as heard from where the camera is (there is no explorer awake to hear it). */
+    function kpHeard(x, y, range) {
+      const dx = x - camX;
+      const dy = y - camY;
+      const d = Math.hypot(dx, dy);
+      return { pan: clamp((dx / (d + 90)) * 1.35, -1, 1), g: Math.pow(Math.max(0, 1 - d / range), 1.2) };
+    }
+    /** The way along a polyline [[x, y], ...], a distance s from its start. */
+    function kpAlong(pts, s) {
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1];
+        const [bx, by] = pts[i];
+        const l = Math.hypot(bx - ax, by - ay);
+        if (s <= l) return { x: ax + ((bx - ax) * s) / l, y: ay + ((by - ay) * s) / l };
+        s -= l;
+      }
+      const e = pts[pts.length - 1];
+      return { x: e[0], y: e[1] };
+    }
+    const kpKeyLen = (() => {
+      let l = 0;
+      for (let i = 1; i < KP_KEY_PATH.length; i++) l += Math.hypot(KP_KEY_PATH[i][0] - KP_KEY_PATH[i - 1][0], KP_KEY_PATH[i][1] - KP_KEY_PATH[i - 1][1]);
+      return l;
+    })();
+
+    function buildKeeper() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      // the stage IS level 14: its walls, its cells and their bars, its gaol door
+      stage = EchoStory.build(14, { rippleRadius: KP_DRIP_R, cooldown: 1 });
+      stage.story.key = null; // (the key is not lying in there yet - the Warden has it)
+      stage.key = null;
+      stage.story.drips = []; // (the level's own drips are the level's: this scene has its own)
+      stage.story.door.solid = false; // (drawn here, swinging, by the drops' light; a ripple is not stopped by it)
+      stage.story.door.swing = 1; // it came in through it: open
+      stage.exit = { x: -9999, y: -9999, r: 16 }; // the way out neither chimes nor shows in here
+      stage.enemies = [];
+      // the bent bars: the front of the shut cell at 17-19, pushed apart in the middle
+      const bend = { 713: [-1, -3], 727: [-3, -7], 740: [0, -11], 753: [3, -7], 767: [1, -3] };
+      for (const o of stage.obstacles) {
+        if (!o.bar || Math.abs(o.y - 140) > 1) continue;
+        const b = bend[Math.round(o.x)];
+        if (b) {
+          o.x += b[0];
+          o.y += b[1];
+        }
+      }
+      stage.person = { x: -9999, y: -9999, r: 9 }; // (no player in the game's sense - the explorer is drawn by this scene)
+      person = stage.person;
+      env.setStage(stage);
+      kp = { wx: 1020, wy: 300, wh: -Math.PI / 2, lx: 1020, ly: 300, stepDist: 0, carried: true, px: 1020, py: 300, pa: 0, reach: 0, gate: 0, swing: 1, key: null, keySpin: 0, keyTick: 0, keyDone: false, sputter: 0 };
+      camX = 960;
+      camY = 200;
+      mvoice = audio.createEnemyVoice(46.25, 'warden'); // its own voice (level 15's) - low, and kept low
+
+      // the drops
+      KP_DRIPS.forEach(([t, x, y, R = KP_DRIP_R]) => at(t, () => {
+        env.castRipple(x, y, R, { ambient: true });
+        const h = kpHeard(x, y, 760);
+        audio.drip(h.pan, Math.max(0.22, h.g) * (t === KP_LAST_DROP ? 0.95 : 0.75));
+      }));
+      // the dead headlamp, sputtering once or twice: the only light that is the explorer's, and nearly none
+      [3.1, 6.9, 11.2].forEach((t) => at(t, () => (kp.sputter = 1)));
+      at(KP_LAY[0] + 0.2, () => {
+        const h = kpHeard(KP_CELL.x, KP_CELL.y, 700);
+        audio.keeperDrag(h.pan, 0.35, 0.6); // set down on the stone
+      });
+      at(KP_GATE[1], () => audio.doorRattle(kpHeard(140, KP_GATE_Y, 700).pan, isCalm() ? 0.45 : 0.75)); // the bars, drawn shut
+      at(KP_GATE[2] + 0.1, () => audio.doorRattle(kpHeard(140, KP_GATE_Y, 700).pan, 0.22)); // ...and they do not catch
+      at(KP_DOOR_SHUT[0], () => audio.doorOpen()); // the gaol door, swinging (the sound it makes in level 14)
+      at(KP_DOOR_SHUT[1], () => audio.wardenStep(0.15, isCalm() ? 0.5 : 0.85, false, true)); // shut
+      at(KP_LOCK, () => audio.doorUnlock()); // the lock turns (level 14's lock)
+      at(KP_KEY[1], () => audio.echoKey(kpHeard(540, 262, 900).pan, 0.32)); // the key comes to rest, somewhere in there
+      at(KP_END, () => finish());
+
+      // [sound captions] (Visual cues option) - the one kind of text any scene shows, and only with that option on
+      const fxs = (t, text, dur) => at(t, () => fx(text, dur));
+      fxs(0.3, '[slow, heavy steps]', 2.0);
+      fxs(1.2, '[something heavy, dragging on stone]', 2.2);
+      fxs(2.4, '[water drips]', 1.6);
+      fxs(KP_LAY[0] + 0.2, '[something set down on stone]', 1.8);
+      fxs(KP_GATE[1], '[iron bars clang]', 1.6);
+      fxs(KP_DOOR_SHUT[0], '[a heavy door swings shut]', 1.8);
+      fxs(KP_LOCK, '[a lock turns]', 1.6);
+      fxs(KP_KEY[0], '[metal skitters across stone]', 2.2);
+      fxs(KP_AWAY[0] + 0.2, '[footsteps, fading]', 2.2);
+      fxs(KP_LAST_DROP, '[a single drop]', 1.4);
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the keeper scene. */
+    function updateKeeperScene(dt) {
+      const st = sceneT();
+      // where the Warden is
+      let p;
+      if (st <= KP_IN[KP_IN.length - 1][0]) p = pathAt(KP_IN, st);
+      else if (st < KP_BACK[0]) p = { x: 150, y: 180 };
+      else if (st < KP_OUT[0][0]) {
+        const u = smooth((st - KP_BACK[0]) / (KP_BACK[1] - KP_BACK[0]));
+        p = { x: lerp(150, 175, u), y: lerp(180, 182, u) };
+      } else if (st < KP_CUT[1]) p = pathAt(KP_OUT, st);
+      else if (st < KP_AWAY[0]) p = { x: 985, y: 180 }; // outside its door
+      else p = kpAlong([[985, 180], [1020, 180], [1020, 440]], (st - KP_AWAY[0]) * 58); // back down the passage
+      const vx = (p.x - kp.wx) / Math.max(dt, 1e-4);
+      const vy = (p.y - kp.wy) / Math.max(dt, 1e-4);
+      const jump = Math.hypot(p.x - kp.wx, p.y - kp.wy) > 60; // (the cut)
+      let face;
+      if (!jump && Math.hypot(vx, vy) > 6) face = Math.atan2(vy, vx);
+      else if (st < KP_BACK[1]) face = -Math.PI / 2; // at the cell: it faces it
+      else if (st >= KP_CUT[1] && st < KP_AWAY[0]) face = Math.PI; // outside: it faces its door
+      else face = kp.wh;
+      let dh = face - kp.wh;
+      while (dh > Math.PI) dh -= TAU;
+      while (dh < -Math.PI) dh += TAU;
+      kp.wh = jump ? face : kp.wh + dh * Math.min(1, dt * 2.6); // it turns slowly, like everything it does
+      // its steps: slow and heavy; a drag under them while it carries
+      if (!jump) kp.stepDist += Math.hypot(p.x - kp.wx, p.y - kp.wy);
+      kp.wx = p.x;
+      kp.wy = p.y;
+      if (kp.stepDist >= KP_STRIDE) {
+        kp.stepDist = 0;
+        const h = kpHeard(kp.wx, kp.wy, 980);
+        const g = h.g * (isCalm() ? 0.6 : 1);
+        audio.wardenStep(h.pan, 0.9 * g, false, false);
+        if (kp.carried) audio.keeperDrag(h.pan, 0.75 * g, 0.85);
+      }
+      if (mvoice) {
+        const h = kpHeard(kp.wx, kp.wy, 950);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * 0.13 * (isCalm() ? 0.6 : 1), pan: h.pan, mood: 0.12, muffle: false });
+      }
+      // the explorer: held at its front, then laid in the cell
+      const front = { x: kp.wx + Math.cos(kp.wh) * KP_WARDEN_R * 0.8, y: kp.wy + Math.sin(kp.wh) * KP_WARDEN_R * 0.8 };
+      if (st < KP_LAY[0]) {
+        kp.carried = true;
+        kp.px = front.x;
+        kp.py = front.y;
+        kp.pa = kp.wh + Math.PI / 2;
+        kp.reach = 0;
+      } else if (st < KP_LAY[1]) {
+        const u = smooth((st - KP_LAY[0]) / (KP_LAY[1] - KP_LAY[0]));
+        kp.px = lerp(front.x, KP_CELL.x, u);
+        kp.py = lerp(front.y, KP_CELL.y, u);
+        kp.pa = lerp(kp.wh + Math.PI / 2, 0.35, u);
+        kp.reach = 0.32 * Math.sin(Math.PI * u); // it reaches in, and back - nothing quick
+        kp.carried = u < 0.5;
+      } else {
+        kp.carried = false;
+        kp.px = KP_CELL.x;
+        kp.py = KP_CELL.y;
+        kp.pa = 0.35;
+        kp.reach = 0;
+      }
+      kp.sputter = Math.max(0, kp.sputter - dt * 9);
+      // the gate of their cell: drawn shut - and it swings back open
+      const [g0, g1, g2, g3] = KP_GATE;
+      kp.gate = st < g0 ? 0 : st < g1 ? smooth((st - g0) / (g1 - g0)) : st < g2 ? 1 : st < g3 ? 1 - smooth((st - g2) / (g3 - g2)) : 0;
+      // the gaol door
+      kp.swing = st < KP_DOOR_SHUT[0] ? 1 : 1 - smooth((st - KP_DOOR_SHUT[0]) / (KP_DOOR_SHUT[1] - KP_DOOR_SHUT[0]));
+      // the key, slid in under the door: fast, then slowing, skittering, into the open cell
+      if (st >= KP_KEY[0]) {
+        const u = clamp((st - KP_KEY[0]) / (KP_KEY[1] - KP_KEY[0]), 0, 1);
+        const s = kpKeyLen * (1 - Math.pow(1 - u, 2.2));
+        const q = kpAlong(KP_KEY_PATH, s);
+        const moved = kp.key ? Math.hypot(q.x - kp.key.x, q.y - kp.key.y) : 0;
+        kp.key = q;
+        kp.keySpin += moved * 0.05;
+        kp.keyTick += moved;
+        if (u < 1 && kp.keyTick > 14 + 26 * u) {
+          kp.keyTick = 0;
+          const h = kpHeard(q.x, q.y, 1000);
+          audio.keySkitter(h.pan, Math.max(0.2, h.g), 1 - u);
+        }
+      }
+      // the camera: with it on the way in, at the cell, and - after the cut - at the gaol door
+      if (st >= KP_CUT[1]) {
+        camX = 868;
+        camY = 196;
+      } else {
+        const tx = st < KP_IN[KP_IN.length - 1][0] - 0.6 ? clamp(kp.wx - 20, 190, 900) : 178;
+        const ty = st < KP_IN[KP_IN.length - 1][0] - 0.6 ? 182 : 150;
+        camX = lerp(camX, tx, Math.min(1, dt * 1.6));
+        camY = lerp(camY, ty, Math.min(1, dt * 1.6));
+      }
+    }
+
+    /** How black the keeper scene is drawn over (the cut to the door, and the end). */
+    function keeperBlack(st) {
+      const [c0, c1, c2] = KP_CUT;
+      let b = st < c0 ? 0 : st < c1 ? smooth((st - c0) / (c1 - c0)) : st < c2 ? 1 - smooth((st - c1) / (c2 - c1)) : 0;
+      if (st > KP_FADE) b = Math.max(b, smooth((st - KP_FADE) / 0.8));
+      return b;
+    }
+
+    /** The explorer, out cold: no lamp (only, now and then, the dead one sputtering), limp. */
+    function drawKeeperPerson(x, y, ang, a, lamp) {
+      if (a <= 0.01 && lamp <= 0.01) return;
+      const p = PAL_KEEPER;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.scale(1.15, 1.15);
+      ctx.globalCompositeOperation = 'lighter';
+      if (a > 0.01) {
+        ctx.fillStyle = `rgba(${p.body},${0.3 * a})`;
+        ctx.fillRect(-13, -7, 8, 14);
+        ctx.fillStyle = `rgba(${p.body},${0.5 * a})`;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5, 12, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = `rgba(${p.hand},${0.55 * a})`;
+        [[1, -11.5], [6, 13.5]].forEach(([hx, hy]) => {
+          ctx.beginPath();
+          ctx.arc(hx, hy, 2.3, 0, TAU); // one hand at the side, one fallen loose
+          ctx.fill();
+        });
+        ctx.fillStyle = `rgba(${p.head},${0.9 * a})`;
+        ctx.beginPath();
+        ctx.arc(2, 0, 5.2, 0, TAU);
+        ctx.fill();
+      }
+      if (lamp > 0.01) {
+        ctx.fillStyle = `rgba(${p.lamp},${0.42 * lamp})`;
+        ctx.beginPath();
+        ctx.arc(6.6, 0, 1.6, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawKeeperWorld() {
+      env.drawRippleLayer(); // stone and bars, as each drop lights them (the game's own ripple drawing)
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      // the tally marks, scratched into the back wall of a shut cell
+      const ta = kpLit(KP_TALLY.x + 36, KP_TALLY.y + 12);
+      if (ta > 0.01) {
+        ctx.strokeStyle = `rgba(${KP_STONE},${0.62 * ta})`;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        const mark = (x, h) => {
+          ctx.moveTo(x, KP_TALLY.y);
+          ctx.lineTo(x + 0.6, KP_TALLY.y + h);
+        };
+        for (let gI = 0; gI < KP_TALLY.groups + 1; gI++) {
+          const gx = KP_TALLY.x + gI * 21;
+          const n = gI < KP_TALLY.groups ? 4 : KP_TALLY.extra;
+          for (let i = 0; i < n; i++) mark(gx + i * 3.6, 13 + ((gI * 7 + i * 3) % 4));
+          if (gI < KP_TALLY.groups) {
+            ctx.moveTo(gx - 2, KP_TALLY.y + 12);
+            ctx.lineTo(gx + 13.5, KP_TALLY.y + 2);
+          }
+        }
+        ctx.stroke();
+      }
+      // the still shape in the corner of the shut cell: a low, uneven heap - nothing you could name
+      const sa = kpLit(KP_SHAPE.x, KP_SHAPE.y) * (isCalm() ? 0.8 : 1);
+      if (sa > 0.01) {
+        const { x, y } = KP_SHAPE;
+        ctx.beginPath();
+        const bumps = [12, 10.5, 13, 9, 11.5, 8.5, 10, 12.5, 9.5, 11];
+        bumps.forEach((r, i) => {
+          const ang = (i / bumps.length) * TAU;
+          const px = x + Math.cos(ang) * r * 1.35;
+          const py = y + Math.sin(ang) * r * 0.8;
+          if (i) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+        });
+        ctx.closePath();
+        ctx.fillStyle = `rgba(150,160,172,${0.1 * sa})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(170,180,192,${0.5 * sa})`;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.beginPath(); // one fold across it, and that is all
+        ctx.moveTo(x - 9, y - 2);
+        ctx.quadraticCurveTo(x + 1, y + 4, x + 10, y - 3);
+        ctx.strokeStyle = `rgba(170,180,192,${0.3 * sa})`;
+        ctx.stroke();
+      }
+      // the gate of their cell (three bars, drawn across the gap in its front - and back)
+      if (kp.gate > 0.02) {
+        for (let i = 0; i < 3; i++) {
+          const bx = lerp(121 + i * 2, 127 + i * 13, kp.gate);
+          const ba = kpLit(bx, KP_GATE_Y);
+          if (ba > 0.01) EchoArt.draw(ctx, 'bar', bx, KP_GATE_Y, EchoStory.BAR_R, { a: ba, t: time });
+        }
+      }
+      // the gaol door, swinging shut
+      const da = kpLit(KP_DOOR.x, KP_DOOR.y);
+      if (da > 0.01) EchoArt.draw(ctx, 'door', KP_DOOR.x, KP_DOOR.y, EchoStory.DOOR_R, { a: da, t: time, swing: kp.swing });
+      // the key, skidding away - a glint only where a drop happens to catch it
+      if (kp.key) {
+        const ka = kpLit(kp.key.x, kp.key.y);
+        if (ka > 0.01) EchoArt.draw(ctx, 'key', kp.key.x, kp.key.y, EchoStory.KEY_R, { a: ka, t: time, h: kp.keySpin });
+      }
+      // the explorer, laid down (drawn under the Warden while it is still at the cell)
+      const pa = kpLit(kp.px, kp.py);
+      if (!kp.carried) drawKeeperPerson(kp.px, kp.py, kp.pa, Math.min(1, pa * 1.35), kp.sputter);
+      // the Warden: v12.2's stone (js/warden.js), only where a drop lights it. It makes no light of its own.
+      const wa = kpLit(kp.wx, kp.wy);
+      if (wa > 0.01) EchoWarden.drawHunter(ctx, kp.wx, kp.wy, KP_WARDEN_R, { a: Math.min(1, 0.95 * wa), t: time, h: kp.wh, variant: 'regular', reach: kp.reach, tx: KP_CELL.x, ty: KP_CELL.y });
+      ctx.globalCompositeOperation = 'lighter';
+      if (kp.carried) drawKeeperPerson(kp.px, kp.py, kp.pa, Math.min(1, Math.max(pa, wa) * 1.35), kp.sputter);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
     function start(k = 'intro') {
       kind = SCENE_START[k] !== undefined ? k : 'intro';
+      kp = null;
       sceneStart = SCENE_START[kind];
       pal = SCENE_PAL[kind];
       smell = 0;
@@ -1496,7 +1881,10 @@ const EchoCutscene = (() => {
       else if (kind === 'stalker') buildStalker();
       else if (kind === 'muffler') buildMuffler();
       else if (kind === 'singer') buildSinger();
+      else if (kind === 'keeper') buildKeeper();
       else build();
+      // (v16.0) a scene the game says cannot be skipped yet (the keeper scene's first viewing) shows no Skip button
+      el.skip.classList.toggle('hidden', !canSkipNow());
       el.root.classList.remove('hidden');
       el.card.classList.remove('show');
       el.caption.classList.remove('show');
@@ -1525,8 +1913,10 @@ const EchoCutscene = (() => {
       env.finish(kind);
     }
 
+    /** Whether this scene may be skipped (the game decides - v16.0: the keeper scene, until it has been seen once). */
+    const canSkipNow = () => !(env.canSkip && !env.canSkip(kind));
     function skip() {
-      if (active && time > 0.6) finish();
+      if (active && time > 0.6 && canSkipNow()) finish();
     }
 
     // --------------------------------------------------------------- update
@@ -1565,6 +1955,10 @@ const EchoCutscene = (() => {
       }
       if (kind === 'singer') {
         updateSingerScene(dt);
+        return;
+      }
+      if (kind === 'keeper') {
+        updateKeeperScene(dt);
         return;
       }
 
@@ -2052,6 +2446,8 @@ const EchoCutscene = (() => {
         drawMufflerWorld();
       } else if (kind === 'singer') {
         drawSingerWorld();
+      } else if (kind === 'keeper') {
+        drawKeeperWorld();
       } else {
         env.drawRippleLayer();
         if (personVisible) drawPerson();
@@ -2082,6 +2478,14 @@ const EchoCutscene = (() => {
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, cw, bar);
       ctx.fillRect(0, ch - bar, cw, bar);
+      // (v16.0) the keeper scene's cut to the gaol door, and its end in black (level 14 wakes in it)
+      if (kind === 'keeper') {
+        const b = keeperBlack(st);
+        if (b > 0.003) {
+          ctx.fillStyle = `rgba(1,2,6,${b})`;
+          ctx.fillRect(0, 0, cw, ch);
+        }
+      }
     }
 
     el.skip.addEventListener('click', () => {
@@ -2107,6 +2511,14 @@ const EchoCutscene = (() => {
       get fx() {
         return { flash, shake };
       },
+      // for tests (v16.0): the keeper scene's moving parts, and whether it may be skipped right now
+      get keeper() {
+        return kp ? { warden: { x: kp.wx, y: kp.wy, h: kp.wh }, explorer: { x: kp.px, y: kp.py, carried: kp.carried }, gate: kp.gate, swing: kp.swing, key: kp.key ? { x: kp.key.x, y: kp.key.y } : null, lit: { warden: kpLit(kp.wx, kp.wy), shape: kpLit(KP_SHAPE.x, KP_SHAPE.y), tally: kpLit(KP_TALLY.x + 36, KP_TALLY.y + 12) } } : null;
+      },
+      get canSkip() {
+        return canSkipNow();
+      },
+      KEEPER_END: KP_END,
     };
   }
 

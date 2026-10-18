@@ -2507,6 +2507,51 @@ class SoundEngine {
   }
 
   /** One footstep of the hunting Warden: a weight coming down on stone. `heavy` for the upgraded one. */
+  /**
+   * (v16.0, the keeper scene) Something heavy dragged a little way over stone: a slow swell of low, rough noise
+   * - the Warden's own grinding drone, slowed right down and brought close. `dur` seconds.
+   */
+  keeperDrag(pan, gain, dur = 0.9) {
+    if (this.calm) gain *= 0.6;
+    if (this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, dur + 0.2);
+    const lp = this._filter('lowpass', 240, 0.9);
+    lp.frequency.setValueAtTime(180, t);
+    lp.frequency.linearRampToValueAtTime(320, t + dur * 0.6);
+    lp.frequency.linearRampToValueAtTime(160, t + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.32 * gain), t + dur * 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(lp);
+    lp.connect(g);
+    this._route(g, pan, 0.45);
+    const o = this._osc('sine', 38, t, dur + 0.1);
+    const og = this._env(t, dur * 0.3, 0.16 * gain, dur * 0.6);
+    o.connect(og);
+    this._route(og, pan, 0.3);
+    this._track(n);
+  }
+
+  /** (v16.0) One tick of a small key skittering over stone - `bright` 0..1 (it dulls as it slows). */
+  keySkitter(pan, gain, bright = 1) {
+    if (this.calm) gain *= 0.7;
+    if (this._busy(100) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.05);
+    const bp = this._filter('bandpass', 2600 + 2400 * bright, 5);
+    const g = this._env(t, 0.001, 0.22 * gain, 0.03 + 0.03 * (1 - bright));
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, pan, 0.5);
+    const o = this._osc('triangle', 3100 + 900 * bright, t, 0.08);
+    const og = this._env(t, 0.001, 0.07 * gain * bright, 0.05);
+    o.connect(og);
+    this._route(og, pan, 0.5);
+    this._track(n);
+  }
+
   wardenStep(pan, gain, muffled = false, heavy = false) {
     if (this.calm) gain *= 0.7;
     if (this._busy(90) || gain < 0.01) return;
