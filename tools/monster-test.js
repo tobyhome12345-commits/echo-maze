@@ -139,6 +139,18 @@ window.MonsterTest = (() => {
     await play(ALARM_LEVEL());
     const a = find('alarm');
     T.check('the level has an Alarm, harmless and still', !!a && a.state === 'idle');
+    // (v16.0) the roaming monsters wander at random (Math.random) and now and then one reached the test player
+    // standing still in the open before the ripple was sent (about 1 run in 6). Put them back where they started
+    // before each long wait, so the test is about the Alarm and never about where they happened to wander.
+    const homes = en().filter((e) => e.kind !== 'alarm' && e.kind !== 'warden').map((e) => ({ e, x: e.x, y: e.y }));
+    const rehome = () => {
+      for (const h of homes) {
+        h.e.x = h.x;
+        h.e.y = h.y;
+        h.e.path = null;
+        h.e.pi = 0;
+      }
+    };
     // touching it
     E().tp(a.x, a.y);
     step(1.5);
@@ -166,6 +178,7 @@ window.MonsterTest = (() => {
 
     // its hum, before it is set off: positional, and a glyph with Visual cues on
     E().setVisualCues(true);
+    rehome();
     const hums = spy('alarmHum');
     E().tp(a.x - 200, a.y);
     let sawCue = false;
@@ -181,6 +194,7 @@ window.MonsterTest = (() => {
 
     // THE RIPPLE
     T.check('(still playing - nothing has caught you)', E().info().state === 'play', E().info().state);
+    rehome();
     E().tp(a.x - 160, a.y);
     step(0.05);
     const at = { x: P().x, y: P().y };
