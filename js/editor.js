@@ -1353,16 +1353,62 @@ const EchoEditor = (() => {
         el.tools.appendChild(b);
       }
     }
+    // (v16.1) which monster the description panel is about: the one under the mouse, else the one with keyboard
+    // focus, else the one picked to place (a touch never "hovers": a tap picks, and the picked one is shown)
+    let aboutHover = -1;
+    let aboutFocus = -1;
+    function renderAbout() {
+      if (!el.about) return;
+      // (focus is checked against what really has it - a button can lose it without telling us, e.g. Esc)
+      const focused = aboutFocus >= 0 && el.monsters.children[aboutFocus] === document.activeElement ? aboutFocus : -1;
+      const i = aboutHover >= 0 ? aboutHover : focused >= 0 ? focused : choice;
+      const c = choices[i];
+      if (String(i) !== el.about.dataset.index) el.about.scrollTop = 0; // (a long one is read from its start)
+      el.about.dataset.index = c ? String(i) : '';
+      el.aboutName.textContent = c ? c.label : '';
+      el.aboutText.textContent = c ? c.about : '';
+      el.aboutTag.classList.toggle('hidden', !(c && c.unreleased));
+    }
     function buildMonsters() {
       choices = monsterChoices();
       if (choice >= choices.length) choice = 0;
       el.monsters.textContent = '';
+      aboutHover = -1;
+      aboutFocus = -1;
+      if (el.aboutSr) el.aboutSr.textContent = '';
       choices.forEach((c, i) => {
         const b = listButton('ed-monster', c.label, c.label, (ig, w, h, dpr) => drawArt(ig, c, w / 2, h / 2, (c.kind === 'warden' ? 12.5 : 10.5) * dpr, 1), () => {
           choice = i;
           setTool('monster');
         });
         b.dataset.index = i;
+        if (el.aboutSr) {
+          // (v16.1) a screen reader reads this when the button is focused or picked; the panel shows the same words
+          const d = document.createElement('span');
+          d.id = `ed-about-sr-${i}`;
+          d.textContent = (c.unreleased ? 'Unreleased. ' : '') + c.about;
+          el.aboutSr.appendChild(d);
+          b.setAttribute('aria-describedby', d.id);
+          b.addEventListener('pointerenter', (e) => {
+            if (e.pointerType === 'touch') return;
+            aboutHover = i;
+            renderAbout();
+          });
+          b.addEventListener('pointerleave', () => {
+            if (aboutHover !== i) return;
+            aboutHover = -1;
+            renderAbout();
+          });
+          b.addEventListener('focus', () => {
+            aboutFocus = i;
+            renderAbout();
+          });
+          b.addEventListener('blur', () => {
+            if (aboutFocus !== i) return;
+            aboutFocus = -1;
+            renderAbout();
+          });
+        }
         if (c.unreleased) {
           // (v15.7) not in the main game yet - see UNRELEASED_CONTENT in js/level.js
           const tag = document.createElement('small');
@@ -1468,7 +1514,17 @@ const EchoEditor = (() => {
         return field(label, s);
       };
       if (t.what === 'start') h.textContent = 'Start';
-      else if (t.what === 'enemy') h.textContent = choiceOf(o).label;
+      else if (t.what === 'enemy') {
+        const c = choiceOf(o);
+        h.textContent = c.label;
+        if (c.about) {
+          // (v16.1) what it does, as in the monster list (the inspector is read out when it changes)
+          const p = document.createElement('p');
+          p.className = 'ed-about-inline';
+          p.textContent = (c.unreleased ? 'Unreleased. ' : '') + c.about;
+          box_.appendChild(p);
+        }
+      }
       else if (t.what === 'exit') {
         h.textContent = exitLabel(t.index).replace('The exit', 'Exit');
         const c = document.createElement('input');
@@ -1699,6 +1755,7 @@ const EchoEditor = (() => {
     function refreshTabs() {
       el.paneBuild.classList.toggle('hidden', tab !== 'build');
       el.paneSettings.classList.toggle('hidden', tab !== 'settings');
+      if (el.about) el.about.classList.toggle('hidden', tab !== 'build');
       el.tabBuild.classList.toggle('on', tab === 'build');
       el.tabSettings.classList.toggle('on', tab === 'settings');
       el.tabBuild.setAttribute('aria-selected', tab === 'build' ? 'true' : 'false');
@@ -1753,6 +1810,7 @@ const EchoEditor = (() => {
         b.classList.toggle('on', onNow);
         b.setAttribute('aria-pressed', onNow ? 'true' : 'false');
       });
+      renderAbout();
       const current = tool === 'exit' ? exitChoice : tool === 'object' ? objectChoice : tool === 'effect' ? effectChoice : null;
       el.choices.querySelectorAll('.ed-choice').forEach((b) => {
         const onNow = b.dataset.choice === current;

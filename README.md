@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v16.0 - gaol cutscene
+**Current version:** v16.1 - monster descriptions
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -156,6 +156,8 @@ It opens on **My Levels**: every level you have made, each with a small picture,
 Underneath, the editor tells you in plain words what still stops the level being played: it needs a **start**, at least one **exit**, and **a way to walk from one to the other**; a locked exit needs a key you can get to; nothing may be standing or lying inside a wall, or standing on the start; and a Level 15 / 16 monster must not be so close to the way out that no run could make it. An exit that cannot be reached when another can is only a warning, and it says which one. You can save an unfinished level at any time - it is listed as *Unfinished* and can be edited but not played until it is fixed. **Test play** plays it straight away with the real game; when you are caught, finish, or pause and go back, you are returned to the editor exactly as you left it.
 
 **Difficulty.** Each level has its own: **Easy**, **Normal**, **Hard** or **Hardcore** - exactly how that mode tunes the game's level 12 - or **Custom**, which is Normal with three sliders: monster speed (x0.5 to x1.5), ripple range (x0.6 to x1.5) and monster hearing (x0.5 to x1.5), and **Reset to defaults**. **The level's difficulty is what everyone plays it at**: the difficulty you picked on the title screen does not change a custom level. Monsters other than the Level 15 / 16 ones never become faster than you, however the slider is set, and those two are capped too.
+
+**What each monster does.** Point at a monster in the editor's list, move the keyboard focus to it, or pick it (a tap on a touch screen), and a small panel at the foot of the list says in a sentence or two what it does - with its Unreleased tag if it has one. Pick a monster you have placed on the map and the panel on the left says it too. A screen reader reads the same words. These descriptions are only in the editor, which is behind its spoiler warning.
 
 **Unreleased monsters.** Two monsters are in the editor before they are in the main game, each tagged **Unreleased** in the monster list (they may still change):
 
@@ -637,6 +639,9 @@ tools/          developer tools, not part of the game and not exported with a ve
                 a scheduled task makes each new version's folder from VERSION.json, re-points the shortcuts and rebuilds
                 the test copy), undo-release.ps1 (takes a bad release back off main with one new commit - nothing
                 deleted, no force-push),
+                editor-about-test.js (v16.1: the editor's monster descriptions - every monster has one, its numbers come from
+                the game's constants, hover / focus / pick / tap, the screen reader, the layout at laptop, tablet and phone
+                sizes, nowhere outside the editor, a soak),
                 monster-test.js (v15.7: the Alarm and the Screecho - what sets them off, the scream, the cooldown and the speed
                 measured, calm mode, Visual cues, the unreleased-content warning, share codes, the editor, never in the campaign,
                 nothing saved, a soak),

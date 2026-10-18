@@ -4403,6 +4403,12 @@
       status: $('ed-status'),
       tools: $('ed-tools'),
       monsters: $('ed-monsters'),
+      // (v16.1) what a monster does
+      about: $('ed-about'),
+      aboutName: $('ed-about-name'),
+      aboutText: $('ed-about-text'),
+      aboutTag: $('ed-about-tag'),
+      aboutSr: $('ed-about-sr'),
       choices: $('ed-choices'),
       choicesHead: $('ed-choices-head'),
       inspector: $('ed-inspector'),

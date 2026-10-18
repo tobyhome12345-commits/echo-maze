@@ -349,6 +349,14 @@
           <h3>Monsters</h3>
           <div id="ed-monsters" class="ed-monsters" role="group" aria-label="Monster to place"></div>
         </div>
+        <!-- what the monster under the pointer, in focus or picked does (js/editor.js renderAbout): its own fixed place at
+             the foot of the panel, outside the list's scroll, so it never covers anything or moves anything about. A screen
+             reader gets the same words from each monster's button (aria-describedby -> #ed-about-sr) -->
+        <div id="ed-about" class="ed-about" aria-hidden="true">
+          <p class="ed-about-head"><span id="ed-about-name"></span><small id="ed-about-tag" class="ed-tag hidden">Unreleased</small></p>
+          <p id="ed-about-text" class="ed-about-text"></p>
+        </div>
+        <div id="ed-about-sr" hidden></div>
         <div id="ed-pane-settings" class="ed-pane hidden">
           <h3>Size</h3>
           <div class="ed-row ed-dims">

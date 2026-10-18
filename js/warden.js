@@ -395,11 +395,15 @@ const EchoWarden = (() => {
    */
   const ABILITIES = {};
   // (v15.0) `label` is what the level editor calls each one - by the level it comes from, never by what it is -
-  // and `pitch` its voice when a custom level places one (levels 15 and 16 give theirs the same in js/story.js)
+  // and `pitch` its voice when a custom level places one (levels 15 and 16 give theirs the same in js/story.js).
+  // (v16.1) `about` is what the editor's monster list says it DOES (see MONSTER_TYPES in js/level.js) - its speed
+  // read from WARDEN_SPEED / WARDEN_UPGRADED_SPEED, so the words can never disagree with the hunt. It never names it.
+  const paceWords = (f) => (f < 1 ? `moves slowly (${percentOfYou(f)} of your speed)` : f > 1 ? `moves ${f <= 1.15 ? 'a little ' : ''}faster than you (${percentOfYou(f)} of your speed)` : 'moves exactly as fast as you');
   const VARIANTS = {
     regular: {
       id: 'regular',
       label: 'Level 15 monster',
+      about: () => `Always knows exactly where you are, but ${paceWords(WARDEN_SPEED)}.`,
       speed: WARDEN_SPEED, // x the player's walking speed
       r: 18, // px: as big as a 40 px corridor allows (a monster is 14, you are 9)
       pitch: 46.25,
@@ -409,6 +413,10 @@ const EchoWarden = (() => {
     upgraded: {
       id: 'upgraded',
       label: 'Level 16 monster',
+      about: () =>
+        WARDEN_UPGRADED_SPEED > 1
+          ? `Same as the ${VARIANTS.regular.label}, but it ${paceWords(WARDEN_UPGRADED_SPEED)}, so it slowly catches up.`
+          : `Same as the ${VARIANTS.regular.label}, but it ${paceWords(WARDEN_UPGRADED_SPEED)}.`,
       speed: WARDEN_UPGRADED_SPEED,
       r: 18,
       pitch: 41.2,

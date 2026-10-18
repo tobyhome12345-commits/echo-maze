@@ -161,7 +161,11 @@ const UNRELEASED_CONTENT = ['alarm', 'screecho'];
  * added to the game appears in the editor by being added here, and nowhere else.
  *   kind      the id the game uses (enemy.kind)
  *   name      what the editor calls it: the names the game already shows (the title legend, the Stats screen).
- *             Nothing here says what any of them does.
+ *   about     (v16.1) what it does, in one or two short sentences for someone who has never met it - shown ONLY in
+ *             the level editor (its monster list and its inspector), which is behind the spoiler warning. A string,
+ *             or a function returning one when it needs a number or a name from elsewhere: EVERY number in it comes
+ *             from the game's own constants, never typed in (tools/editor-about-test.js checks that, and that every
+ *             monster has one). The Warden's are in js/warden.js VARIANTS, beside each variant's label.
  *   roams     it never stands still (it patrols from the moment the level starts)
  *   art       how the editor draws it: an EchoArt kind (js/art.js), 'mimic' (EchoArt's exit-to-monster morph,
  *             half way), 'hunter' (EchoWarden.drawHunter), or null (never drawn in the game: a plain marker)
@@ -172,30 +176,41 @@ const UNRELEASED_CONTENT = ['alarm', 'screecho'];
  *             asked, so a new variant appears in the editor too. Each has an `id` and a `label`.
  */
 const MONSTER_TYPES = [
-  { kind: 'echo', name: 'Echo monster', roams: false, art: 'echo', role: 'echo', pitch: [44, 22] },
-  { kind: 'scent', name: 'Scent monster', roams: true, art: 'scent', role: 'scent', pitch: [70, 20] },
-  { kind: 'mimic', name: 'Mimic', roams: false, art: 'mimic', role: 'exit', pitch: [50, 10] },
-  { kind: 'stalker', name: 'Stalker', roams: true, art: 'stalker', role: 'stalker', pitch: [60, 12] },
-  { kind: 'muffler', name: 'Muffler', roams: true, art: null, role: 'muffler', pitch: [46, 8] },
-  { kind: 'singer', name: 'Singer', roams: true, art: 'singer', role: 'singer', pitch: [200, 40] },
+  { kind: 'echo', name: 'Echo monster', roams: false, art: 'echo', role: 'echo', pitch: [44, 22], about: 'Blind until your ripple touches it, then it goes to where you rippled from. If you stay close, it hears your footsteps and follows.' },
+  { kind: 'scent', name: 'Scent monster', roams: true, art: 'scent', role: 'scent', pitch: [70, 20], about: 'Follows smell, not sound. Step in a smell puddle and it can track you, and it follows your trail.' },
+  { kind: 'mimic', name: 'Mimic', roams: false, art: 'mimic', role: 'exit', pitch: [50, 10], about: 'Pretends to be the exit. It turns on you the moment your ripple touches it.' },
+  // (a sonar decoy DOES call the stalker - every monster answers one since v11.1 - so this says ripples, not decoys)
+  { kind: 'stalker', name: 'Stalker', roams: true, art: 'stalker', role: 'stalker', pitch: [60, 12], about: 'Ignores ripples. It only hears your footsteps and you standing close, so crouching beats it.' },
+  { kind: 'muffler', name: 'Muffler', roams: true, art: null, role: 'muffler', pitch: [46, 8], about: "Can't be seen or smelled, only heard, and it listens harder than the stalker. You spot it where your ripple leaves a hole in the echo." },
+  { kind: 'singer', name: 'Singer', roams: true, art: 'singer', role: 'singer', pitch: [200, 40], about: "Roams and sings ripples. If its song reaches you, you're marked, then it leaps to where you were, so keep moving." },
   { kind: 'warden', name: null, roams: false, art: 'hunter', role: 'warden', variants: () => (typeof EchoWarden === 'undefined' ? [] : Object.keys(EchoWarden.VARIANTS).map((id) => EchoWarden.VARIANTS[id])) },
   // (v15.7, UNRELEASED - the level editor and custom levels only: see UNRELEASED_CONTENT) the pitch of these two is
   // the Alarm's hum and the Screecho's voice
-  { kind: 'alarm', name: 'Alarm', roams: false, art: 'alarm', role: 'alarm', pitch: [1320, 120] },
-  { kind: 'screecho', name: 'Screecho', roams: false, art: 'screecho', role: 'screecho', pitch: [52, 18] },
+  { kind: 'alarm', name: 'Alarm', roams: false, art: 'alarm', role: 'alarm', pitch: [1320, 120], about: () => `Never moves and can't hurt you. When your ripple hits it, it screams once and sends every monster except ${hunterNames()} to where you were. It gives off a faint hum before that.` },
+  { kind: 'screecho', name: 'Screecho', roams: false, art: 'screecho', role: 'screecho', pitch: [52, 18], about: () => `Hunts like an echo monster. When your ripple hits it, it also screams and calls every monster except ${hunterNames()} to where you were, at most once every ${SCREECHO_COOLDOWN} seconds.` },
 ];
 const monsterType = (kind) => MONSTER_TYPES.find((t) => t.kind === kind) || null;
 /**
  * Everything that can be placed, one entry per thing a player would pick: a kind, or each variant of a kind that
- * has them. { kind, variant (or null), label, art, role, unreleased }.
+ * has them. { kind, variant (or null), label, art, role, unreleased, about }.
  */
 function monsterChoices() {
   const out = [];
   for (const t of MONSTER_TYPES) {
-    if (t.variants) for (const v of t.variants()) out.push({ kind: t.kind, variant: v.id, label: v.label || `${t.kind} (${v.id})`, art: t.art, role: t.role });
-    else out.push({ kind: t.kind, variant: null, label: t.name || t.kind, art: t.art, role: t.role, unreleased: UNRELEASED_CONTENT.includes(t.kind) });
+    if (t.variants) for (const v of t.variants()) out.push({ kind: t.kind, variant: v.id, label: v.label || `${t.kind} (${v.id})`, art: t.art, role: t.role, about: aboutText(v.about) });
+    else out.push({ kind: t.kind, variant: null, label: t.name || t.kind, art: t.art, role: t.role, unreleased: UNRELEASED_CONTENT.includes(t.kind), about: aboutText(t.about) });
   }
   return out;
+}
+// ---- (v16.1) the words the descriptions are built from - so a number or a name in them can never drift
+const aboutText = (a) => String((typeof a === 'function' ? a() : a) || '').trim();
+/** A fraction of your walking speed as words: 0.75 -> "75%". */
+const percentOfYou = (f) => `${Math.round(f * 100)}%`;
+/** "the Level 15 and Level 16 monsters" - what the editor calls the Wardens (js/warden.js VARIANTS labels). */
+function hunterNames() {
+  const labels = typeof EchoWarden === 'undefined' ? [] : Object.keys(EchoWarden.VARIANTS).map((id) => EchoWarden.VARIANTS[id].label.replace(/ monster$/, ''));
+  if (!labels.length) return 'the hunters';
+  return `the ${labels.length > 1 ? labels.slice(0, -1).join(', ') + ' and ' + labels[labels.length - 1] : labels[0]} monster${labels.length > 1 ? 's' : ''}`;
 }
 
 /**

@@ -48,6 +48,8 @@ const SHOT = shotAt >= 0 ? (args[shotAt + 1] && !args[shotAt + 1].startsWith('--
 const QUICK = [
   { name: 'formats and share codes', load: ['editor-test.js', 'editor-test-2.js', 'bonus-test.js', 'share-test.js'], runs: [['EditorTest', 'validation'], ['EditorTest', 'untrusted'], ['EditorTest2', 'migration'], ['BonusTest', 'load'], ['ShareTest', 'format'], ['ShareTest', 'roundTrips'], ['ShareTest', 'bad']] },
   { name: 'monsters (v15.7)', load: ['monster-test.js'], runs: [['MonsterTest', 'campaign'], ['MonsterTest', 'sharing'], ['MonsterTest', 'alarm']] },
+  // (v16.1) every monster must have its editor description - a monster cannot ship without one
+  { name: 'monster descriptions (v16.1)', load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'coverage'], ['EditorAboutTest', 'canFail'], ['EditorAboutTest', 'numbers']] },
 ];
 const FULL_EXTRA = [
   { name: 'editor (v15.0)', load: ['editor-test.js'], runs: ['gate', 'tools', 'storage', 'noWrites'].map((n) => ['EditorTest', n]) },
@@ -57,6 +59,12 @@ const FULL_EXTRA = [
   { name: 'monsters, more', load: ['monster-test.js'], runs: ['alarmOthers', 'screecho', 'tuning', 'editor', 'noWrites'].map((n) => ['MonsterTest', n]) },
   { name: 'the editor warning', load: ['monster-test.js'], runs: [['MonsterTest', 'gate']] },
   { name: 'title screen', load: ['title-test.js'], runs: ['keys', 'howTo', 'buttons', 'touch', 'noWrites', 'begin'].map((n) => ['TitleTest', n]) },
+  { name: 'monster descriptions in the editor', load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'ui'], ['EditorAboutTest', 'noLeak'], ['EditorAboutTest', 'soak']] },
+  // (the description panel at a small laptop, a laptop, a tablet and a phone held sideways)
+  { name: 'monster descriptions at 1366x768', size: { w: 1366, h: 768 }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
+  { name: 'monster descriptions at 1280x720', size: { w: 1280, h: 720 }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
+  { name: 'monster descriptions on a tablet', size: { w: 1024, h: 768, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
+  { name: 'monster descriptions on a phone', size: { w: 844, h: 390, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
 ];
 
 const results = [];
@@ -214,14 +222,14 @@ async function main() {
         for (const [obj, name] of group.runs) {
           try {
             const r = await page.eval(runSuite(obj, name), 600);
-            ok(`${obj}.${name} ${r.pass}/${r.pass + r.fail}`, r.fail === 0, r.fail ? r.failed : '');
+            ok(`${obj}.${name} ${r.pass}/${r.pass + r.fail}${group.size ? ` (${group.size.w}x${group.size.h}${group.size.mobile ? ' touch' : ''})` : ''}`, r.fail === 0, r.fail ? r.failed : '');
           } catch (e) {
             ok(`${obj}.${name}`, false, `threw: ${String(e.message || e).slice(0, 300)}`);
           }
         }
         // (a suite that ends with a page error says so)
         if (page.exceptions.length) ok(`${group.name}: no uncaught exceptions`, false, page.exceptions.slice(0, 3).join(' / '));
-      });
+      }, group.size || {});
     }
   } finally {
     server.close();
