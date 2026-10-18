@@ -30,8 +30,13 @@
   // no medals, no stats, no fragments, no "levels cleared". Test-playing in the editor is exactly this.
   const CUSTOM_LEVEL = -1;
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
-  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer' };
-  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12 };
+  // (v16.0: 'keeper' plays between level 13's capture and level 14 - see onCaptured. Level 13 never leaves through
+  // advanceLevel, so its entry here is for the Continue / level-select catch-up in newRun, the rule every scene follows.)
+  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer', 14: 'keeper' };
+  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14 };
+  // (v16.0) the scenes that cannot be skipped until they have been seen once - and that count as seen only when
+  // they have played to the END (every other scene counts the moment it starts, as it always has)
+  const SEEN_AT_END = { keeper: true };
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -319,6 +324,7 @@
   let progress = loadProgress();
   let seen = loadSeen();
   let replaying = false; // a cutscene is being rewatched from the replay screen (it returns there, not to a level)
+  let csPaused = false; // (v16.0) a cutscene is paused (P): its clock and its sound stand still, and it cannot be skipped
   let tutorialDone = store.get(TUTORIAL_KEY) === '1'; // the tutorial has been finished or skipped (an old save just says "no")
   let tutorialAfter = 'title'; // where the tutorial goes when it ends: 'intro' (on into the game) or 'title'
   let tutHint = null; // the teaching prompt showing right now (level 0 only)
@@ -3551,7 +3557,16 @@
     drawRippleLayer,
     calm: () => calm,
     visualCues: () => visualCues, // the Visual cues option also adds short [sound captions] to the cutscenes
+    // (v16.0) may it be skipped right now? Never while paused; and the keeper scene not until it has been seen once
+    canSkip: (kind) => !csPaused && !(SEEN_AT_END[kind] && !hasSeen(kind)),
     finish(kind) {
+      // (v16.0) the keeper scene is seen once it has played to its end - closing the game in the middle of it
+      // leaves it unseen, and it plays again from the start next time
+      if (SEEN_AT_END[kind] && !seen[kind]) {
+        seen[kind] = 1;
+        store.set(SEEN_KEY, JSON.stringify(seen));
+      }
+      setCutscenePaused(false);
       // the end of a scene is a screen change like any other, so it fades too
       go(() => {
         if (replaying) {
@@ -3569,8 +3584,9 @@
 
   /** kind: 'intro' (before level 1), 'scent' (5 -> 6), 'mimic' (7 -> 8), 'decoy' (8 -> 9) or 'stalker' (9 -> 10). */
   function startCutscene(kind = 'intro') {
-    // remember that it has played, so it can be rewatched from the replay screen
-    if (!seen[kind]) {
+    // remember that it has played, so it can be rewatched from the replay screen (the keeper scene: at its end)
+    setCutscenePaused(false);
+    if (!seen[kind] && !SEEN_AT_END[kind]) {
       seen[kind] = 1;
       store.set(SEEN_KEY, JSON.stringify(seen));
     }
@@ -3585,6 +3601,20 @@
     $('hud').classList.add('hidden');
     $('banner').classList.remove('show');
     cutscene.start(kind);
+  }
+
+  /**
+   * (v16.0) Pause a cutscene, or let it go on: P (the pause key, rebindable) in any cutscene. The scene's clock stops
+   * (frame() does not advance it) and its sound with it (the whole AudioContext is suspended, as the pause menu does),
+   * a small "Paused" note shows, and while it is paused nothing skips it.
+   */
+  function setCutscenePaused(on) {
+    on = !!on && state === 'cutscene';
+    if (on === csPaused) return;
+    csPaused = on;
+    $('cs-paused').classList.toggle('hidden', !on);
+    if (on) audio.suspend();
+    else audio.resume();
   }
 
   /** On from a cleared level. Going into level 6, 8, 9 or 10 plays that level's story cutscene first (SCENE_BEFORE_LEVEL). */
@@ -3855,7 +3885,10 @@
    */
   function onCaptured() {
     savedPending = wardenSaved;
-    startLevel(WARDEN_LEVEL + 1);
+    // (v16.0) the capture has faded to black: the keeper scene, in the same black, and it hands on to level 14 (its
+    // finish -> SCENE_LEADS_TO.keeper). Every time, like every scene on the way into its level: unskippable the first
+    // time, skippable after that.
+    startCutscene('keeper');
   }
 
   /**
@@ -3992,6 +4025,7 @@
     { kind: 'stalker', name: 'Nothing To Hear', blurb: 'What to do when something listens.', locked: 'You will see it when you clear level 9.' },
     { kind: 'muffler', name: 'Nothing Comes Back', blurb: 'What lives where the echo stops.', locked: 'You will see it when you clear level 10.' },
     { kind: 'singer', name: 'Keep Moving', blurb: 'What to do when the song finds you.', locked: 'You will see it when you clear level 11.' },
+    { kind: 'keeper', name: 'Somewhere Deeper', blurb: 'Between one dark and the next.', locked: 'You will see it when you clear level 13.' },
   ];
 
   /** The furthest level unlocked in any mode (the cutscenes are the same in every mode). */
@@ -4789,9 +4823,12 @@
         }
         break;
       case 'cutscene':
-        if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+        if (a === 'pause') {
           e.preventDefault();
-          cutscene.skip();
+          setCutscenePaused(!csPaused); // (v16.0) P pauses a cutscene and P lets it go on; nothing skips it while paused
+        } else if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+          e.preventDefault();
+          cutscene.skip(); // (refused while paused, and during the keeper scene's first viewing - see canSkip)
         }
         break;
       case 'caught':
@@ -5075,7 +5112,7 @@
       cardTimer -= dt;
       if (cardTimer <= 0) endCard();
     } else if (state === 'cutscene') {
-      if (!debugFrozen) cutscene.update(dt);
+      if (!debugFrozen && !csPaused) cutscene.update(dt); // (v16.0: a paused cutscene stands still)
     } else if (state === 'caught' || state === 'complete') {
       flash = Math.max(0, flash - dt * 1.2);
       shake = Math.max(0, shake - dt * 20);
@@ -5238,6 +5275,17 @@
       freeze: (on) => {
         debugFrozen = !!on;
       },
+      // (v16.0) the keeper scene: set or clear a scene's seen flag, and the cutscene pause
+      setSeen: (kind, on) => {
+        if (on) seen[kind] = 1;
+        else delete seen[kind];
+        store.set(SEEN_KEY, JSON.stringify(seen));
+        return { ...seen };
+      },
+      seen: () => ({ ...seen }),
+      csPaused: () => csPaused,
+      setCsPaused: (on) => setCutscenePaused(on),
+      onCaptured: () => onCaptured(),
       csTo: (secs) => {
         const start = cutscene.time;
         for (let t = start; t < secs && state === 'cutscene'; t += 1 / 60) cutscene.update(1 / 60);

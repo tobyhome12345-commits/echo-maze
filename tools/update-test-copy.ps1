@@ -210,6 +210,18 @@ $save = @"
     for (const m of ['easy', 'normal', 'hard', 'hardcore']) progress[m] = Math.max(parseInt(progress[m], 10) || 0, FINISHED);
     localStorage.setItem(P + 'progress', JSON.stringify(progress));
     localStorage.setItem(P + 'seen', JSON.stringify($seenJs));
+    // (v16.0) to watch a scene as a FIRST-TIME viewer (the keeper scene cannot be skipped then): put its name in
+    // 'unseen' (comma-separated) and it is left unseen on every load, until that key is removed - see the READ ME
+    try {
+      const unseen = (localStorage.getItem(P + 'unseen') || '').split(',').map((k) => k.trim()).filter(Boolean);
+      if (unseen.length) {
+        const s = JSON.parse(localStorage.getItem(P + 'seen')) || {};
+        for (const k of unseen) delete s[k];
+        localStorage.setItem(P + 'seen', JSON.stringify(s));
+      }
+    } catch (e) {
+      /* a damaged value: everything stays seen */
+    }
     localStorage.setItem(P + 'lore', JSON.stringify($loreJson)); // every lore fragment found (v13.0)
     localStorage.setItem(P + 'editor', '1'); // the Level Editor's warning already accepted (v15.0)
     const SAMPLES = $samplesJs;
@@ -273,6 +285,13 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     them are saved in the older v15.0 format on purpose, to show they still load),
     and the folders $folderNames holding some of them.
     They are added only once: delete or change one and it stays that way.
+  * the scene between level 13 and level 14 (v16.0, "Somewhere Deeper" in Levels & cutscenes) is
+    marked seen here like every scene, so it can be skipped. To watch it as a FIRST-TIME viewer (when
+    it cannot be skipped by any key, click or tap - only paused, with P): press F12, open the Console,
+    and type   localStorage.setItem('echomaze.test.unseen', 'keeper')   then reload the page. It now
+    counts as unseen every time the copy loads: play it from Levels & cutscenes, or play level 13 from
+    the level list and walk into the great room. To go back to normal, type
+    localStorage.removeItem('echomaze.test.unseen')   and reload.
   * the unreleased monsters (the Alarm and the Screecho): the Level Editor shows its
     unreleased-content warning every time you open it - that is on purpose - and the samples
     "Alarm in a Dead End", "Screecho" and "Chorus" use them (Chorus mixes both with other
