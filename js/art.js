@@ -584,6 +584,32 @@ const EchoArt = (() => {
     detail(ctx, CORE.note, a, w, 0.62);
   }
 
+  // (v16.2) Level 14's fragment: scratches in the stone, not a page - tally marks, groups of four struck through,
+  // the last group left unfinished. Strokes only (nothing to fill: it is cut into the wall), in the paper's colour.
+  function scratches(ctx, a, w) {
+    ctx.beginPath();
+    const groups = [[-0.86, 4, true], [-0.4, 4, true], [0.06, 4, true], [0.52, 2, false]];
+    groups.forEach(([gx, n, struck], gi) => {
+      for (let i = 0; i < n; i++) {
+        const x = gx + i * 0.09;
+        const top = -0.42 + ((gi * 3 + i * 5) % 4) * 0.025; // cut by hand: not all the same length
+        ctx.moveTo(x, top);
+        ctx.lineTo(x + 0.03, 0.4 - ((gi + i) % 3) * 0.03);
+      }
+      if (struck) {
+        ctx.moveTo(gx - 0.08, 0.26);
+        ctx.lineTo(gx + 0.36, -0.26);
+      }
+    });
+    paint(ctx, RGB.note, CORE.note, a, w * 0.8, 0);
+    ctx.beginPath(); // a faint second pass, so it reads as cut into something rather than drawn on it
+    for (const [gx] of groups) {
+      ctx.moveTo(gx - 0.04, 0.5);
+      ctx.lineTo(gx + 0.3, 0.5);
+    }
+    paint(ctx, RGB.note, CORE.note, a * 0.4, w, 0);
+  }
+
   // A cassette, lying flat: a rounded body, two reels, a label strip and the head window along the bottom.
   function log(ctx, a, w, o) {
     const t = o.t || 0;
@@ -754,7 +780,7 @@ const EchoArt = (() => {
   }
 
   // ---------------------------------------------------------------- drawing
-  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log, key, bar, door, alarm, screecho };
+  const SHAPES = { echo, scent, stalker, singer, boulder, pillar, puddle, decoy, exit, wall, note, log, scratches, key, bar, door, alarm, screecho };
   const NO = {};
 
   function draw(ctx, kind, x, y, r, o) {

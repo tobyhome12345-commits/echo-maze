@@ -157,7 +157,8 @@ $seenJs = '{ ' + (($scenes | ForEach-Object { "$_`: 1" }) -join ', ') + ' }'
 $loreJs = Join-Path $Source 'js\lore.js'
 $fragments = @()
 if (Test-Path $loreJs) {
-  $fragments = @([regex]::Matches((Get-Text $loreJs), "\{ id: '(f\d+)', level: ([1-9]\d*),") | ForEach-Object { $_.Groups[1].Value })
+  # (v16.2: the ids of levels 13-16's are s13..s16; the bonus line, f13, is level 0 and so never matched)
+  $fragments = @([regex]::Matches((Get-Text $loreJs), "\{ id: '([a-z]\d+)', level: ([1-9]\d*),") | ForEach-Object { $_.Groups[1].Value })
   if ($fragments.Count -lt 12) { Fail "only found $($fragments.Count) lore fragments in js\lore.js; expected at least the twelve that exist" }
 }
 $loreJson = '[' + (($fragments | ForEach-Object { "'$_'" }) -join ', ') + ']'
@@ -223,6 +224,14 @@ $save = @"
       /* a damaged value: everything stays seen */
     }
     localStorage.setItem(P + 'lore', JSON.stringify($loreJson)); // every lore fragment found (v13.0)
+    // (v16.2) to test the hidden scene's unlock: 'lorekeep' = how many to leave found (the first N, in level order),
+    // on every load, until that key is removed - see the READ ME
+    try {
+      const keep = parseInt(localStorage.getItem(P + 'lorekeep'), 10);
+      if (keep >= 0) localStorage.setItem(P + 'lore', JSON.stringify($loreJson.slice(0, keep)));
+    } catch (e) {
+      /* a damaged value: everything stays found */
+    }
     localStorage.setItem(P + 'editor', '1'); // the Level Editor's warning already accepted (v15.0)
     const SAMPLES = $samplesJs;
     // (v15.1: 'samples2' - a copy that already had v15.0's samples gets the new ones and the folders, once)
@@ -292,6 +301,16 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     counts as unseen every time the copy loads: play it from Levels & cutscenes, or play level 13 from
     the level list and walk into the great room. To go back to normal, type
     localStorage.removeItem('echomaze.test.unseen')   and reload.
+  * lore fragments (v16.2): all $($fragments.Count) are found here (levels 1-16), so the hidden scene "Kept" is
+    unlocked - it is at the end of the Fragments screen and of Levels & cutscenes. To test the LOCKED
+    state and the moment it unlocks: press F12, open the Console, and type
+    localStorage.setItem('echomaze.test.lorekeep', '$($fragments.Count - 1)')   then reload the page. Now every
+    fragment but level 16's is found, every time the copy loads: Fragments says $($fragments.Count - 1) of $($fragments.Count),
+    and neither the bonus line nor "Kept" is there. Pick EASY on the title (a level's fragment is always
+    there on Easy), play level 16 from Levels & cutscenes, and send a ripple in the first room - its
+    fragment lies in the corner by where you start. When its recording has been read, a note in the
+    corner says "Something has changed in Fragments." and "Kept" is there. ('0' leaves none found.)
+    To go back to normal, type   localStorage.removeItem('echomaze.test.lorekeep')   and reload.
   * the unreleased monsters (the Alarm and the Screecho): the Level Editor shows its
     unreleased-content warning every time you open it - that is on purpose - and the samples
     "Alarm in a Dead End", "Screecho" and "Chorus" use them (Chorus mixes both with other

@@ -381,6 +381,7 @@
   let camX = 0;
   let camY = 0;
   let bannerTimer = null;
+  let loreBannerBack = null; // (v16.2) a hint on levels 13-16 to show again once a fragment's line has gone
   let debugFrozen = false; // ?debug only: hold the cutscene clock still
   let titleRipples = [];
   let titleTimer = 0;
@@ -2082,7 +2083,7 @@
     // ...and a lore fragment (js/lore.js), in the colour of old paper. Nothing about how it is lit is special:
     // it is one more flat thing on the floor, and the wave finds it or it does not.
     const fr = level.fragment;
-    if (fr) flats.push({ x: fr.x, y: fr.y, r: fr.r, type: T_LORE, art: fr.kind === 'log' ? 'log' : 'note', lore: true });
+    if (fr) flats.push({ x: fr.x, y: fr.y, r: fr.r, type: T_LORE, art: fr.art || (fr.kind === 'log' ? 'log' : 'note'), lore: true }); // (v16.2: level 14's is scratches)
     // ...and level 14's key, the same: one more thing lying on the floor that a wave finds or does not
     if (st && st.key && !st.key.taken) flats.push({ x: st.key.x, y: st.key.y, r: st.key.r, type: T_KEY, art: 'key', key: true });
     // ...and on a custom level (v15.1) its key and its notes, the same two things found the same way (a custom key
@@ -2301,9 +2302,15 @@
     fr.read = true;
     const info = EchoLore.markFound(fr.id);
     // the level's own banner gives way: the two sit in the same place, and this is the one worth reading
+    // (v16.2) - on the hand-drawn levels 13-16 a hint up at that moment comes back once the fragment's line has gone:
+    // their hints matter (level 16's says how to survive), and their fragments lie close to where the hint is shown
+    if (levelNum >= WARDEN_LEVEL && $('banner').classList.contains('show')) loreBannerBack = { n: levelNum, title: $('banner-title').textContent, text: $('banner-text').textContent };
     clearTimeout(bannerTimer);
     $('banner').classList.remove('show');
     loreReader.show(EchoLore.byId(fr.id), info);
+    // (v16.2) the last one found: a quiet note that something has changed in the Fragments archive - the hidden
+    // scene is there now. Never the scene itself: it is never played for you.
+    if (info.isNew && info.count >= EchoLore.TOTAL) showSaved(SECRET_NOTICE, 3600);
   }
 
   /**
@@ -2478,7 +2485,29 @@
     cues.heartbeat(0.9);
   }
 
+  /**
+   * (v16.2) A line someone SAYS (levels 13-16: #say) and a fragment's line (#lore) share the bottom of the screen
+   * (the top, on touch). While both are up, the spoken one sits just beyond the fragment's instead of on top of it.
+   */
+  function stackSayOverLore() {
+    const say = $('say');
+    const lore = $('lore');
+    if (!say || !lore) return;
+    if (say.classList.contains('show') && lore.classList.contains('show')) {
+      const r = lore.getBoundingClientRect();
+      if (document.body.classList.contains('touch')) say.style.top = `${Math.round(r.bottom + 8)}px`;
+      else say.style.bottom = `${Math.round(innerHeight - r.top + 8)}px`;
+    } else if (say.style.top || say.style.bottom) {
+      say.style.top = '';
+      say.style.bottom = '';
+    }
+  }
+
   function notify(title, text, ms = 6000) {
+    if (levelNum >= WARDEN_LEVEL && loreReader.state()) {
+      loreBannerBack = { n: levelNum, title, text }; // (v16.2) a fragment's line is up: this waits for it
+      return;
+    }
     $('banner-title').textContent = title;
     $('banner-text').textContent = text;
     $('banner').classList.add('show');
@@ -2606,6 +2635,19 @@
     cues.setMark(markLeft);
     cues.update(dt, player.x, player.y);
     loreReader.update(dt); // a fragment's line on screen (js/lore.js): drawing and sound only
+    stackSayOverLore();
+    if (loreBannerBack && !loreReader.state()) {
+      // (v16.2) the hint that gave way to a fragment's line on 13-16, back for a few seconds
+      const b = loreBannerBack;
+      loreBannerBack = null;
+      if (levelNum === b.n) {
+        $('banner-title').textContent = b.title;
+        $('banner-text').textContent = b.text;
+        $('banner').classList.add('show');
+        clearTimeout(bannerTimer);
+        bannerTimer = setTimeout(() => $('banner').classList.remove('show'), 4500);
+      }
+    }
 
     // the tutorial's teaching prompts: they read where you are and how many ripples you have sent, and write
     // a line of text. Nothing above this point knows the tutorial exists.
@@ -3277,6 +3319,11 @@
       bannerTimer = setTimeout(() => el.classList.remove('show'), 4500);
       return;
     }
+    if (n >= WARDEN_LEVEL && loreReader.state()) {
+      // (v16.2) a fragment's line is up (they share the place): the hint waits until it has gone
+      loreBannerBack = { n, title: `Level ${n}`, text: hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]) };
+      return;
+    }
     $('banner-title').textContent = `Level ${n}`;
     $('banner-text').textContent = hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]);
     el.classList.add('show');
@@ -3328,6 +3375,7 @@
       level.fragment = EchoLore.place(level, n, mode, runSeed);
     }
     loreReader.hide();
+    loreBannerBack = null;
     cfg = level.cfg;
     player = {
       x: level.start.x,
@@ -3571,9 +3619,11 @@
       go(() => {
         if (replaying) {
           // rewatched from the replay screen: go back there, no level starts
+          const back = replaying;
           replaying = false;
           toTitle();
-          showReplay();
+          if (back === 'archive') showArchive();
+          else showReplay();
         } else {
           // each scene leads into the level it introduces (see SCENE_LEADS_TO)
           startLevel(SCENE_LEADS_TO[kind] || 1);
@@ -3780,9 +3830,12 @@
    * called after a write that really happened (`store.set` reports it), so it can never claim something was
    * kept when storage is off, full or blocked - in that case nothing appears at all, which is the honest thing.
    */
-  function showSaved() {
+  // (v16.2) the same quiet corner note, saying something else: the last fragment has opened the hidden scene
+  const SECRET_NOTICE = 'Something has changed in Fragments.';
+  function showSaved(text = 'Progress saved', ms = 900) {
     const el = $('saved-toast');
     if (!el) return;
+    el.textContent = text;
     clearTimeout(savedToastTimer);
     el.classList.remove('hidden');
     void el.offsetWidth; // lay it out before the fade, exactly as the overlays do
@@ -3790,7 +3843,7 @@
     savedToastTimer = setTimeout(() => {
       el.classList.remove('show');
       savedToastTimer = setTimeout(() => el.classList.add('hidden'), fadeMs());
-    }, 900);
+    }, ms);
   }
 
   /** The Level cleared screen's buttons: the campaign's Next level, or (v15.0) a custom level's own two. */
@@ -4026,6 +4079,9 @@
     { kind: 'muffler', name: 'Nothing Comes Back', blurb: 'What lives where the echo stops.', locked: 'You will see it when you clear level 10.' },
     { kind: 'singer', name: 'Keep Moving', blurb: 'What to do when the song finds you.', locked: 'You will see it when you clear level 11.' },
     { kind: 'keeper', name: 'Somewhere Deeper', blurb: 'Between one dark and the next.', locked: 'You will see it when you clear level 13.' },
+    // (v16.2) HIDDEN: not listed at all until every fragment is found (js/lore.js secretUnlocked); never played for
+    // you, only from here or the Fragments screen; skippable like any scene
+    { kind: 'kept', name: 'Kept', blurb: 'For the ones who looked everywhere.', secret: true },
   ];
 
   /** The furthest level unlocked in any mode (the cutscenes are the same in every mode). */
@@ -4051,6 +4107,7 @@
    * after you got there and you have not actually seen it.
    */
   function canReplay(kind) {
+    if (kind === 'kept') return EchoLore.secretUnlocked(); // (v16.2) the hidden scene: every fragment found
     return hasSeen(kind) || (kind !== 'intro' && furthestReached() >= SCENE_LEADS_TO[kind]);
   }
 
@@ -4115,6 +4172,7 @@
     list.textContent = '';
     for (const s of SCENES) {
       const ok = canReplay(s.kind);
+      if (s.secret && !ok) continue; // (v16.2) a hidden scene is not even a ??? until it is unlocked
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'scene';
@@ -4225,7 +4283,8 @@
   /**
    * FRAGMENTS: every note and recording found so far (js/lore.js), in level order, built the same way as the
    * replay screen above. A found note can be read; a found recording can be played again, in the same voice.
-   * What is not found yet only says which level to look on. Once all twelve are found, a thirteenth appears.
+   * What is not found yet only says which level to look on. Once all of them are found (EchoLore.TOTAL - 16 since
+   * v16.2), the bonus line can be read and (v16.2) the hidden scene 'kept' appears at the end, to be played.
    * Finds are global - not per mode - so this screen is the same whichever difficulty is picked.
    */
   const archiveAvailable = () => EchoLore.count() > 0;
@@ -4262,7 +4321,7 @@
       row.className = `scene fragment${got ? '' : ' locked'}${got && log ? ' log' : ''}${f.bonus ? ' bonus' : ''}`;
       const name = document.createElement('b');
       if (f.bonus) name.textContent = got ? 'Tucked behind the others' : '???';
-      else name.textContent = `Level ${f.level} · ${got ? (log ? 'a recording' : 'a note') : '???'}`;
+      else name.textContent = `Level ${f.level} · ${got ? (f.label ? f.label.toLowerCase() : log ? 'a recording' : 'a note') : '???'}`;
       const text = document.createElement('small');
       if (got) text.textContent = f.text;
       else text.textContent = f.bonus ? `Find all ${total} to read this one.` : 'Not found yet. It lies somewhere off the way to the exit.';
@@ -4276,6 +4335,25 @@
         row.setAttribute('aria-label', `Play the recording from level ${f.level}: ${f.text}`);
         row.addEventListener('click', () => playArchived(f));
       }
+      list.appendChild(row);
+    }
+    // (v16.2) the hidden scene, once every one is found - and not even a ??? before that
+    if (EchoLore.secretUnlocked()) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.id = 'fragment-secret';
+      row.className = 'scene fragment log bonus secret';
+      const name = document.createElement('b');
+      name.textContent = 'Kept';
+      const play = document.createElement('span');
+      play.className = 'play';
+      play.textContent = 'Play';
+      name.appendChild(play);
+      const text = document.createElement('small');
+      text.textContent = 'For the ones who looked everywhere.';
+      row.append(name, text);
+      row.setAttribute('aria-label', 'Play the scene Kept');
+      row.addEventListener('click', () => playScene('kept', 'archive'));
       list.appendChild(row);
     }
     $('archive-note').textContent = "A level's fragment is always there on Easy, usually on Normal, sometimes on Hard, and never on Hardcore. Whatever you find is kept for good, whichever difficulty you found it on.";
@@ -4305,11 +4383,12 @@
   }
 
   /** Rewatch a cutscene that has already played. When it ends (or is skipped) you land back on the replay screen. */
-  function playScene(kind) {
+  function playScene(kind, from = 'replay') {
     if (state !== 'title' || !canReplay(kind)) return;
     audio.init();
     audio.uiClick();
-    replaying = true;
+    stopArchiveVoice();
+    replaying = from; // (v16.2: 'replay' or 'archive' - the screen it goes back to)
     go(() => startCutscene(kind));
   }
 
@@ -5274,6 +5353,7 @@
       closeHowTo: () => closeHowTo(),
       ripples: () => ripples,
       marks: () => marks,
+      castRipple: (x, y, R, o) => castRipple(x, y, R, o), // (v16.2: the lore tests send a drop's ripple, or a singer's)
       crouch: () => ({ crouching: !!(player && player.crouching), glimmerOff, held: crouchHeld() }),
       decoys: () => decoys,
       dropDecoy,
@@ -5582,7 +5662,7 @@
         warden: { level: WARDEN_LEVEL, insideX: EchoWarden.INSIDE_PX, waveFallback: EchoWarden.WAVE_FALLBACK, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },
         // levels 14-16 (js/story.js), and the two speeds of the Warden that hunts you on 15 and 16 (js/level.js)
         story: { first: STORY_FIRST, last: STORY_LAST, walkSpeed: WALK_SPEED, wardenSpeed: WARDEN_SPEED, wardenUpgradedSpeed: WARDEN_UPGRADED_SPEED, at: level && level.story ? story.state() : null },
-        lore: { total: EchoLore.TOTAL, found: EchoLore.count(), chance: EchoLore.CHANCE[mode], bonus: EchoLore.bonusUnlocked(), here: level && level.fragment ? level.fragment.id : null },
+        lore: { total: EchoLore.TOTAL, found: EchoLore.count(), chance: EchoLore.CHANCE[mode], bonus: EchoLore.bonusUnlocked(), secret: EchoLore.secretUnlocked(), here: level && level.fragment ? level.fragment.id : null },
         // the level editor (v15.0): open to this player? (accepted the warning, or finished a mode), and what is up
         editor: { unlocked: editorUnlocked(), accepted: store.get(EDITOR_KEY) === '1', anyModeFinished: anyModeFinished(), screen: editorScreen, custom: customRun ? customRun.from : null, curveLevel: CUSTOM_CURVE_LEVEL, levels: EchoLevelStore.list().length, bonus: EchoLevelStore.bonus.list().length, bonusDone: EchoLevelStore.bonus.doneIds().length, view: myLevels.view() },
         // the tutorial: whether it has been done, where it would hand over to, and where the lesson is up to

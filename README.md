@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v16.1 - monster descriptions
+**Current version:** v16.2 - story fragments
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -47,7 +47,7 @@ Headphones recommended: echoes and monsters are stereo-panned, muffled by walls,
 | (none) | The Muffler (level 11) | **never seen**: a ripple that reaches it is swallowed, so it leaves a hole in the echo map instead of a shape. The title legend has a text-only line for it |
 | Lime | Smell puddles (level 6+) and your smell trail | a **glossy blob** with a shine, two bubbles and a ripple |
 | Pink | The sonar decoy (level 9+) | a **small device**: a box with a dial, a short antenna and a ring round it |
-| Paper | Something left behind (levels 1-12) | a **torn, dog-eared page** with a few lines written on it, or a **cassette** with two reels — see *Fragments* below |
+| Paper | Something left behind (levels 1-16) | a **torn, dog-eared page** with a few lines written on it, or a **cassette** with two reels — see *Fragments* below |
 | Brass | The key (level 14) | an **old iron key**: a ring with a hole through it, a straight shaft, two teeth |
 | Green | The way out | a **portal**: concentric rings, a slowly rotating arc, a little doorway and a few soft sparkles |
 
@@ -117,13 +117,13 @@ The explorers' voices are synthesised too: formant-shaped buzzing under typewrit
 
 ## Fragments: what the others left behind
 
-You are not the first one down here. Somewhere on each of **levels 1 to 12** lies something one of the others left: a **note**, or a **recording**. There is one per level, and it is never on the way to the exit — it is always off to one side, almost always at the end of a dead end, a real detour you have to choose to take (on average about 13 tiles out of your way on level 1, about 19 on level 12).
+You are not the first one down here. Somewhere on each of **levels 1 to 16** lies something one of the others left: a **note**, or a **recording**. There is one per level, and it is never on the way to the exit — it is always off to one side, almost always at the end of a dead end, a real detour you have to choose to take (on average about 13 tiles out of your way on level 1, about 19 on level 12).
 
 Nothing marks it. A ripple finds it exactly the way it finds a puddle or a sonar decoy: something flat on the floor, in the colour of **old paper**, that the wave lights up and passes over. The moment **your** wave reaches it, it is read — a note appears on screen; a recording plays in the same buzzing, formant-shaped voice the cutscenes use, its words typed out as it speaks. (A Singer's song can light one up, but that is not you finding it. And crouching under a wave that has not reached it yet wipes the wave, as always, so you never read it.) It never blocks you or a ripple, and nothing a monster notices can see it.
 
 **How likely you are to find one depends on the difficulty.** On **Easy** a level's fragment is always there, because Easy rewards looking around. On **Normal** it is there about four times in five, on **Hard** about half the time, and on **Hardcore** never — Hardcore keeps its harsher tone. The maze decides, so trying the same level again after being caught gives you the same answer; playing it again from the level select gives you a new maze and a new chance.
 
-**Everything you find is kept for good**, whichever difficulty you found it on. A **Fragments** button appears on the title screen once you have found one, and lists them in order: notes to read again, recordings to play again. The ones you have not found only tell you which level to look on. Find all twelve, and a thirteenth appears at the bottom of the list.
+**Everything you find is kept for good**, whichever difficulty you found it on. A **Fragments** button appears on the title screen once you have found one, and lists them in order: notes to read again, recordings to play again. The ones you have not found only tell you which level to look on. Find all sixteen, and one more appears at the bottom of the list - and, for those who looked everywhere, something else. On **levels 13 to 16**, which are the same every time, each one always lies in the same place (one of them is not on the floor at all: it is scratched into a wall).
 
 They are notes from people who came through before you, and they lean, one level at a time, towards what is waiting at the end. They never say what it is.
 
@@ -654,6 +654,8 @@ tools/          developer tools, not part of the game and not exported with a ve
                 keeper-test.js (v16.0: the scene between levels 13 and 14 - the hand-over, unskippable the first time,
                 pausing, closing half way, seen and replayed, old saves, Continue and the level list, calm mode and Visual
                 cues, nothing else saved, a soak),
+                lore-story-test.js (v16.2: the fragments of levels 13-16 - where each lies, read only by your ripple,
+                the notes and the recording, the Fragments and replay screens, the hidden scene, old saves, a soak),
                 perf-bench.js (draw cost), update-test-copy.ps1
 ```
 

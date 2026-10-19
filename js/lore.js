@@ -3,7 +3,8 @@
 /**
  * LORE FRAGMENTS - notes and recordings left behind by the explorers who came through the maze before you.
  *
- * One per level on levels 1-12, lying somewhere OFF the way to the exit. Nothing marks them: a ripple finds
+ * One per level on levels 1-16, lying somewhere OFF the way to the exit (1-12: placed in each generated maze; 13-16,
+ * which are drawn by hand: placed by hand - v16.2). Nothing marks them: a ripple finds
  * one exactly the way it finds a puddle or a sonar decoy (a flat thing on the floor that the wave passes over
  * and lights up - js/game.js castRipple, the `flats` list), and the moment YOUR wave reaches it, it is read.
  * A written note shows on screen; a recording plays in the same formant voice the cutscenes use, typed out as
@@ -62,6 +63,20 @@ const EchoLore = (() => {
     // the last explorer, twice: lower, slower, and cut off
     { id: 'f11', level: 11, kind: 'log', text: "There's something that isn't hunting. It's just... waiting.", voice: { pitch: 0.86, shake: 0.03, cps: 17, vol: 0.85 }, cut: true },
     { id: 'f12', level: 12, kind: 'log', text: "If you hear nothing at all, that's when you run.", voice: { pitch: 0.84, shake: 0.04, cps: 15, vol: 0.75 } },
+    // (v16.2) levels 13-16 are drawn by hand, so their fragments are placed by hand: `at` is the tile, chosen off
+    // the way through (tools/lore-story-test.js walks every one). The ids are new ('s' for the story levels):
+    // f13 is the bonus line's, and an id is never reused, so a save's found list means the same thing for ever.
+    // 13: the spur below the great room, where the dread is already building - walled off from the room, so the
+    // capture's involuntary ripple can never read it; it is found (or not) before the point of no return
+    { id: 's13', level: 13, kind: 'note', at: [17, 15], text: 'The stone here is warm. Something has been standing very still.' },
+    // 14: scratched into the back wall of the open cell in the middle of the top row (the cell the key's corridor
+    // runs past) - drawn as scratches, not a page
+    { id: 's14', level: 14, kind: 'note', art: 'scratches', label: 'Scratched into the wall', at: [13, 1], text: 'Forty scratches on the wall. Then they stop. It leaves the key where I can find it, every time. I stopped asking why.' },
+    // 15: the dead end off the first stretch, long before the light can be seen
+    { id: 's15', level: 15, kind: 'note', at: [11, 16], text: "It's never warm down here. Remember that." },
+    // 16: the antechamber's far corner, before the stone splits - the last explorer once more: lower, slower,
+    // unsteady, and cut off
+    { id: 's16', level: 16, kind: 'log', at: [1, 1], text: 'It never wanted me dead. It wants me to keep trying.', voice: { pitch: 0.8, shake: 0.07, cps: 13, vol: 0.72 }, cut: true },
   ];
 
   /**
@@ -105,6 +120,12 @@ const EchoLore = (() => {
   const isFound = (id) => mem.includes(id);
   const count = () => found().length;
   const bonusUnlocked = () => count() >= TOTAL;
+  /**
+   * (v16.2) The hidden scene ('kept', js/cutscene.js) opens when EVERY fragment is found - the same test as the bonus
+   * line, from the real count (TOTAL is the length of FRAGMENTS: add one and both move with it). Nothing is stored
+   * for it: it is worked out from `echomaze.lore` every time, so it cannot disagree with what is found.
+   */
+  const secretUnlocked = () => count() >= TOTAL;
 
   /** It has just been read. Returns whether it is new, how many are found now, and whether that was saved. */
   function markFound(id) {
@@ -140,10 +161,17 @@ const EchoLore = (() => {
   function place(level, n, modeId, runSeed) {
     const frag = forLevel(n);
     const chance = CHANCE[modeId] || 0;
-    if (!frag || chance <= 0 || !level || level.warden) return null;
+    if (!frag || chance <= 0 || !level) return null;
     const rand = mulberry32((runSeed ^ Math.imul(n, 0x85ebca6b) ^ 0x10a3f7c1) >>> 0);
     const roll = rand(); // the first draw decides whether it is here at all, whatever the mode...
     if (roll >= chance) return null;
+    // (v16.2) a hand-drawn level's fragment lies where it was put - the same roll decides whether it is there
+    if (frag.at) {
+      const [tx, ty] = frag.at;
+      if (tx < 0 || ty < 0 || tx >= level.W || ty >= level.H || level.blocked[ty * level.W + tx]) return null;
+      return { id: frag.id, kind: frag.kind, art: frag.art || null, x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, r: R, tx, ty, extra: null, deadEnd: null, read: false };
+    }
+    if (level.warden || level.story) return null; // (13-16 have only the hand-placed one)
     const W = level.W;
     const H = level.H;
     const blocked = level.blocked;
@@ -214,7 +242,7 @@ const EchoLore = (() => {
     let cur = null; // { frag, t, typeFor, total, n, cut }
     let voice = null; // the scheduled recording, so it can be stopped when the line is taken away
 
-    const label = (f) => (f.kind === 'log' ? 'A recording' : 'A note');
+    const label = (f) => f.label || (f.kind === 'log' ? 'A recording' : 'A note');
     function headOf(f, info) {
       if (!info || !info.isNew) return label(f);
       if (info.count >= TOTAL) return `${label(f)} · all ${TOTAL} found · one more waits in Fragments`;
@@ -281,5 +309,5 @@ const EchoLore = (() => {
     return { show, update, hide, state };
   }
 
-  return { KEY, R, CPS, CHANCE, FRAGMENTS, BONUS, TOTAL, byId, forLevel, place, found, isFound, count, bonusUnlocked, markFound, setFound, createReader };
+  return { KEY, R, CPS, CHANCE, FRAGMENTS, BONUS, TOTAL, byId, forLevel, place, found, isFound, count, bonusUnlocked, secretUnlocked, markFound, setFound, createReader };
 })();

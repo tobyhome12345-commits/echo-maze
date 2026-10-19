@@ -50,6 +50,8 @@ const QUICK = [
   { name: 'monsters (v15.7)', load: ['monster-test.js'], runs: [['MonsterTest', 'campaign'], ['MonsterTest', 'sharing'], ['MonsterTest', 'alarm']] },
   // (v16.1) every monster must have its editor description - a monster cannot ship without one
   { name: 'monster descriptions (v16.1)', load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'coverage'], ['EditorAboutTest', 'canFail'], ['EditorAboutTest', 'numbers']] },
+  // (v16.2) the fragments of levels 13-16: where each one lies, and the CHANCE table
+  { name: 'lore fragments on 13-16 (v16.2)', load: ['lore-story-test.js'], runs: [['LoreStoryTest', 'placement']] },
 ];
 const FULL_EXTRA = [
   { name: 'editor (v15.0)', load: ['editor-test.js'], runs: ['gate', 'tools', 'storage', 'noWrites'].map((n) => ['EditorTest', n]) },
@@ -59,6 +61,7 @@ const FULL_EXTRA = [
   { name: 'monsters, more', load: ['monster-test.js'], runs: ['alarmOthers', 'screecho', 'tuning', 'editor', 'noWrites'].map((n) => ['MonsterTest', n]) },
   { name: 'the editor warning', load: ['monster-test.js'], runs: [['MonsterTest', 'gate']] },
   { name: 'title screen', load: ['title-test.js'], runs: ['keys', 'howTo', 'buttons', 'touch', 'noWrites', 'begin'].map((n) => ['TitleTest', n]) },
+  { name: 'lore fragments on 13-16 and the hidden scene', load: ['lore-story-test.js'], runs: ['discovery', 'reading', 'archive', 'scene', 'noWrites'].map((n) => ['LoreStoryTest', n]) },
   { name: 'monster descriptions in the editor', load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'ui'], ['EditorAboutTest', 'noLeak'], ['EditorAboutTest', 'soak']] },
   // (the description panel at a small laptop, a laptop, a tablet and a phone held sideways)
   { name: 'monster descriptions at 1366x768', size: { w: 1366, h: 768 }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },

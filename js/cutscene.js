@@ -324,10 +324,38 @@ const EchoCutscene = (() => {
   const PAL_KEEPER = { glow: '150,160,176', cone: '150,160,176', body: '176,184,198', hand: '186,192,204', head: '206,212,222', lamp: '226,232,240' }; // no lamp lit: only what the drops show
   const KP_STONE = '95,212,255'; // what a drop shows stone as (the ripple's wall colour)
 
+  // ------------------------------------------------- the hidden scene 'kept' (v16.2)
+  // Unlocked only when every lore fragment is found (js/lore.js secretUnlocked), and only ever played from the
+  // Fragments or replay screen - never for you. Wordless, no text (only Visual cues' [sound captions]). The same
+  // stage as the keeper scene (level 14's gaol) and the same light: nothing but drops of water. The Warden, alone,
+  // in the open cell in the middle of the top row - the one whose back wall level 14's fragment is scratched into.
+  // It traces the scratches as if counting them; then it lays the notes down on the floor, one at a time - all of
+  // them, the ones the player found - and stays with them, and stills. No face, no light of its own, no words.
+  const KT_END = 28.6; // finish() - back to the screen it was played from
+  const KT_W0 = { x: 540, y: 86 }; // where it stands, facing the back wall
+  const KT_W1 = { x: 506, y: 84 }; // where it settles, facing the floor it lays them on
+  // the scratches: eight groups of five, cut into the back wall of this cell (its face is at y 40)
+  const KT_TALLY = { x: 494, y: 43, groups: 8, gap: 11.6, h: 10 };
+  const KT_COUNT = [2.2, 2.9, 8.5, 9.0]; // reach out to the wall / trace along / ...draw back
+  const KT_MOVE = [9.4, 11.0]; // it steps aside and turns to the floor
+  const KT_LAY = 11.4; // the first note is laid...
+  const KT_EACH = 0.75; // ...and one more every this many seconds
+  const KT_STAY = [23.6, 26.4]; // it stays with them; its hum fades
+  const KT_LAST_DROP = 26.2;
+  const KT_FADE = 27.0;
+  // where each note is laid: four rows of four on the cell floor in front of it, a little uneven (laid by hand)
+  const KT_SPOTS = Array.from({ length: 16 }, (_, i) => ({ x: 533 + (i % 4) * 16 + ((i * 7) % 3) - 1, y: 57 + Math.floor(i / 4) * 16 + ((i * 5) % 3) - 1, h: (((i * 37) % 9) - 4) * 0.08 }));
+  // the drops - a little closer together while it lays them, so the laying can be seen
+  const KT_DRIPS = [
+    [1.0, 546, 102], [3.2, 506, 66], [5.4, 584, 98], [7.6, 532, 60], [9.8, 566, 108], [11.6, 590, 64],
+    [13.2, 520, 108], [14.8, 572, 84], [16.4, 548, 60], [18.0, 596, 104], [19.6, 530, 92], [21.2, 584, 70],
+    [22.8, 552, 104], [24.6, 516, 60], [KT_LAST_DROP, 560, 84, 76],
+  ];
+
   // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
-  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S };
-  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER };
-  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14 };
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S, kept: 0 };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER, kept: PAL_KEEPER };
+  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14, kept: 14 };
 
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
@@ -441,6 +469,7 @@ const EchoCutscene = (() => {
     let lunge = 0; // 0..1: the last rush at the explorer
     // keeper scene state (v16.0): the Warden, the explorer, the gate, the door and the key - see updateKeeperScene
     let kp = null;
+    let kt = null; // (v16.2) the hidden scene's state - see updateKeptScene
 
     // -------------------------------------------------------------- helpers
     const sceneT = () => time - sceneStart;
@@ -1515,7 +1544,7 @@ const EchoCutscene = (() => {
     /** How brightly the drops light the point (x, y) right now: each one's ring, as it passes, fading like a ripple's. */
     function kpLit(x, y) {
       let best = 0;
-      for (const [t0, dx, dy, R = KP_DRIP_R] of KP_DRIPS) {
+      for (const [t0, dx, dy, R = KP_DRIP_R] of kind === 'kept' ? KT_DRIPS : KP_DRIPS) {
         if (time < t0) break;
         const d = Math.hypot(x - dx, y - dy);
         if (d > R) continue;
@@ -1832,9 +1861,152 @@ const EchoCutscene = (() => {
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    // ------------------------------------------------- the hidden scene 'kept' (v16.2)
+    function buildKept() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      // level 14's gaol again, empty: no key, no door swinging, no one else
+      stage = EchoStory.build(14, { rippleRadius: KP_DRIP_R, cooldown: 1 });
+      stage.story.key = null;
+      stage.key = null;
+      stage.story.drips = [];
+      stage.story.door.solid = false;
+      stage.story.door.swing = 0;
+      stage.exit = { x: -9999, y: -9999, r: 16 };
+      stage.enemies = [];
+      stage.person = { x: -9999, y: -9999, r: 9 };
+      person = stage.person;
+      env.setStage(stage);
+      // the notes it keeps: every fragment there is (the scene opens only when all of them are found), each drawn as
+      // what it is - a page, or a cassette (level 14's scratches cannot be carried: that one is a page too)
+      const frags = typeof EchoLore !== 'undefined' ? EchoLore.FRAGMENTS : [];
+      const notes = KT_SPOTS.slice(0, Math.max(1, frags.length)).map((p, i) => ({ x: p.x, y: p.y, h: p.h, art: frags[i] && frags[i].kind === 'log' ? 'log' : 'note' }));
+      kt = { wx: KT_W0.x, wy: KT_W0.y, wh: -Math.PI / 2, reach: 0, tx: KT_TALLY.x, ty: KT_TALLY.y + 4, notes, laid: 0, hum: 0.11 };
+      camX = 544;
+      camY = 90;
+      mvoice = audio.createEnemyVoice(46.25, 'warden'); // its own low voice (level 15's), kept low - and it fades away
+      const calmK = () => (isCalm() ? 0.6 : 1);
+
+      KT_DRIPS.forEach(([t, x, y, R = KP_DRIP_R]) => at(t, () => {
+        env.castRipple(x, y, R, { ambient: true });
+        const h = kpHeard(x, y, 700);
+        audio.drip(h.pan, Math.max(0.24, h.g) * (t === KT_LAST_DROP ? 0.9 : 0.7));
+      }));
+      // tracing the scratches: a soft tick of stone at each group it passes, as if counting them
+      for (let g = 0; g < KT_TALLY.groups; g++) {
+        const t = KT_COUNT[1] + ((KT_COUNT[2] - KT_COUNT[1]) * (g + 0.5)) / KT_TALLY.groups;
+        at(t, () => audio.keySkitter(kpHeard(KT_TALLY.x + g * KT_TALLY.gap, KT_TALLY.y, 600).pan, 0.1 * calmK(), 0.12));
+      }
+      // two slow steps aside
+      [KT_MOVE[0] + 0.3, KT_MOVE[0] + 1.2].forEach((t) => at(t, () => audio.wardenStep(kpHeard(kt.wx, kt.wy, 900).pan, 0.4 * calmK(), false, false)));
+      // each note laid down: the soft, dry sound of paper on stone
+      notes.forEach((n, i) => at(KT_LAY + i * KT_EACH + KT_EACH * 0.6, () => audio.echoLore(kpHeard(n.x, n.y, 600).pan, 0.2 * calmK())));
+      at(KT_END, () => finish());
+
+      // [sound captions] (Visual cues option only) - and nothing else in words
+      const fxs = (t, text, dur) => at(t, () => fx(text, dur));
+      fxs(0.9, '[water drips]', 1.6);
+      fxs(KT_COUNT[1], '[stone, scratched softly]', 2.4);
+      fxs(KT_MOVE[0] + 0.3, '[slow, heavy steps]', 1.8);
+      fxs(KT_LAY + 0.4, '[paper, set down]', 2.2);
+      fxs(KT_STAY[0] + 0.4, '[a low hum fades]', 2.2);
+      fxs(KT_LAST_DROP, '[a single drop]', 1.4);
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the hidden scene. Everything it does is slow. */
+    function updateKeptScene(dt) {
+      const st = sceneT();
+      // where it is, and which way it faces: at the wall, then aside, turned to the floor
+      let face;
+      if (st < KT_MOVE[0]) {
+        kt.wx = KT_W0.x;
+        kt.wy = KT_W0.y;
+        face = -Math.PI / 2;
+      } else {
+        const u = smooth(clamp((st - KT_MOVE[0]) / (KT_MOVE[1] - KT_MOVE[0]), 0, 1));
+        kt.wx = lerp(KT_W0.x, KT_W1.x, u);
+        kt.wy = lerp(KT_W0.y, KT_W1.y, u);
+        face = u < 0.35 ? -Math.PI / 2 : 0;
+        if (st > KT_STAY[0]) kt.wy = KT_W1.y + 1.5 * smooth(clamp((st - KT_STAY[0]) / 2.4, 0, 1)); // it settles, a little
+      }
+      let dh = face - kt.wh;
+      while (dh > Math.PI) dh -= TAU;
+      while (dh < -Math.PI) dh += TAU;
+      kt.wh += dh * Math.min(1, dt * 1.6);
+      // the limbs: along the scratches, then out to each note's place and back
+      const [c0, c1, c2, c3] = KT_COUNT;
+      if (st >= c0 && st < c3) {
+        kt.reach = st < c1 ? 0.82 * smooth((st - c0) / (c1 - c0)) : st < c2 ? 0.82 : 0.82 * (1 - smooth((st - c2) / (c3 - c2)));
+        const span = (KT_TALLY.groups - 1) * KT_TALLY.gap;
+        const u = clamp((st - c1) / (c2 - c1), 0, 1) * KT_TALLY.groups;
+        const g = Math.min(KT_TALLY.groups - 1, Math.floor(u));
+        // group by group: across each one's five marks, then a pause, as if counting
+        kt.tx = KT_TALLY.x + Math.min(span, g * KT_TALLY.gap + 9 * smooth(clamp((u - g) * 1.5, 0, 1)));
+        kt.ty = KT_TALLY.y + 5;
+      } else if (st >= KT_LAY && st < KT_LAY + kt.notes.length * KT_EACH) {
+        const i = Math.floor((st - KT_LAY) / KT_EACH);
+        const u = (st - KT_LAY - i * KT_EACH) / KT_EACH;
+        kt.reach = 0.78 * Math.sin(Math.PI * clamp(u, 0, 1)); // out, set it down, back - nothing quick
+        kt.tx = kt.notes[i].x;
+        kt.ty = kt.notes[i].y;
+      } else kt.reach = Math.max(0, kt.reach - dt * 1.5);
+      kt.laid = st < KT_LAY ? 0 : Math.min(kt.notes.length, Math.floor((st - KT_LAY) / KT_EACH + 0.4));
+      // its hum: low, and gone by the end - it stills
+      kt.hum = st < KT_STAY[0] ? 0.11 : 0.11 * (1 - smooth(clamp((st - KT_STAY[0]) / (KT_STAY[1] - KT_STAY[0]), 0, 1)));
+      if (mvoice) {
+        const h = kpHeard(kt.wx, kt.wy, 900);
+        audio.updateEnemyVoice(mvoice, { gain: h.g * kt.hum * (isCalm() ? 0.6 : 1), pan: h.pan, mood: 0.08, muffle: false });
+      }
+      camX = lerp(camX, st < KT_MOVE[0] ? 544 : 540, Math.min(1, dt * 0.8));
+      camY = lerp(camY, 88, Math.min(1, dt * 0.8));
+    }
+
+    function drawKeptWorld() {
+      env.drawRippleLayer(); // the cell's stone and bars, as each drop lights them
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      // the scratches on the back wall: forty of them
+      const ta = kpLit(KT_TALLY.x + 46, KT_TALLY.y + 6);
+      if (ta > 0.01) {
+        ctx.strokeStyle = `rgba(${KP_STONE},${0.6 * ta})`;
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        for (let g = 0; g < KT_TALLY.groups; g++) {
+          const gx = KT_TALLY.x + g * KT_TALLY.gap;
+          for (let i = 0; i < 4; i++) {
+            ctx.moveTo(gx + i * 2.1, KT_TALLY.y + ((g * 3 + i) % 3) * 0.4);
+            ctx.lineTo(gx + i * 2.1 + 0.4, KT_TALLY.y + KT_TALLY.h - ((g + i * 2) % 3) * 0.6);
+          }
+          ctx.moveTo(gx - 1.4, KT_TALLY.y + KT_TALLY.h - 2);
+          ctx.lineTo(gx + 8.2, KT_TALLY.y + 2);
+        }
+        ctx.stroke();
+      }
+      // the notes, as they are laid down - seen only where a drop lights them
+      for (let i = 0; i < kt.laid; i++) {
+        const n = kt.notes[i];
+        const a = kpLit(n.x, n.y);
+        if (a > 0.01) {
+          ctx.save();
+          ctx.translate(n.x, n.y);
+          ctx.rotate(n.h);
+          EchoArt.draw(ctx, n.art, 0, 0, 5.4, { a: Math.min(1, a * 1.2), t: time });
+          ctx.restore();
+          ctx.globalCompositeOperation = 'lighter';
+        }
+      }
+      // the Warden: v12.2's stone (js/warden.js), only where a drop lights it. It makes no light of its own.
+      const wa = kpLit(kt.wx, kt.wy);
+      if (wa > 0.01) EchoWarden.drawHunter(ctx, kt.wx, kt.wy, KP_WARDEN_R, { a: Math.min(1, 0.95 * wa), t: time, h: kt.wh, variant: 'regular', reach: kt.reach, tx: kt.tx, ty: kt.ty });
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
     function start(k = 'intro') {
       kind = SCENE_START[k] !== undefined ? k : 'intro';
       kp = null;
+      kt = null;
       sceneStart = SCENE_START[kind];
       pal = SCENE_PAL[kind];
       smell = 0;
@@ -1882,6 +2054,7 @@ const EchoCutscene = (() => {
       else if (kind === 'muffler') buildMuffler();
       else if (kind === 'singer') buildSinger();
       else if (kind === 'keeper') buildKeeper();
+      else if (kind === 'kept') buildKept();
       else build();
       // (v16.0) a scene the game says cannot be skipped yet (the keeper scene's first viewing) shows no Skip button
       el.skip.classList.toggle('hidden', !canSkipNow());
@@ -1959,6 +2132,10 @@ const EchoCutscene = (() => {
       }
       if (kind === 'keeper') {
         updateKeeperScene(dt);
+        return;
+      }
+      if (kind === 'kept') {
+        updateKeptScene(dt);
         return;
       }
 
@@ -2428,7 +2605,7 @@ const EchoCutscene = (() => {
       }
 
       const st = sceneT();
-      const s = viewScale * DPR * 1.55; // a closer, more cinematic camera than the game's
+      const s = viewScale * DPR * (kind === 'kept' ? 3.4 : 1.55); // a closer, more cinematic camera than the game's (v16.2: closer still, on one cell)
       const sx = (Math.random() - 0.5) * shake * DPR;
       const sy = (Math.random() - 0.5) * shake * DPR;
       ctx.setTransform(s, 0, 0, s, cw / 2 - camX * s + sx, ch / 2 - camY * s + sy);
@@ -2448,6 +2625,8 @@ const EchoCutscene = (() => {
         drawSingerWorld();
       } else if (kind === 'keeper') {
         drawKeeperWorld();
+      } else if (kind === 'kept') {
+        drawKeptWorld();
       } else {
         env.drawRippleLayer();
         if (personVisible) drawPerson();
@@ -2479,8 +2658,8 @@ const EchoCutscene = (() => {
       ctx.fillRect(0, 0, cw, bar);
       ctx.fillRect(0, ch - bar, cw, bar);
       // (v16.0) the keeper scene's cut to the gaol door, and its end in black (level 14 wakes in it)
-      if (kind === 'keeper') {
-        const b = keeperBlack(st);
+      if (kind === 'keeper' || kind === 'kept') {
+        const b = kind === 'kept' ? (st > KT_FADE ? smooth((st - KT_FADE) / 1.2) : 0) : keeperBlack(st);
         if (b > 0.003) {
           ctx.fillStyle = `rgba(1,2,6,${b})`;
           ctx.fillRect(0, 0, cw, ch);
@@ -2519,6 +2698,11 @@ const EchoCutscene = (() => {
         return canSkipNow();
       },
       KEEPER_END: KP_END,
+      // for tests (v16.2): the hidden scene's moving parts
+      get kept() {
+        return kt ? { warden: { x: kt.wx, y: kt.wy, h: kt.wh }, reach: kt.reach, laid: kt.laid, notes: kt.notes.length, lit: { warden: kpLit(kt.wx, kt.wy), tally: kpLit(KT_TALLY.x + 46, KT_TALLY.y + 6), notes: kt.notes.slice(0, kt.laid).map((n) => +kpLit(n.x, n.y).toFixed(2)) } } : null;
+      },
+      KEPT_END: KT_END,
     };
   }
 
