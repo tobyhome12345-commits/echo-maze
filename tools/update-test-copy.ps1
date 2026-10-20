@@ -64,9 +64,13 @@ Copy-Item (Join-Path $Source 'icons') $target -Recurse -Force
 # ---- js: same code, but its own save slot
 $jsNames = Get-ChildItem (Join-Path $Source 'js') -File | ForEach-Object { $_.Name }
 $slotCount = 0
+# (v16.3) the source must be a plain version, not a test copy. A test copy is known by its own marks - its test-save.js,
+# and the game's save keys renamed ('echomaze.test.progress' in game.js) - NOT by any mention of the test prefix: js\whatsnew.js
+# names it on purpose (it leaves another copy's keys alone), and that is not a renamed key
+if (Test-Path (Join-Path $Source 'test-save.js')) { Fail "$leaf has a test-save.js - the source is a test copy, not a plain version" }
+if ((Get-Text (Join-Path $Source 'js\game.js')) -match "'echomaze\.test\.progress'") { Fail "js\game.js already uses the test copy's save keys - the source is not a plain version" }
 foreach ($n in $jsNames) {
   $src = Get-Text (Join-Path $Source "js\$n")
-  if ($src -match 'echomaze\.test\.') { Fail "js\$n already uses echomaze.test. - the source is not a plain version" }
   $slotCount += ([regex]::Matches($src, 'echomaze\.')).Count
   Set-Text (Join-Path $target "js\$n") ($src -replace 'echomaze\.', 'echomaze.test.')
 }
