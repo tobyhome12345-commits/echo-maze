@@ -61,6 +61,8 @@ const FULL_EXTRA = [
   { name: 'monsters, more', load: ['monster-test.js'], runs: ['alarmOthers', 'screecho', 'tuning', 'editor', 'noWrites'].map((n) => ['MonsterTest', n]) },
   { name: 'the editor warning', load: ['monster-test.js'], runs: [['MonsterTest', 'gate']] },
   { name: 'title screen', load: ['title-test.js'], runs: ['keys', 'howTo', 'buttons', 'touch', 'noWrites', 'begin'].map((n) => ['TitleTest', n]) },
+  { name: "What's new (v16.3)", load: ['whatsnew-test.js'], runs: ['decisions', 'spoilers', 'dialog', 'never', 'layout'].map((n) => ['WhatsNewTest', n]) },
+  { name: "What's new on a phone", size: { w: 390, h: 844, mobile: true }, load: ['whatsnew-test.js'], runs: [['WhatsNewTest', 'layout']] },
   { name: 'lore fragments on 13-16 and the hidden scene', load: ['lore-story-test.js'], runs: ['discovery', 'reading', 'archive', 'scene', 'noWrites'].map((n) => ['LoreStoryTest', n]) },
   { name: 'monster descriptions in the editor', load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'ui'], ['EditorAboutTest', 'noLeak'], ['EditorAboutTest', 'soak']] },
   // (the description panel at a small laptop, a laptop, a tablet and a phone held sideways)
@@ -149,6 +151,49 @@ function versionCheck() {
   if (swVersions.some((x) => x !== v.version)) problems.push(`sw.js names ${[...new Set(swVersions)].join(', ')}, not ${v.version} - the service worker is network-first and needs no cache version (CLAUDE.md)`);
   if (!/<p id="version-tag"[^>]*><\/p>/.test(read('index.html'))) problems.push(`index.html's #version-tag must be empty - the title screen reads the version from the version folder's name`);
   ok(`the version agrees everywhere (${v.version} - ${v.title})`, !problems.length, problems.join(' / '));
+  whatsNewCheck(v.version, rows);
+}
+
+/**
+ * (v16.3) js/whatsnew.js - the What's new notes - must have an entry for this version (silent or not) as its NEWEST
+ * entry, and one for every version in CLAUDE.md's table from v15.0 on; each well formed (CLAUDE.md, "Releasing").
+ */
+function whatsNewCheck(version, rows) {
+  const problems = [];
+  let notes;
+  try {
+    const store = {};
+    const ls = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, x) => (store[k] = String(x)), key: () => null, length: 0 };
+    const ctx = { console, Math, JSON, String, Object, Array };
+    ctx.window = { localStorage: ls };
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', 'whatsnew.js'), 'utf8') + '\n;this.__wn = EchoWhatsNew;', ctx, { filename: 'js/whatsnew.js' });
+    notes = ctx.__wn.NOTES;
+  } catch (e) {
+    return ok('What\'s new: js/whatsnew.js loads', false, String(e.message || e));
+  }
+  const key = (x) => {
+    const m = /^v(\d+)\.(\d+)$/.exec(x || '');
+    return m ? +m[1] * 100000 + +m[2] : -1;
+  };
+  if (!notes.length || notes[0].version !== version) problems.push(`its newest entry must be ${version} (VERSION.json) - it is ${notes[0] ? notes[0].version : 'nothing'}: write this release's notes (or mark it silent) in js/whatsnew.js`);
+  if (!notes.some((n) => n.version === version)) problems.push(`there is no entry for ${version}`);
+  for (let i = 1; i < notes.length; i++) if (!(key(notes[i - 1].version) > key(notes[i].version))) problems.push(`entries must be newest first, each version once (${notes[i - 1].version} then ${notes[i].version})`);
+  const have = new Set(notes.map((n) => n.version));
+  const table = rows.map((l) => l.split('|')[1].trim()).filter((x) => key(x) >= key('v15.0'));
+  for (const t of table) if (!have.has(t)) problems.push(`no entry for ${t} (in CLAUDE.md's version table)`);
+  for (const n of notes) {
+    if (key(n.version) < 0) problems.push(`"${n.version}" is not a version like v16.3`);
+    if (typeof n.title !== 'string' || !n.title.trim()) problems.push(`${n.version} has no title`);
+    if (!Array.isArray(n.lines) || n.lines.length < 1 || n.lines.length > 4) problems.push(`${n.version} must have one to four lines`);
+    for (const l of n.lines || []) {
+      const o = typeof l === 'string' ? { text: l } : l;
+      if (typeof o.text !== 'string' || !o.text.trim() || o.text.length > 170) problems.push(`${n.version}: every line is plain text of at most 170 characters ("${String(o.text).slice(0, 40)}...")`);
+      if (o.minLevel !== undefined && !(Number.isInteger(o.minLevel) && o.minLevel >= 1 && o.minLevel <= 17)) problems.push(`${n.version}: minLevel must be a level, 1-17`);
+      if (o.tag !== undefined && o.tag !== 'Level editor') problems.push(`${n.version}: the only tag is 'Level editor'`);
+    }
+  }
+  ok(`What's new has notes for ${version} and every version since v15.0 (${notes.length} entries)`, !problems.length, problems.join(' / '));
 }
 
 /** The generator, run in Node with no page at all (it needs none): the fallback when there is no browser. */

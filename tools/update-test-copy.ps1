@@ -311,6 +311,11 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     fragment lies in the corner by where you start. When its recording has been read, a note in the
     corner says "Something has changed in Fragments." and "Kept" is there. ('0' leaves none found.)
     To go back to normal, type   localStorage.removeItem('echomaze.test.lorekeep')   and reload.
+  * What's new (v16.3): this copy starts as a NEW player, so it never shows the What's new note by itself.
+    To see it as a returning player would: press F12, open the Console, type
+    localStorage.setItem('echomaze.test.whatsnew', 'v15.0')   and reload the page - it comes up once on the
+    title (the newest five updates). Any time: "What's new" in the title's bottom corner (in Settings on a
+    phone held upright).
   * the unreleased monsters (the Alarm and the Screecho): the Level Editor shows its
     unreleased-content warning every time you open it - that is on purpose - and the samples
     "Alarm in a Dead End", "Screecho" and "Chorus" use them (Chorus mixes both with other

@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v16.2 - story fragments
+**Current version:** v16.3 - whats new
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -126,6 +126,14 @@ Nothing marks it. A ripple finds it exactly the way it finds a puddle or a sonar
 **Everything you find is kept for good**, whichever difficulty you found it on. A **Fragments** button appears on the title screen once you have found one, and lists them in order: notes to read again, recordings to play again. The ones you have not found only tell you which level to look on. Find all sixteen, and one more appears at the bottom of the list - and, for those who looked everywhere, something else. On **levels 13 to 16**, which are the same every time, each one always lies in the same place (one of them is not on the floor at all: it is scratched into a wall).
 
 They are notes from people who came through before you, and they lean, one level at a time, towards what is waiting at the end. They never say what it is.
+
+## What's new
+
+When the game has been updated since you last played, the title screen shows you what changed, once - a short note
+for each update, newest first, and **See all updates** for the rest. **Got it**, Enter, Esc or a tap outside it closes
+it. A brand-new player never sees it (everything is new). Anything about the story is kept back until you have reached
+that far: until then it just says there is new story content to discover. **What's new** in the bottom corner of the
+title screen (on a phone held upright, in **Settings**) shows the whole history at any time.
 
 ## Replaying levels and cutscenes
 
@@ -656,6 +664,8 @@ tools/          developer tools, not part of the game and not exported with a ve
                 cues, nothing else saved, a soak),
                 lore-story-test.js (v16.2: the fragments of levels 13-16 - where each lies, read only by your ripple,
                 the notes and the recording, the Fragments and replay screens, the hidden scene, old saves, a soak),
+                whatsnew-test.js (v16.3: the What's new screen - who sees it and when, the spoiler rule, the dialog,
+                never during play, the layout at laptop and phone sizes, a soak),
                 perf-bench.js (draw cost), update-test-copy.ps1
 ```
 

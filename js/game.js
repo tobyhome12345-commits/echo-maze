@@ -4013,6 +4013,7 @@
     refreshTitle();
     showOverlay('title');
     wordmark.reveal(true); // back out of the maze: the logo ripples once, with its whoosh
+    setTimeout(maybeShowWhatsNew, 700); // (v16.3) if it could not come up when the page loaded, it may now (once)
   }
 
   const MODE_INFO = {
@@ -4262,6 +4263,7 @@
     audio.uiClick();
     refreshTitle();
     showOverlay('title');
+    setTimeout(maybeShowWhatsNew, 450); // (v16.3) back on the title: What's new, if it has not had its chance yet
     wordmark.reveal(false);
     setTimeout(() => $('btn-howto').focus({ preventScroll: true }), 30);
   }
@@ -4276,6 +4278,7 @@
     audio.uiClick();
     refreshTitle();
     showOverlay('title');
+    setTimeout(maybeShowWhatsNew, 450); // (v16.3) back on the title: What's new, if it has not had its chance yet
     wordmark.reveal(false); // the title is back: sweep once, but this is not an arrival - no sound
   }
 
@@ -4371,6 +4374,7 @@
     audio.uiClick();
     refreshTitle();
     showOverlay('title');
+    setTimeout(maybeShowWhatsNew, 450); // (v16.3) back on the title: What's new, if it has not had its chance yet
     wordmark.reveal(false);
   }
 
@@ -4609,6 +4613,7 @@
     editorScreen = null;
     refreshTitle();
     showOverlay('title');
+    setTimeout(maybeShowWhatsNew, 450); // (v16.3) back on the title: What's new, if it has not had its chance yet
     wordmark.reveal(false);
   }
 
@@ -4811,6 +4816,7 @@
       } else {
         refreshTitle();
         showOverlay('title');
+        setTimeout(maybeShowWhatsNew, 450); // (v16.3) back on the title: What's new, if it has not had its chance yet
         wordmark.reveal(false);
       }
     },
@@ -4839,6 +4845,7 @@
     audio.uiClick();
     if (from === 'pause') audio.resume(); // the audio sliders have to be audible while the game is paused
     if (from === 'title') music.start('title');
+    $('btn-settings-whatsnew').classList.toggle('hidden', from !== 'title'); // (v16.3) from the title only, never mid-game
     settings.open(from);
   }
 
@@ -4849,6 +4856,8 @@
     // (v15.0) A question on screen (js/dialog.js) answers its own keys. And typing in a box - a level's title, the
     // size list - is typing, not playing: no key pressed there means anything else (M must not mute mid-word).
     if (EchoDialog.isOpen()) return;
+    // (v16.3) What's new is up: it answers its own keys, and nothing else hears them
+    if (wnOpen) return whatsNewKey(e);
     const tgt = e.target;
     if (tgt && (tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || (tgt.tagName === 'INPUT' && /^(text|search|number)$/i.test(tgt.type)))) return;
     // Settings -> Controls is waiting for a key to bind: it takes this one and nothing else sees it
@@ -5307,6 +5316,138 @@
     }
   })();
 
+  // ------------------------------------------------------------------ (v16.3) What's new
+  /**
+   * WHAT'S NEW: once, on the title, the first time the game is opened after an update the player has not seen notes
+   * for (js/whatsnew.js decides, and has the notes), and from the corner button at any time. A small dialog over the
+   * title: focus kept inside it while it is up and given back afterwards; Got it, Esc, Enter or a click/tap outside
+   * it closes it. It never comes up anywhere but the title, and never over another screen, a fade or a cutscene.
+   */
+  const wnEl = $('whatsnew');
+  let wnOpen = false;
+  let wnReturn = null; // where focus goes back to
+  let wnDecided = false; // this page load has decided whether to show it (it is never shown twice on one load)
+  function refreshWhatsNewDot() {
+    const on = EchoWhatsNew.unseen();
+    $('whatsnew-dot').classList.toggle('hidden', !on);
+    $('whatsnew-dot-sr').textContent = on ? ' (there is something new)' : '';
+  }
+  function renderWhatsNew(entries, sub, showAll) {
+    $('wn-sub').textContent = sub;
+    const list = $('wn-list');
+    list.textContent = '';
+    for (const e of entries) {
+      const box = document.createElement('section');
+      box.className = 'wn-entry';
+      const h = document.createElement('h3');
+      const v = document.createElement('span');
+      v.className = 'wn-ver';
+      v.textContent = e.version;
+      h.append(v, document.createTextNode(e.title));
+      const ul = document.createElement('ul');
+      for (const l of e.lines) {
+        const li = document.createElement('li');
+        if (l.generic) li.className = 'wn-generic';
+        if (l.tag) {
+          const t = document.createElement('span');
+          t.className = 'wn-tag';
+          t.textContent = l.tag;
+          li.append(t);
+        }
+        li.append(document.createTextNode(l.text));
+        ul.appendChild(li);
+      }
+      box.append(h, ul);
+      list.appendChild(box);
+    }
+    list.scrollTop = 0;
+    // the full history can be long: then the list scrolls, and is a stop for the keyboard so it can be scrolled
+    list.tabIndex = showAll ? 0 : -1;
+    $('wn-all').classList.toggle('hidden', showAll);
+  }
+  function showWhatsNewAll() {
+    renderWhatsNew(EchoWhatsNew.history(furthestReached()), 'Every update so far, newest first.', true);
+    $('wn-ok').focus();
+  }
+  /** Open it: with the notes since the player last looked (`entries`), or (none given) the whole history. */
+  function openWhatsNew(entries) {
+    if (wnOpen) return;
+    wnReturn = document.activeElement;
+    if (entries) renderWhatsNew(entries, entries.length === 1 ? 'Since you last played' : `Since you last played: ${entries.length} updates`, false);
+    else showWhatsNewAll();
+    wnEl.classList.remove('hidden');
+    void wnEl.offsetWidth; // (laid out before the fade, as every overlay is)
+    wnEl.classList.add('in');
+    wnOpen = true;
+    $('wn-ok').focus();
+  }
+  function closeWhatsNew() {
+    if (!wnOpen) return;
+    wnOpen = false;
+    EchoWhatsNew.markSeen(); // seen: never shown again for this version
+    refreshWhatsNewDot();
+    wnEl.classList.remove('in');
+    setTimeout(() => {
+      if (!wnOpen) wnEl.classList.add('hidden');
+    }, fadeMs());
+    const back = wnReturn && wnReturn !== document.body && document.contains(wnReturn) && wnReturn.offsetParent !== null ? wnReturn : !$('btn-continue').classList.contains('hidden') ? $('btn-continue') : $('btn-start');
+    if (back && back.focus) back.focus({ preventScroll: true });
+    wnReturn = null;
+  }
+  /** Is the title up, on its own, with nothing moving? Only then may the notes come up by themselves. */
+  const titleAlone = () =>
+    state === 'title' &&
+    !transitioning &&
+    $('title').classList.contains('in') &&
+    ['replay', 'archive', 'howto'].every((id) => $(id).classList.contains('hidden')) &&
+    !settings.isOpen() &&
+    !EchoDialog.isOpen();
+  function maybeShowWhatsNew() {
+    if (wnDecided || wnOpen) return;
+    if (!titleAlone()) return; // (not now: the next time the title comes back on this page load)
+    wnDecided = true;
+    const d = EchoWhatsNew.decide(furthestReached());
+    refreshWhatsNewDot();
+    if (!d.show) return;
+    EchoWhatsNew.markShown();
+    openWhatsNew(d.entries);
+  }
+  /** Keys while it is up: Esc closes; Enter closes (or presses the focused button); Tab stays inside. */
+  function whatsNewKey(e) {
+    if (e.code === 'Escape') {
+      e.preventDefault();
+      closeWhatsNew();
+    } else if (e.code === 'Enter') {
+      const t = document.activeElement;
+      if (!(t && wnEl.contains(t) && t.tagName === 'BUTTON')) {
+        e.preventDefault();
+        closeWhatsNew();
+      }
+    } else if (e.code === 'Tab') {
+      const stops = [...wnEl.querySelectorAll('button, [tabindex="0"]')].filter((x) => !x.classList.contains('hidden') && x.offsetParent !== null);
+      if (!stops.length) return;
+      const i = stops.indexOf(document.activeElement);
+      const next = i < 0 ? stops[0] : stops[(i + (e.shiftKey ? -1 : 1) + stops.length) % stops.length];
+      e.preventDefault();
+      next.focus();
+    }
+  }
+  $('wn-ok').addEventListener('click', () => closeWhatsNew());
+  $('wn-all').addEventListener('click', () => showWhatsNewAll());
+  wnEl.addEventListener('click', (e) => {
+    if (e.target === wnEl) closeWhatsNew(); // a click or tap outside the panel
+  });
+  $('btn-settings-whatsnew').addEventListener('click', () => {
+    audio.uiClick();
+    openWhatsNew(null); // (Settings, from the title: the same history - on a phone held upright this is where it lives)
+  });
+  $('btn-whatsnew').addEventListener('click', () => {
+    audio.init();
+    audio.uiClick();
+    openWhatsNew(null);
+  });
+  refreshWhatsNewDot();
+
   // (v15.5) A soft ripple where the title is clicked - the screen's own rings, one more. Never in calm mode or
   // with reduced motion, never on a button or a switch, and it is drawing only.
   $('title').addEventListener('pointerdown', (e) => {
@@ -5322,6 +5463,7 @@
   refreshTitle();
   document.documentElement.dataset.calm = calm ? '1' : '0'; // the interface's motion, before anything is toggled
   showOverlay('title'); // ... and the title fades up rather than simply being there
+  setTimeout(maybeShowWhatsNew, 900); // (v16.3) What's new, once, if the game has updated since this player last looked
   wordmark.reveal(false); // the first title of the session: there is no AudioContext yet, so it is silent
   requestAnimationFrame(frame);
 
@@ -5689,6 +5831,22 @@
         seen: { ...seen },
       }),
       draw: () => draw(),
+      // (v16.3) What's new: open it (the full history, or these entries), close it, look again as if the page had just
+      // loaded (`st` a stand-in storage, for the storage tests), and let it decide again
+      whatsNew: {
+        open: (entries) => openWhatsNew(entries || null),
+        close: () => closeWhatsNew(),
+        isOpen: () => wnOpen,
+        maybe: () => maybeShowWhatsNew(),
+        reload: (st) => {
+          wnDecided = false;
+          const r = EchoWhatsNew._reload(st);
+          refreshWhatsNewDot();
+          return r;
+        },
+        state: () => ({ open: wnOpen, decided: wnDecided, dot: !$('whatsnew-dot').classList.contains('hidden'), ...EchoWhatsNew._state() }),
+        reached: () => furthestReached(),
+      },
       audio,
     };
   }

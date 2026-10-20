@@ -59,6 +59,19 @@
   <!-- shown for a moment after a clear that really wrote something to storage (js/game.js: showSaved) -->
   <div id="saved-toast" class="hidden" role="status">Progress saved</div>
 
+  <!-- (v16.3) What's new: once on the title after an update (js/whatsnew.js has the notes), and from the corner button -->
+  <div id="whatsnew" class="hidden" role="dialog" aria-modal="true" aria-labelledby="wn-head" aria-describedby="wn-sub">
+    <div class="panel small wn-panel">
+      <h2 id="wn-head">What&rsquo;s new</h2>
+      <p id="wn-sub" class="wn-sub"></p>
+      <div id="wn-list" class="wn-list"></div>
+      <div class="buttons wn-buttons">
+        <button id="wn-all" type="button" class="quiet">See all updates</button>
+        <button id="wn-ok" type="button" class="primary">Got it</button>
+      </div>
+    </div>
+  </div>
+
   <!-- the tutorial's teaching prompts (level 0 only): the banner's look, one line, bottom of the screen -->
   <div id="tut-hint" aria-live="polite"></div>
   <button id="btn-tut-skip" class="hidden" type="button">Skip tutorial</button>
@@ -159,8 +172,11 @@
       </div>
       <p id="title-medals" class="medal-summary hidden"></p>
     </div>
-    <!-- (v15.5) which version this is: read from the folder the game was opened from, never written in the files -->
-    <p id="version-tag" class="version-tag hidden"></p>
+    <!-- (v15.5) which version this is: read from the folder the game was opened from; (v16.3) and beside it, what is new -->
+    <div class="title-corner">
+      <button id="btn-whatsnew" class="whatsnew-link" type="button" aria-haspopup="dialog">What&rsquo;s new<span id="whatsnew-dot" class="whatsnew-dot hidden" aria-hidden="true"></span><span id="whatsnew-dot-sr" class="sr-only"></span></button>
+      <p id="version-tag" class="version-tag hidden"></p>
+    </div>
   </section>
 
   <!-- (v15.5) How to play: the whole controls reference, the rules and the legend - only what the player has met -->
@@ -486,6 +502,7 @@
       </div>
 
       <div class="buttons dock">
+        <button id="btn-settings-whatsnew" type="button" class="quiet hidden" aria-haspopup="dialog">What&rsquo;s new</button>
         <button id="btn-settings-back" class="primary">Back <span class="key">Esc</span></button>
       </div>
     </div>
@@ -581,6 +598,8 @@
     </div>
   </div>
 
+  <!-- (v16.3) first: it looks at whether this browser already has a save, before anything on the page writes one -->
+  <script src="js/whatsnew.js"></script>
   <script src="js/profile.js"></script>
   <script src="js/palette.js"></script>
   <script src="js/audio.js"></script>

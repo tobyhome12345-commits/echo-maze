@@ -69,15 +69,22 @@ makes the updater do them right: VERSION.json, the version table row, the README
    - **the version table** in this file - a new last row, "(latest)" moved to it, `PENDING` in the Commit column (a
      commit cannot hold its own hash; the next release fills the previous `PENDING` in from
      `git log --first-parent --oneline main`) - and the version's own section, as before;
-   - **README.md** - its one line `**Current version:** v16.1 - jail cutscene` (near the top).
-   **Where the game itself stores its version: nowhere, on purpose** (the owner's rule: the number is only in the folder
-   name, never inside the game's files). The title screen's corner tag reads it from the version folder's name, so on
+   - **README.md** - its one line `**Current version:** v16.1 - jail cutscene` (near the top);
+   - **`js/whatsnew.js`** (v16.3) - **this version's What's new entry, as the NEWEST entry**: a short title and one to four
+     lines for a player, in plain words (see that file's header and "v16.3" below for the rules - a line about story
+     content gets a `minLevel`; an editor line the 'Level editor' tag) - or `silent: true` if nothing changed that a
+     player would notice. Every version needs an entry, silent or not.
+   **Where the game itself stores its version: only in the What's new notes** (since v16.3 - before that, nowhere: the
+   owner's rule was that the number is only in the folder name). The notes have to know which of them are new, so each
+   entry in `js/whatsnew.js` names its version and the newest one is the game's own; nothing else in the game holds it. The title screen's corner tag reads it from the version folder's name, so on
    the PC it always matches VERSION.json (the updater names the folder from it) and on the website it shows nothing;
    **`sw.js` has no cache version** - it is network-first (every file fetched fresh whenever there is a connection; its
    cache `echo-maze` is only the offline copy), so nothing needs bumping there. `VERSION.json` is repo-only: it is never
    copied into a version folder or the test copy. **The version check** (in every `tools/check.js` run) fails if
    VERSION.json, the "(latest)" row and the README line disagree, if the title is not folder-safe, or if a hard-coded
-   version appears in `sw.js` or the title's tag - so a forgotten one cannot reach `main`.
+   version appears in `sw.js` or the title's tag - so a forgotten one cannot reach `main`. **The What's new check** (the
+   same run) fails if `js/whatsnew.js` has no entry for VERSION.json's version as its newest one, if any version in the
+   table from v15.0 on has no entry, or if an entry is not well formed.
 3. **Commits**: the project's pattern - a subject line in the imperative that says what changed in the game, with the
    version in brackets (`Add the jail cutscene (v16.1)`), a short body of what changed, and the attribution line
    (`Co-Authored-By: ...` - whatever the session's attribution reminder says). Write the message to a file and commit
@@ -298,7 +305,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v15.7 | da53643 | MINOR (the owner's "next minor version"): two **UNRELEASED** monsters, in the level editor and custom levels only - the **Alarm** (never moves, harmless; the wave of one of YOUR ripples reaching it makes it scream ONCE: every monster but the Wardens goes to where you were at that moment; then spent, silent, dim; a faint positional hum-tick before) and the **Screecho** (an echo monster in every rule, that also screams when a ripple reaches it, at most once per `SCREECHO_COOLDOWN` = 20 s). Tagged "Unreleased" in the editor; share-code words added at the end; an **unreleased-content warning** every time the editor is opened from the title, driven by one list (`UNRELEASED_CONTENT`, js/level.js); three test-copy samples (`tools/monster-test.js`). Levels 0-16 byte-identical (`9097b344`; eight identity games = v15.6) |
 | v16.0 | 31ad3fc | MAJOR (new lore/cutscene): **the keeper scene** - an eighth story cutscene between level 13's capture and level 14's wake-up. The Warden carries the unconscious explorer into the gaol, lays them in their cell, the cell's gate clangs shut, it locks the gaol door from outside and slides the key back in under it; the key skids away out of sight; the steps fade, a single drop, cut to level 14. About 31 s, no text but Visual cues captions, lit only by drips, on level 14's own map. **Unskippable until it has been seen once** (and it counts as seen only when it has played to its END - `SEEN_AT_END`), skippable after; **P pauses any cutscene** (new, all eight). In the replay screen as "Somewhere Deeper"; the v7.1 catch-up rule plays it before level 14 on Continue / level select when unseen. Test copy: `echomaze.test.unseen` re-creates a first viewing (`tools/keeper-test.js`). Levels 0-16 byte-identical (`9097b344`) |
 | v16.1 | c85f626 | MINOR, editor UI only: **monster descriptions in the level editor** - one or two short sentences on what each monster does, in a fixed panel at the foot of the editor's side panel (the monster under the pointer, else the one with keyboard focus, else the one picked; a tap picks), with its Unreleased tag; the same words in the inspector for a placed monster and for a screen reader (aria-describedby). Each description is `about` beside the monster's definition (MONSTER_TYPES in js/level.js, VARIANTS in js/warden.js); every number in them is built from the game's constants; `tools/editor-about-test.js` fails if any monster has none. Nowhere outside the editor. Levels 0-16 byte-identical (`9097b344`) |
-| v16.2 | PENDING | MINOR (the owner's number): **lore fragments on levels 13-16** - four, placed by hand off the way through (ids `s13`-`s16`; `f13` stays the bonus line's), the same CHANCE roll from the same stream, so 16 in all and every total from the real count - and **a hidden scene, "Kept"** (`'kept'`, about 28 s, wordless, lit only by drips, in the gaol: the Warden traces the scratches on a cell wall as if counting them and lays down, one at a time, the notes it has kept) that opens only when all 16 are found: a quiet corner notice when the last one is read, then it is at the end of Fragments and of Levels & cutscenes, playable and skippable, never played for you and not listed at all before. Level 14's fragment is scratched into a cell wall (`EchoArt` 'scratches'). On 13-16 a spoken line sits above a fragment's line, and a hint waits for it. Levels 1-16 play exactly as before (`9097b344`; the capture, the wake, story-bot and identity games = v16.1) (latest) |
+| v16.2 | 8bd7ce7 | MINOR (the owner's number): **lore fragments on levels 13-16** - four, placed by hand off the way through (ids `s13`-`s16`; `f13` stays the bonus line's), the same CHANCE roll from the same stream, so 16 in all and every total from the real count - and **a hidden scene, "Kept"** (`'kept'`, about 28 s, wordless, lit only by drips, in the gaol: the Warden traces the scratches on a cell wall as if counting them and lays down, one at a time, the notes it has kept) that opens only when all 16 are found: a quiet corner notice when the last one is read, then it is at the end of Fragments and of Levels & cutscenes, playable and skippable, never played for you and not listed at all before. Level 14's fragment is scratched into a cell wall (`EchoArt` 'scratches'). On 13-16 a spoken line sits above a fragment's line, and a hint waits for it. Levels 1-16 play exactly as before (`9097b344`; the capture, the wake, story-bot and identity games = v16.1) |
+| v16.3 | PENDING | MINOR: **What's new** - once, on the title, the first time a returning player opens the game after an update they have not seen notes for: the notes since the version they last saw, newest first, at most five, with See all updates; a brand-new player never sees it (recorded quietly). Got it / Enter / Esc / a tap outside; a modal dialog with focus kept inside. A corner link beside the version (and, on a phone held upright, What's new in Settings) opens the whole history. One data file, `js/whatsnew.js` (an entry per version from v15.0, silent or not; lines about story content held back by level), its record in `echomaze.whatsnew`; `tools/check.js` fails without an entry for VERSION.json's version. Levels 0-16 unchanged (`9097b344`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2249,6 +2257,50 @@ generator and the routes unchanged.
   build, identical**: the capture's phases to the hundredth (Easy and Normal), the wake (controls back at 4.62 s), eight
   story-bot runs on 14-16 (key, door, light, release, chase gaps), eight identity games incl. levels 13-16 on Easy;
   generator `9097b344`. Screenshots: `C:\Claude\echo game\Echo Maze\Lore screenshots (v16.2)\`.
+
+## v16.3: What's new (owner's brief, MINOR)
+
+Owner: a "What's new" screen for returning players, once, on the title only, after an update they have not seen notes
+for; never for a brand-new player; its own storage key; damaged or missing storage never crashes or nags; several
+versions skipped -> the notes since the last seen, newest first, capped at five, with "See all updates"; a quiet button
+that opens the whole history at any time; one data file with an entry per version; a spoiler rule for story lines; a
+check that fails without an entry for VERSION.json's version; a calm, accessible dialog.
+
+- **The notes** - `js/whatsnew.js` (`EchoWhatsNew`, no DOM), loaded FIRST of the game's scripts so it can see whether
+  the browser already held a save of this game before anything on the page writes one. One entry per version, NEWEST
+  FIRST, from v15.0: `{ version, title, lines, silent? }`; a line is a string or `{ text, tag: 'Level editor', minLevel }`.
+  The current version is the newest entry. v15.4 is the one silent version (a death tip's wording on custom levels).
+- **The spoiler rule**: a line about story content (levels 13 and up, new scenes, what is in them) has `minLevel`, and is
+  shown only when the player has reached that level - the furthest level unlocked in any mode (`furthestReached()`).
+  Until then it is left out and its version shows "New story content to discover." ONCE, however many of its lines are
+  held back. Today: v16.0's new scene (level 14) and v16.2's fragments (level 13). Lines about the editor carry the
+  'Level editor' tag and name no monster (the editor is behind its own spoiler warning); none names the Warden.
+- **When it shows** (`maybeShowWhatsNew` in js/game.js): 0.9 s after the title first comes up on a page load, only if the
+  title is up on its own (`state === 'title'`, no fade, no other screen, no Settings or question) - otherwise the next
+  time the title is back (toTitle, closing How to play / the replay screen / Fragments / the editor / Settings). It
+  decides once per page load (`EchoWhatsNew.decide`): **a brand-new player** (no `echomaze.*` key when the page loaded,
+  other copies' `echomaze.test.*` ignored) - nothing shown, the current version recorded; **no record but a save** (a
+  player from before v16.3) - the newest five; **a record** - every told version newer than it, newest first, at most
+  five; **a damaged record** - the newest five, once, then written afresh; **storage that throws** - nothing shown, no
+  error; **storage that cannot be written** - shown once on that page load, never twice. Dismissed (Got it, Esc, Enter, a
+  click or tap outside the panel) -> `echomaze.whatsnew` = the current version.
+- **The dialog** (`#whatsnew`): `role="dialog"`, `aria-modal`, labelled by its heading; Got it focused on opening; Tab
+  goes round inside it; focus goes back where it was (or to Continue / Begin); while it is up the game's keys do nothing
+  else (`whatsNewKey`). The panel uses the overlays' look; the list scrolls only when it must (a phone held sideways, or
+  the whole history); a simple fade on `--ui-fade`, none with reduced motion. Five entries fit without scrolling at
+  1280x720 and up.
+- **Where else it lives**: a small "What's new" pill in the title's bottom-right corner, beside the version tag (with a
+  dot while there are unseen notes). **On a phone held upright (max-width 640px) the pill is not shown** - the title card
+  is the whole screen there and the pill sat on its buttons - and "What's new" is in Settings' bottom bar instead (from
+  the title only). The phone layouts are as v16.2 (390x844: the card 814/814, Begin at 553-606).
+- **Installed app and website**: the same files and the same storage; the service worker is network-first, so the new
+  notes arrive with the new version (tested: a page served by the service worker shows it). On a phone the installed
+  app and the browser share storage, so the notes show once, in whichever is opened first.
+- **Tests** (`tools/whatsnew-test.js`; in `tools/check.js --full`, and the notes check in every run): decisions 16/16,
+  spoilers 7/7 (+ two real saves, level 3 and past 16: the held-back lines shown only to the second, the generic line
+  twice for the first), dialog 13/13, never 5/5 (not in play, over a cutscene or How to play; on the title afterwards,
+  once), layout at 1920x1080, 1366x768, 1280x720, 844x390 and 390x844, soak 400 actions. Removing the newest entry makes
+  the check fail. Screenshots: `C:\Claude\echo game\Echo Maze\What's new screenshots (v16.3)\`.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
