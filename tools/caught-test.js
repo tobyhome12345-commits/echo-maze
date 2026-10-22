@@ -8,7 +8,7 @@
  *   CaughtTest.campaign()   caught on levels 3, 6, 8, 10, 11, 12, 15 and 16 (the Warden, and level 16's) and on
  *                           Hardcore (the title's notice); the tutorial has nothing that can catch you
  *   CaughtTest.shared()     a level read from a share code: the same lines
- *   CaughtTest.fallback()   an unknown kind, no kind, no monster: "The echo found me." and nothing breaks
+ *   CaughtTest.fallback()   an unknown kind, no kind, no monster: "The echo found you." and nothing breaks
  *   CaughtTest.together()   two monsters touching you on the same frame: the one that got there first
  *   CaughtTest.layout()     at the page's CURRENT size: the Caught screen holds the longest line on screen
  */
@@ -192,7 +192,7 @@ window.CaughtTest = (() => {
 
   async function fallback() {
     const T = suite('fallback');
-    const FB = 'The echo found me.';
+    const FB = 'The echo found you.';
     T.check('an unknown kind: the fallback', E().caughtLine('something-new') === FB);
     T.check('no kind: the fallback', E().caughtLine(undefined) === FB && E().caughtLine(null) === FB);
     T.check("names that are not kinds ('__proto__', 'toString', 'constructor'): the fallback", ['__proto__', 'toString', 'constructor'].every((k) => E().caughtLine(k) === FB));

@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v17.0 - the broken gaol
+**Current version:** v17.1 - caught lines speak to you
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 

@@ -34,6 +34,11 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v17.1',
+      title: 'Caught',
+      lines: ['When something catches you, the Caught screen now tells you what it was, speaking to you.'],
+    },
+    {
       version: 'v17.0',
       title: 'The broken gaol',
       lines: [

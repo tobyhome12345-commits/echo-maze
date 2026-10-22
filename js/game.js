@@ -3919,25 +3919,25 @@
   }
 
   /**
-   * (v16.4) The Caught screen's line under "Caught": what caught you, in its own way, one short sentence in the
-   * explorer's own words. ONE table, keyed by the monster's kind (MONSTER_TYPES in js/level.js), the upgraded Warden
+   * (v16.4) The Caught screen's line under "Caught": what caught you, in its own way, one short sentence - (v17.1)
+   * the game speaking to you ("...found you"; v16.4 had them in the explorer's own words, "...found me"). ONE table, keyed by the monster's kind (MONSTER_TYPES in js/level.js), the upgraded Warden
    * of level 16 as 'warden:upgraded'. A kind that is not here - or no monster at all - gets CAUGHT_FALLBACK.
    * The Wardens are never named: the game never names them (they say what they did, never what they are). The Alarm
    * never catches anyone (touching it is harmless); its line is here so the table has every kind.
    */
   const CAUGHT_LINES = {
-    echo: 'The echo found me.',
-    scent: 'The scent monster followed my trail.',
-    mimic: 'It wore a voice I trusted.',
-    stalker: 'The stalker followed me the whole way.',
-    muffler: 'The muffler heard me first.',
-    singer: 'The singer sang me in.',
-    warden: 'It never lost me.',
-    'warden:upgraded': 'It was faster than me.',
-    alarm: 'The alarm gave me away.',
-    screecho: 'The screecho screamed, then found me.',
+    echo: 'The echo found you.',
+    scent: 'The scent monster followed your trail.',
+    mimic: 'That was no way out. The mimic was waiting.',
+    stalker: 'The stalker followed you the whole way.',
+    muffler: 'You never saw the muffler. It heard you first.',
+    singer: 'The singer sang you in.',
+    warden: 'It never lost you.',
+    'warden:upgraded': 'You could not outrun it.',
+    alarm: 'The alarm gave you away.',
+    screecho: 'The screecho screamed, then it found you.',
   };
-  const CAUGHT_FALLBACK = 'The echo found me.';
+  const CAUGHT_FALLBACK = 'The echo found you.';
   let catchCount = 0; // (each catch numbered, so a catch's own delayed screen can never show for another)
   /** The line for what caught you: `cause` its kind, `e` the monster itself if there is one (for the Warden's variant). */
   function caughtLine(cause, e) {
