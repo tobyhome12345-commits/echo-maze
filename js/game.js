@@ -2684,19 +2684,30 @@
     // --- outcomes
     if (singerLanded) {
       singerLanded = false;
-      return onCaught('singer', 'marked'); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
+      return onCaught('singer', 'marked', enemies.find((e) => e.kind === 'singer') || null); // a singer has landed on the spot you were marked at, and you are still within landRadius of it
     }
+    // Touching a monster kills you (circles overlapping). (v16.4) If more than one is touching you on the same frame,
+    // the one that got there FIRST is the one that caught you - the one furthest inside its reach of you.
+    let catcher = null;
+    let deepest = 0;
     for (const e of enemies) {
+      let reach;
       if (e.kind === 'warden') {
         // Levels 15-16: the same rule as every monster - circles overlapping kills you - with its own circle,
         // because it is bigger than they are. A Warden still asleep in the stone is solid, not deadly.
-        if (e.state === 'hunt' && Math.hypot(e.x - player.x, e.y - player.y) < e.r + PLAYER_R) return onCaught('warden', deathWhy(e));
-        continue;
+        if (e.state !== 'hunt') continue;
+        reach = e.r + PLAYER_R;
+      } else if (e.kind === 'alarm') continue; // (v15.7) touching an Alarm is harmless - it never kills
+      else reach = CATCH_DIST;
+      const inside = Math.hypot(e.x - player.x, e.y - player.y) - reach;
+      if (inside < deepest) {
+        deepest = inside;
+        catcher = e;
       }
-      if (e.kind === 'alarm') continue; // (v15.7) touching an Alarm is harmless - it never kills
-      // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic in the stats)
-      if (Math.hypot(e.x - player.x, e.y - player.y) < CATCH_DIST) return onCaught(e.fromMimic ? 'mimic' : e.kind, deathWhy(e));
     }
+    // (`fromMimic`: a mimic that a ripple turned into an echo monster still counts as the mimic, in the stats and on
+    // the Caught screen)
+    if (catcher) return onCaught(catcher.fromMimic ? 'mimic' : catcher.kind, deathWhy(catcher), catcher);
     // The way out. Level 13 has no way out: its door chimes and lights up like any other, and the warden is
     // in front of it - walking into the great room is what ends that level, not touching the door.
     // (v15.1: a custom level can have several ways out, and reaching ANY one of them is the end - unless it is a
@@ -3690,20 +3701,45 @@
   }
 
   /**
-   * The Caught screen's line under "Caught". Every monster is found by an echo or a sound - except the Warden on
-   * levels 15-16, which never needed one: it always knew where you were. (It says what it did, never what it is.)
+   * (v16.4) The Caught screen's line under "Caught": what caught you, in its own way, one short sentence in the
+   * explorer's own words. ONE table, keyed by the monster's kind (MONSTER_TYPES in js/level.js), the upgraded Warden
+   * of level 16 as 'warden:upgraded'. A kind that is not here - or no monster at all - gets CAUGHT_FALLBACK.
+   * The Wardens are never named: the game never names them (they say what they did, never what they are). The Alarm
+   * never catches anyone (touching it is harmless); its line is here so the table has every kind.
    */
-  const CAUGHT_TEXT = 'The echo found you.';
-  const CAUGHT_TEXT_WARDEN = 'It never lost you.';
+  const CAUGHT_LINES = {
+    echo: 'The echo found me.',
+    scent: 'The scent monster followed my trail.',
+    mimic: 'It wore a voice I trusted.',
+    stalker: 'The stalker followed me the whole way.',
+    muffler: 'The muffler heard me first.',
+    singer: 'The singer sang me in.',
+    warden: 'It never lost me.',
+    'warden:upgraded': 'It was faster than me.',
+    alarm: 'The alarm gave me away.',
+    screecho: 'The screecho screamed, then found me.',
+  };
+  const CAUGHT_FALLBACK = 'The echo found me.';
+  let catchCount = 0; // (each catch numbered, so a catch's own delayed screen can never show for another)
+  /** The line for what caught you: `cause` its kind, `e` the monster itself if there is one (for the Warden's variant). */
+  function caughtLine(cause, e) {
+    const key = cause === 'warden' && e && e.variant === 'upgraded' ? 'warden:upgraded' : cause;
+    return (typeof key === 'string' && Object.prototype.hasOwnProperty.call(CAUGHT_LINES, key) && CAUGHT_LINES[key]) || CAUGHT_FALLBACK;
+  }
 
-  /** `cause` is what killed you ('echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden') - for the stats. */
-  function onCaught(cause, why = 'blind') {
+  /**
+   * `cause` is what killed you ('echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden', 'screecho') - for
+   * the stats and the Caught screen; (v16.4) `catcher` the monster itself, when there is one.
+   */
+  function onCaught(cause, why = 'blind', catcher = null) {
     if (state !== 'play') return;
     state = 'caught';
     loreReader.hide(); // a fragment's line, if one was up (its find is already saved)
     clearTimeout(bannerTimer); // ...and a banner (a level's hint, level 16's "Faster than you"): nothing sits on the Caught screen
     $('banner').classList.remove('show');
-    $('caught-text').textContent = cause === 'warden' ? CAUGHT_TEXT_WARDEN : CAUGHT_TEXT;
+    const line = caughtLine(cause, catcher);
+    const thisCatch = ++catchCount; // (v16.4) the screen below is for THIS catch, never a later one's
+    $('caught-text').textContent = line;
     // one line saying what really happened, picked without touching the game's random numbers
     deathTip = EchoFeedback.tipFor(cause, why, levelNum, Math.round(levelTime * 1000));
     $('caught-tip').textContent = deathTip;
@@ -3735,7 +3771,7 @@
       }
     }
     setTimeout(() => {
-      if (state !== 'caught') return;
+      if (state !== 'caught' || thisCatch !== catchCount) return;
       // (a custom level is not a run: even on Hardcore it simply offers Try again - v15.0)
       if (MODES[mode].oneLife && !customRun) {
         // One life: the run is over. Back to the title screen - there is nothing to resume.
@@ -3744,7 +3780,7 @@
         go(() => {
           toTitle();
           const note = $('title-notice');
-          note.textContent = `☠ You died on level ${died}. ${tip} Hardcore gives you one life, so that run is over.`;
+          note.textContent = `☠ You died on level ${died}: "${line}" ${tip} Hardcore gives you one life, so that run is over.`;
           note.classList.remove('hidden');
         });
         return;
@@ -5831,6 +5867,10 @@
         seen: { ...seen },
       }),
       draw: () => draw(),
+      // (v16.4) the Caught screen's line: what a kind (and monster) would say, and a catch on demand (the fallback tests)
+      caughtLine: (cause, e) => caughtLine(cause, e),
+      caughtLines: () => Object.assign({}, CAUGHT_LINES),
+      forceCaught: (cause, why, e) => onCaught(cause, why, e),
       // (v16.3) What's new: open it (the full history, or these entries), close it, look again as if the page had just
       // loaded (`st` a stand-in storage, for the storage tests), and let it decide again
       whatsNew: {

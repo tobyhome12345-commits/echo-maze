@@ -61,6 +61,8 @@ const FULL_EXTRA = [
   { name: 'monsters, more', load: ['monster-test.js'], runs: ['alarmOthers', 'screecho', 'tuning', 'editor', 'noWrites'].map((n) => ['MonsterTest', n]) },
   { name: 'the editor warning', load: ['monster-test.js'], runs: [['MonsterTest', 'gate']] },
   { name: 'title screen', load: ['title-test.js'], runs: ['keys', 'howTo', 'buttons', 'touch', 'noWrites', 'begin'].map((n) => ['TitleTest', n]) },
+  { name: 'caught messages (v16.4)', load: ['caught-test.js'], runs: ['custom', 'campaign', 'shared', 'fallback', 'together', 'layout'].map((n) => ['CaughtTest', n]) },
+  { name: 'caught messages on a phone', size: { w: 390, h: 844, mobile: true }, load: ['caught-test.js'], runs: [['CaughtTest', 'layout']] },
   { name: "What's new (v16.3)", load: ['whatsnew-test.js'], runs: ['decisions', 'spoilers', 'dialog', 'never', 'layout'].map((n) => ['WhatsNewTest', n]) },
   { name: "What's new on a phone", size: { w: 390, h: 844, mobile: true }, load: ['whatsnew-test.js'], runs: [['WhatsNewTest', 'layout']] },
   { name: 'lore fragments on 13-16 and the hidden scene', load: ['lore-story-test.js'], runs: ['discovery', 'reading', 'archive', 'scene', 'noWrites'].map((n) => ['LoreStoryTest', n]) },

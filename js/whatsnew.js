@@ -34,6 +34,11 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v16.4',
+      title: 'Who caught you',
+      lines: ['When something catches you, the Caught screen now says what it was, in your own words.'],
+    },
+    {
       version: 'v16.3',
       title: "What's new",
       lines: ['This! When the game updates, a note like this tells you what changed since you last played.', 'Open it again any time from "What\'s new" in the corner of the title screen.'],

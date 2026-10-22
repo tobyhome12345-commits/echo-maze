@@ -328,7 +328,7 @@ window.MonsterTest = (() => {
     E().tp(e.x, e.y);
     step(0.05);
     T.check('touching it kills you', E().info().state === 'caught', E().info().state);
-    T.check('...as an echo monster would ("The echo found you.")', $('caught-text').textContent === 'The echo found you.', $('caught-text').textContent);
+    T.check('...with its own line on the Caught screen (v16.4: "' + E().caughtLine('screecho') + '")', $('caught-text').textContent === E().caughtLine('screecho'), $('caught-text').textContent);
 
     // the cooldown, measured: it is put back where it was every quarter second (test scaffolding), and pinged as
     // often as the ripple's recharge allows - when does the second scream come?

@@ -306,7 +306,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v16.0 | 31ad3fc | MAJOR (new lore/cutscene): **the keeper scene** - an eighth story cutscene between level 13's capture and level 14's wake-up. The Warden carries the unconscious explorer into the gaol, lays them in their cell, the cell's gate clangs shut, it locks the gaol door from outside and slides the key back in under it; the key skids away out of sight; the steps fade, a single drop, cut to level 14. About 31 s, no text but Visual cues captions, lit only by drips, on level 14's own map. **Unskippable until it has been seen once** (and it counts as seen only when it has played to its END - `SEEN_AT_END`), skippable after; **P pauses any cutscene** (new, all eight). In the replay screen as "Somewhere Deeper"; the v7.1 catch-up rule plays it before level 14 on Continue / level select when unseen. Test copy: `echomaze.test.unseen` re-creates a first viewing (`tools/keeper-test.js`). Levels 0-16 byte-identical (`9097b344`) |
 | v16.1 | c85f626 | MINOR, editor UI only: **monster descriptions in the level editor** - one or two short sentences on what each monster does, in a fixed panel at the foot of the editor's side panel (the monster under the pointer, else the one with keyboard focus, else the one picked; a tap picks), with its Unreleased tag; the same words in the inspector for a placed monster and for a screen reader (aria-describedby). Each description is `about` beside the monster's definition (MONSTER_TYPES in js/level.js, VARIANTS in js/warden.js); every number in them is built from the game's constants; `tools/editor-about-test.js` fails if any monster has none. Nowhere outside the editor. Levels 0-16 byte-identical (`9097b344`) |
 | v16.2 | 8bd7ce7 | MINOR (the owner's number): **lore fragments on levels 13-16** - four, placed by hand off the way through (ids `s13`-`s16`; `f13` stays the bonus line's), the same CHANCE roll from the same stream, so 16 in all and every total from the real count - and **a hidden scene, "Kept"** (`'kept'`, about 28 s, wordless, lit only by drips, in the gaol: the Warden traces the scratches on a cell wall as if counting them and lays down, one at a time, the notes it has kept) that opens only when all 16 are found: a quiet corner notice when the last one is read, then it is at the end of Fragments and of Levels & cutscenes, playable and skippable, never played for you and not listed at all before. Level 14's fragment is scratched into a cell wall (`EchoArt` 'scratches'). On 13-16 a spoken line sits above a fragment's line, and a hint waits for it. Levels 1-16 play exactly as before (`9097b344`; the capture, the wake, story-bot and identity games = v16.1) |
-| v16.3 | PENDING | MINOR: **What's new** - once, on the title, the first time a returning player opens the game after an update they have not seen notes for: the notes since the version they last saw, newest first, at most five, with See all updates; a brand-new player never sees it (recorded quietly). Got it / Enter / Esc / a tap outside; a modal dialog with focus kept inside. A corner link beside the version (and, on a phone held upright, What's new in Settings) opens the whole history. One data file, `js/whatsnew.js` (an entry per version from v15.0, silent or not; lines about story content held back by level), its record in `echomaze.whatsnew`; `tools/check.js` fails without an entry for VERSION.json's version. Levels 0-16 unchanged (`9097b344`) (latest) |
+| v16.3 | e890295 | MINOR: **What's new** - once, on the title, the first time a returning player opens the game after an update they have not seen notes for: the notes since the version they last saw, newest first, at most five, with See all updates; a brand-new player never sees it (recorded quietly). Got it / Enter / Esc / a tap outside; a modal dialog with focus kept inside. A corner link beside the version (and, on a phone held upright, What's new in Settings) opens the whole history. One data file, `js/whatsnew.js` (an entry per version from v15.0, silent or not; lines about story content held back by level), its record in `echomaze.whatsnew`; `tools/check.js` fails without an entry for VERSION.json's version. Levels 0-16 unchanged (`9097b344`) |
+| v16.4 | PENDING | MINOR, text only: **the Caught screen names what caught you** - one table, `CAUGHT_LINES` in js/game.js, keyed by the monster's kind (`'warden:upgraded'` for level 16's), one short first-person line each, `The echo found me.` for anything unknown; the catch hands the monster itself to `onCaught`; two monsters touching on the same frame -> the one furthest inside (it got there first); Hardcore's title notice quotes the line; each catch's delayed screen is numbered so it can only ever show for its own catch. Levels 0-16 unchanged (`9097b344`; capture, wake, story-bot and identity games = v16.3) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2301,6 +2302,36 @@ check that fails without an entry for VERSION.json's version; a calm, accessible
   twice for the first), dialog 13/13, never 5/5 (not in play, over a cutscene or How to play; on the title afterwards,
   once), layout at 1920x1080, 1366x768, 1280x720, 844x390 and 390x844, soak 400 actions. Removing the newest entry makes
   the check fail. Screenshots: `C:\Claude\echo game\Echo Maze\What's new screenshots (v16.3)\`.
+
+## v16.4: the Caught screen names what caught you (owner's brief, MINOR, text only)
+
+Owner: the line under "Caught" said the echo found you whatever caught you (v14.1 had already given the Warden its own
+line); name the monster that really did it, in one short line each, from ONE table keyed by type, with "The echo found
+me." as the fallback; every way of being caught; the first to touch when two do; nothing else changed.
+
+- **`CAUGHT_LINES`** (js/game.js, beside `onCaught`) - keyed by the kind (MONSTER_TYPES): echo "The echo found me.",
+  scent "The scent monster followed my trail.", mimic "It wore a voice I trusted.", stalker "The stalker followed me the
+  whole way.", muffler "The muffler heard me first.", singer "The singer sang me in.", warden "It never lost me.",
+  'warden:upgraded' "It was faster than me.", alarm "The alarm gave me away.", screecho "The screecho screamed, then found
+  me." `caughtLine(cause, e)` reads it (own keys only, so '__proto__' and the like are the fallback); `CAUGHT_FALLBACK` =
+  "The echo found me." for a kind not in it or no kind at all. **First person** (the owner's examples: "The echo found
+  me."); the line before was "The echo found you.". **The Warden is still never named** - the owner's example was "The
+  Warden found me.", but the game has never shown that name (v13.0 on); "It never lost me." is v14.1's line in the first
+  person, and level 16's gets its own. **The Alarm never catches anyone** (touching it is harmless, v15.7) - its line is
+  in the table for completeness. **The sonar decoy** (named in the brief) is an item, not a monster: nothing to add.
+- **The catch** (`updatePlay`'s outcomes): every monster touching you this frame is measured, and the one furthest inside
+  its reach - the one that got there first - is the catcher; it is handed to `onCaught(cause, why, catcher)`. The
+  singer's landing passes the singer. A revealed mimic still counts as the mimic (`fromMimic`). Same frame, same state:
+  only which monster is named (and counted in the stats on a tie) can differ.
+- **Hardcore** has no Caught screen: its notice on the title quotes the line. **Each catch is numbered** (`catchCount`):
+  its delayed screen (900 ms) shows only for itself - before, a catch less than a second after another (possible only
+  through test hooks) could show the earlier one's screen.
+- **Tests** (`tools/caught-test.js`, in `--full`): custom 12/12 (every kind in a custom level, both Wardens, a mimic
+  disguised and revealed, a singer's touch and its landing; the Alarm catches no one), campaign 16/16 (levels 3, 6, 8, 10,
+  11, 12, 15, 16 and a Hardcore notice; the tutorial has no monsters), shared 6/6 (levels read from share codes), fallback
+  7/7, together 2/2 (6 px vs 16 px on one frame, both ways round), layout at 1366x768, 390x844, 844x390 and 360x740.
+  v16.3 vs v16.4 identical: the capture, the wake, eight story-bot runs, eight identity games (with chases that end in
+  catches); generator `9097b344`.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
