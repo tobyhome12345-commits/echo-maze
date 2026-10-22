@@ -309,7 +309,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v16.3 | e890295 | MINOR: **What's new** - once, on the title, the first time a returning player opens the game after an update they have not seen notes for: the notes since the version they last saw, newest first, at most five, with See all updates; a brand-new player never sees it (recorded quietly). Got it / Enter / Esc / a tap outside; a modal dialog with focus kept inside. A corner link beside the version (and, on a phone held upright, What's new in Settings) opens the whole history. One data file, `js/whatsnew.js` (an entry per version from v15.0, silent or not; lines about story content held back by level), its record in `echomaze.whatsnew`; `tools/check.js` fails without an entry for VERSION.json's version. Levels 0-16 unchanged (`9097b344`) |
 | v16.4 | bc3a730 | MINOR, text only: **the Caught screen names what caught you** - one table, `CAUGHT_LINES` in js/game.js, keyed by the monster's kind (`'warden:upgraded'` for level 16's), one short first-person line each, `The echo found me.` for anything unknown; the catch hands the monster itself to `onCaught`; two monsters touching on the same frame -> the one furthest inside (it got there first); Hardcore's title notice quotes the line; each catch's delayed screen is numbered so it can only ever show for its own catch. Levels 0-16 unchanged (`9097b344`; capture, wake, story-bot and identity games = v16.3) |
 | v17.0 | 14fa22c | MAJOR: **ACT 2, THE BROKEN GAOL - levels 17-20**, hand-built, each breaking one rule: **17 the liar** (ghost walls a ripple draws that are not there, hidden walls it does not draw that are), **18 the shuffle** (sliding walls every ping in range moves, after a grind), **19 the loop** (folds that move you to their pair; a drip to find your way by), **20 the echo behind** (ripples at 0.42x speed shown 0.45 s late, and a level-15 Warden that breaks out of the stone behind you). The void at the map edges and a falling sound, stronger each level (drawing and sound only); the 16 -> 17 rumble and glitch; one-line hints; no new monsters, words, scenes or fragments; the new tiles story-only. `CAMPAIGN_LEVELS` 20, the ending stub after 20, a finished-16 save continues at 17. `tools/act2-check.js` (in every check run) and `tools/act2-test.js`. Levels 0-16 unchanged (`9097b344`; capture, wake, story-bot and identity games = v16.4) |
-| v17.1 | PENDING | MINOR, text only: **the Caught screen's lines speak to you** - the game talking to the player ("The echo found you.", "It never lost you.") instead of v16.4's first person ("...found me"); the same table (`CAUGHT_LINES`), the same keys, the fallback "The echo found you."; the Warden still never named. Nothing else changed (latest) |
+| v17.1 | 66b78c1 | MINOR, text only: **the Caught screen's lines speak to you** - the game talking to the player ("The echo found you.", "It never lost you.") instead of v16.4's first person ("...found me"); the same table (`CAUGHT_LINES`), the same keys, the fallback "The echo found you."; the Warden still never named. Nothing else changed |
+| v18.0 | PENDING | MAJOR: **ACT 2 PART 2, THE VOID - levels 21-24** ("the crumble"): the void is taking the maze - story-only void tiles (a fall that never lands, "The void took you."; a monster over it falls and is gone), **21 the crumble** (crumbling floor that goes after you step off it; a rush can strand you), **22 dead air** (ripples go in and never come back, your steps are lost) **and the Alarm** in the story, with a new scene before it ("Only A Voice"), **23 the creeping edge** (the void eats the map ring by ring on a fixed schedule; Easy slower), **24 the wrong way out** (its way out leads into a smaller half-eaten copy whose way out is back west, a Warden behind you; Try again restarts that part). `CAMPAIGN_LEVELS` 24, the stub after 24, a finished-20 save continues at 21. `tools/act2-check.js` proves 17-24 (crumble states, the creep in time) and `tools/act2-test.js` plays them. Levels 0-20 unchanged (`9097b344`; 13-16 = v16.4; 17-20 walk as in v17.0) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -327,11 +328,11 @@ These replace the old plain `v1`..`v13` folder names (the same 13 versions, rena
 - Plain HTML/CSS/JS, **no build step and no dependencies**. Scripts are classic `<script>` tags (not ES modules) so `index.html` also works from `file://`.
 - **No audio files.** All sound is synthesised in `js/audio.js` with the Web Audio API. The `AudioContext` must only be created from a user click (the Begin button) — keep it that way.
 - Difficulty lives in `levelConfig()` in `js/level.js`.
-- **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 20 since v17.0 - 16 from v14.0: levels 1-20). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
+- **Level 0 is the tutorial** (`js/tutorial.js`), not part of the campaign (`CAMPAIGN_LEVELS` is 24 since v18.0 - 20 in v17.x, 16 from v14.0: levels 1-24). It is hand-drawn, draws no random numbers, and must never write to progress, medals or stats — in `js/game.js` every such write is behind `scored()`. Keep it that way.
 - **Level 13 is the capture** (`js/warden.js`), hand-drawn in the same way and for the same reason. It IS part of the campaign (progress, "levels cleared", the level select) but takes **no medals** (`MEDAL_LEVELS` is 12). It holds the game's **first deliberate exception to "you never see anything you have not pinged"** — see the v12.0 section, and v12.2 for how the walls are made to block it.
-- **Levels 14-16** (`js/story.js`, v14.0) are hand-drawn in the same way, take no medals, and hand straight on to one another; since v17.0 they hand on to **Act 2, levels 17-20** (also `js/story.js`, see v17.0), and the end-of-game stub comes after 20. **Act 2's tiles (ghost, hidden and sliding walls, folds) are story-only**: never in the editor, `docs/level-format.md`, share codes or the WORDS lists. **Prove 17-20 can be finished after any change near them** with `node tools/act2-check.js`. Level 15's false light is the **second deliberate exception**, held to the same rule (clipped to the player's own line of sight). The Warden that hunts on 15-16 (and, since v17.0, the regular one on 20) is tuned by exactly two numbers, `WARDEN_SPEED` / `WARDEN_UPGRADED_SPEED` in `js/level.js` (fractions of the player's walking speed), and has **no abilities until the owner names them** - add one as an entry in `ABILITIES` in `js/warden.js` and its name in a variant's list; never by rewriting the hunt. **Prove 16 is still fair after any change near it** with `tools/story-bot.js` (a clean run, wrong turns, pauses - see v14.0).
+- **Levels 14-16** (`js/story.js`, v14.0) are hand-drawn in the same way, take no medals, and hand straight on to one another; since v17.0 they hand on to **Act 2, levels 17-20**, and since v18.0 on to **21-24** (also `js/story.js`, see v17.0 and v18.0), and the end-of-game stub comes after 24. **Act 2's tiles (ghost, hidden and sliding walls, folds; v18.0: void, crumbling floor, dead air) are story-only**: never in the editor, `docs/level-format.md`, share codes or the WORDS lists. **Prove 17-24 can be finished after any change near them** with `node tools/act2-check.js`. Level 15's false light is the **second deliberate exception**, held to the same rule (clipped to the player's own line of sight). The Warden that hunts on 15-16 (and, since v17.0, the regular one on 20) is tuned by exactly two numbers, `WARDEN_SPEED` / `WARDEN_UPGRADED_SPEED` in `js/level.js` (fractions of the player's walking speed), and has **no abilities until the owner names them** - add one as an entry in `ABILITIES` in `js/warden.js` and its name in a variant's list; never by rewriting the hunt. **Prove 16 is still fair after any change near it** with `tools/story-bot.js` (a clean run, wrong turns, pauses - see v14.0).
 - **The level editor and custom levels** (v15.0, see its section): a custom level is played with `levelNum` = `CUSTOM_LEVEL` (-1), so **`scored()` is false and it must write nothing** - no progress, medals, stats, fragments, seen, "levels cleared". **Every write to the save goes behind `scored()`** (v15.0 had to gate three that were not: `bump('marked')`, `bump('decoys')`, `addDeath`); `tools/editor-test.js` `noWrites()` proves it - run it after touching any save code. **`MONSTER_TYPES` in `js/level.js` is the one list of monsters**: a new monster goes there (with `name`, `roams`, `art`, `role`, `pitch` and, since v16.1, `about` - the check fails without it), and the editor, the loader and `makeEnemy` all pick it up; a Warden variant needs a `label` and a `pitch` in `js/warden.js` `VARIANTS`. **The saved format is written down in `docs/level-format.md`** - change it and `js/levelformat.js` together, never one without the other. All three parts are built (v15.0, v15.1, v15.3). **Sharing is codes only (v15.3): no network calls, no server, no accounts, ever, for version 1 codes** - a code holds the level itself. **A code holds only level content, titles and the optional creator name** - never an id, a date, a folder of the player's or any save data (`tools/share-test.js` authors / noWrites prove it); **every decoded code is untrusted** (`EchoShare.decode`: caps first, then `normalise` + `EchoLevelCheck`; text from a code only ever set with `textContent`); **imports are all or nothing** (`importShared`); **the WORDS lists in js/sharecode.js are frozen for format 1 - only add to their ends**, and anything that changes what a code means needs a new format version (and a resolver: `EchoShare.register`). Since v15.1: **every read of the way out goes through `exitsOf()`** in game.js (a custom level has `level.exits`, up to 8; every other level has `level.exit` alone, and the code it runs is unchanged); **a custom level's difficulty is its own** (`customConfig(difficulty)`, the player's title-screen mode is not read - see v15.1); **effect zones are drawing only, clipped to the player's line of sight, under the ripples, and never draw a monster, object or way out** (js/effects.js); **a custom note is read through the lore reader and nothing about it is kept**; **folders are never inside a level** (js/levelstore.js keeps them in `echomaze.folders`); and **editor text names a monster; what a monster DOES is said only by its description** (v16.1: the `about` beside its definition, shown in the editor's monster panel, the inspector and to a screen reader - nowhere else in the game; the checker's words still only say where, e.g. the hunter check says "too close to the way out"). Since v15.2: **the bonus levels are data** (`js/bonus-levels.js`, schema 2, read through the same loader and checker as everything else - add one by adding an entry, then prove it can be finished with `tools/bonus-test.js` routes); **they are read-only** (the store's `bonus` source refuses to save, delete or duplicate, `local` refuses their ids, the editor refuses them - the player gets a copy); **they are not the campaign** (played as custom levels, `scored()` false); and **their one write is the Done tick**, in its own key (`echomaze.bonus`), only when one is finished from Bonus Levels.
-- **Unreleased content** (v15.7): `UNRELEASED_CONTENT` in `js/level.js` is the ONE list of things in the game's files that are not in the campaign yet (today: `'alarm'`, `'screecho'`). While it is not empty the level editor shows its unreleased-content warning EVERY time it is opened from the title (`openEditorScreens`: spoiler warning once -> this one every time -> the touch warning when touch is on; never when moving about inside the editor's screens or coming back from a test play), and the editor tags each monster in it "Unreleased" (`monsterChoices().unreleased`). **To release them, empty the list** - the warning and the tags go with it and nothing else needs to change (then give the monsters a place in the campaign, a legend entry and a How to play line). Nothing in the campaign, the tutorial, levels 13-16 or the bonus levels may use anything in the list; `tools/monster-test.js` `campaign()` checks.
+- **Unreleased content** (v15.7): `UNRELEASED_CONTENT` in `js/level.js` is the ONE list of things in the game's files that are not in the campaign yet (today: `'alarm'`, `'screecho'`). While it is not empty the level editor shows its unreleased-content warning EVERY time it is opened from the title (`openEditorScreens`: spoiler warning once -> this one every time -> the touch warning when touch is on; never when moving about inside the editor's screens or coming back from a test play), and the editor tags each monster in it "Unreleased" (`monsterChoices().unreleased`). **To release them, empty the list** - the warning and the tags go with it and nothing else needs to change (then give the monsters a place in the campaign, a legend entry and a How to play line). Nothing in the campaign, the tutorial, levels 13-16 or the bonus levels may use anything in the list; `tools/monster-test.js` `campaign()` checks. **Exception (v18.0, owner's brief): the Alarm is in the story from level 22**, while the owner asked for its editor behaviour to stay exactly as it was - so it is still in the list (tagged Unreleased in the editor); see v18.0.
 - **Lore fragments** (`js/lore.js`, v13.0; on 13-16 since v16.2, placed by hand with `at` - the same CHANCE roll, nothing else about those levels read or moved) are the one thing added TO levels 1-12 since they were built, at the owner's request. They must stay unable to move anything else: placed AFTER `generateLevel` from their own random stream, never drawing from the generator's sequence or `Math.random`, never blocking movement or a ripple, never read by anything that decides an outcome. **Prove it after any change near them** with `tools/generator-fingerprint.js` (`9097b344` as of v13.0) and `tools/identity-test.js` runs that use `visit`/`at` so a fragment is really read.
 
 ## Ripple range (owner's request; tools will build on it later)
@@ -2429,6 +2430,97 @@ could not outrun it.", alarm "The alarm gave you away.", screecho "The screecho 
 owner's own example named it, but their standing rule is that player-facing text never does; the lines say "It".
 Everything else about v16.4 (which monster counts, Hardcore's notice, the numbered catches) is unchanged.
 `tools/caught-test.js` reads the table from the game, so only its fallback string changed.
+
+## v18.0: Act 2 part 2, the void - levels 21-24 (owner's brief, MAJOR: "the crumble")
+
+Owner: four more hand-built levels after 20, the void now physically taking the maze; no lore text (gameplay, sound
+and look only); reuse the monsters and sounds; the stub ending after 24 and a finished-20 save carrying on to 21; the
+void look and sound stronger than 20's; a story-only VOID tile (a fall that never lands, then the Caught screen - and
+a monster over it falls and is gone); 21 crumbling floor, 22 dead air and the Alarm (exactly as in the editor) with a
+replayable scene, 23 the void eating the map from the edges on a fixed schedule (Easy slower, Hardcore = Normal, at
+least 30% spare time by the solver), 24 a first way out that leads into a smaller half-eaten copy (Try again restarts
+that part); hints; the existing difficulty system; no fragments; **levels 0-20 and the generator unchanged; the new
+tiles story-only** (never in the editor, its format, share codes or the WORDS lists); the Alarm's editor behaviour
+and codes untouched.
+
+### Where it lives
+
+- **`js/level.js`**: `STORY_LAST` = 24; `generateLevel(n, runSeed, modeId, part = 1)` - `part` only reaches
+  `EchoStory.build` (24's second part). The fingerprint stays `9097b344`.
+- **`js/story.js`**: `LEVELS[21..24]` (kinds `'crumble'` / `'deadair'` / `'creep'` / `'wrong'`, `void` 5-8 - `VOID` 5-8
+  stronger static and closer falls, a band that grows less so the edges stay readable), maps between `// <mapNN>`
+  markers. Legend (story-only): `v` void, `c` crumbling floor, `z` dead air, `L` an Alarm (`ALARM_PITCH`). Void and
+  crumbling floor are `blocked` (no monster walks onto them on purpose). `level.act2` gains `voidGrid`, `crumbles`
+  ({ i, state 0 whole / 1 stepped off / 2 cracked / 3 gone, at }), `dead` (1 = dead air),
+  `creep` (`creepSchedule`: ring k - k tiles in from the edge - goes at start + k x every, x `easy` on Easy; `layers`,
+  `voidAt`), `part`. `build(n, cfg, part)`: part 2 is `LEVELS[24].part2` laid over the level. `solve()` grows
+  `solveCrumble` (every state of which crumbling tiles are gone, as a bit mask; reports `stuck` - states the way out
+  can no longer be reached from) and `solveCreep` (a breadth-first search in time against `voidAt`; `spare` = how
+  much slower than a clean walk still gets out). In `create()`: `drawVoidTiles` (every void tile black with the
+  static; 23's next ring thinning into static `CREEP_WARN` 2 s before it goes), 24 part 2's opening (no hint, the
+  rumble and glitch of 17's), `atExit` sending 24 part 1 on through `env.nextPart()`, and 20's Warden wake beat reused
+  for 24 part 2.
+- **`js/game.js`** (the ACT 2 PART 2 block, after 17-20's): `CRUMBLE_CRACK` 0.6 s, `CRUMBLE_FALL` 0.35 s,
+  `FALL_SECONDS` 0.8; `levelPart` / `nextPartPending` (24); `fallIntoVoid`, `monsterFalls` (its voice destroyed, the
+  fall heard from where it was), `becomeVoid` (a wall there goes too), `voidTouch` (stepping OFF a crumbling tile
+  starts it; your centre over the void is a fall), `voidUpdate` (crack -> gone; 23's rings; anything over the void
+  falls; the fall -> `onCaught('void', 'fell')`), `voidDraw` (crumbling floor's cracks where a ripple found them, a
+  cracking one shaking, the one under you faintly; dead air's black patches). Hooks: `castRipple` (dead air - below;
+  `crumbleLit`), `touchMonsters` (`rp.quiet`, `rp.deadIn`), the footstep (dead air: a dull step, `hearFootstep` not
+  called), movement and `emitRipple` (not while falling), `startLevel(n, retrying, part)` (a Try again keeps
+  `levelPart`; anything else is part 1), `onStoryCleared` (plays `SCENE_BEFORE_LEVEL[n + 1]` as `advanceLevel` does -
+  only 21 -> 22 has one), `clearLine` (a monster never string-pulls its path across the void: without it 24's Warden
+  cut a corner and fell on its first step), the player's dot shrinking as you fall. `CAUGHT_LINES.void` "The void took
+  you."; HINTS 21-24; `SCENE_BEFORE_LEVEL[22]` / `SCENE_LEADS_TO.alarm` = 22; `SCENES` "Only A Voice"; `metThings().alarm`;
+  the legend's `alarm` role. Debug: `info().part` / `.falling`, `deadSeen()`.
+- **Dead air, exactly**: from OUTSIDE, a ray that reaches it stops there - nothing lit, no echo (`deadIn`); the tile is
+  remembered for a black patch (`deadSeen`, fading over 4 s). A wave from outside never touches a monster standing in
+  it. A ripple sent from INSIDE (`rp.quiet`) goes out as ever (through other dead air too) and an Alarm never hears it -
+  so the patches are the places to look from. Your steps in it: `audio.footstep(0.3)` and nothing hears them.
+- **`js/cutscene.js`**: `'alarm'` (`buildAlarm` / `updateAlarmScene` / `drawAlarmWorld`, `AL_*`, `PAL_ALARM`): an
+  explorer pings; the wave reaches an Alarm (the game's art and its own hum and scream); an echo monster comes fast
+  for the spot they stood on; they are in the side passage, still; it listens and goes. Cards "Some things only call."
+  / "It cannot hurt you. Never let your ripple touch it. When it screams, they all come to where you stood." About
+  26 s, skippable like every monster scene (only the keeper scene is unskippable the first time), seen at its start.
+- **`js/audio.js`**: `startVoid` / `voidFall` take depth 5-8 (1-4 exactly as before). **`js/feedback.js`**: `void`
+  tips. **`js/profile.js`** / **`js/settings.js`**: deaths by `void` ("Fell into the void"); the Warden's row now says
+  levels 15, 16, 20, 24. **`index.html`**: the stub's comment (24); How to play's Alarm line and legend chip (met by the
+  scene or clearing 21).
+- **The Alarm in the story, its editor untouched (owner's instruction)**: it stays in `UNRELEASED_CONTENT`, so the
+  editor still tags it "Unreleased" and still shows the unreleased-content warning - exactly as before. That list now
+  means "not released in the editor's eyes"; `tools/monster-test.js` `campaign()` checks levels 0-16 and the bonus
+  levels, which stay free of it. If the owner wants the tag gone, take `'alarm'` out of the list.
+
+### The levels (maps in js/story.js; `node tools/act2-check.js` prints each with its way through)
+
+- **21 the crumble** (34x13, void 5): a 4-tile crumbling bridge over the void right after the start (the teaching:
+  cross, hear it crack and fall behind you); a junction where the bridge straight on leads to a closed room (stuck)
+  and the true way goes down into a hall (the echo monster's - the bridges are the edge of its world); a second
+  junction (straight on: another closed room; north: the bridge on); stepping stones over a field of void (straight
+  on: an island; the turn north: the way out). 47 steps; 414 of 752 crumble states are stuck.
+- **22 dead air** (33x15, void 6): dead air right along from the start (ping it, walk it); two echo monsters in rooms
+  behind; the Alarm on the north wall of a hall with dead air in both ends; after it a corridor with one more patch.
+  49 steps; 8 tiles of the way in the Alarm's reach (Normal), 5 tiles of dead air in its reach to hide in.
+- **23 the creeping edge** (35x23, void 7): four square corridors one inside another, the way in from each at a
+  different side, the exit in the middle; `creep: { start: 10, every: 6, rings: 8, easy: 1.35 }`. 84 steps; a clean
+  walk has **127% spare on Normal, 206% on Easy** (an average player at half the speed still gets out); the two
+  echo monsters live out on rings 1 and 3 and fall when their ring goes.
+- **24 the wrong way out** (part 1 31x13, void 8: a maze west -> east, two echo monsters off the way; part 2 21x11:
+  you arrive at its east end, half of it void, and the way out is back west where the first part began; a regular
+  Warden in the stone in a pocket behind you, `wake` 10 - a clean run stays 12.1 s ahead and it only comes from
+  behind). 50 + 30 steps.
+
+### Tests
+
+`node tools/act2-check.js` (every `tools/check.js` run): 109 checks over 17-24 and 24's second part. `tools/act2-test.js`:
+crumble 10/10, deadair 8/8, creep 8/8, wrongway 9/9, walkAll 8/8 (and both parts of 24), walkMonsters (17, 19-24 in
+every mode), firstTime (best 21 -> Continue (Level 21), past 24 Finished, fresh -> tutorial), perf 0.1-0.5 ms a frame
+at 1366x768 and 844x390 touch (23 with 672 void tiles: 0.08 ms). **Bot fairness with monsters in** (real keys, the
+solver's route, 6 seeds x 4 modes): 21, 22, 23, 24 **24/24 each**. The Alarm's scene plays through to level 22.
+The test-copy builder rehearsed in a scratch folder: 24 levels, progress 25, 'alarm' seen. Levels 13-16 (capture,
+wake, story-bot, identity games) identical to v16.4; generator `9097b344`; 17-20 walk exactly as in v17.0.
+**Not checked**: sound and look by ear and eye, a real phone, pacing for a real player (the bot never pings on 22,
+so it never meets the Alarm's scream in a run).
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

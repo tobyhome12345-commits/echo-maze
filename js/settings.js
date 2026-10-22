@@ -282,7 +282,7 @@ const EchoSettings = (() => {
       const h3 = document.createElement('h3');
       h3.textContent = 'What killed you';
       box.appendChild(h3);
-      const names = { echo: 'Echo monster', scent: 'Scent monster', mimic: 'Mimic', stalker: 'Stalker', muffler: 'Muffler', singer: 'Singer', warden: 'Hunted down (levels 15-16)' }; // (the Warden is never named on screen)
+      const names = { echo: 'Echo monster', scent: 'Scent monster', mimic: 'Mimic', stalker: 'Stalker', muffler: 'Muffler', singer: 'Singer', warden: 'Hunted down (levels 15, 16, 20, 24)', void: 'Fell into the void' }; // (the Warden is never named on screen)
       let any = false;
       for (const k of P.DEATH_KINDS) {
         if (!s.deathsBy[k]) continue;

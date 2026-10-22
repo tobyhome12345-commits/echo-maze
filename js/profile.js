@@ -365,7 +365,7 @@ const EchoProfile = (() => {
   }
 
   // ----------------------------------------------------------------- stats
-  const DEATH_KINDS = ['echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden']; // (warden: levels 15-16, v14.0)
+  const DEATH_KINDS = ['echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'warden', 'void']; // (warden: levels 15-16, v14.0 - and 20, 24; void: falling, levels 21-24, v18.0)
   const MODE_IDS = ['easy', 'normal', 'hard', 'hardcore'];
 
   function blankStats() {

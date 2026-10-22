@@ -2582,7 +2582,8 @@ class SoundEngine {
     this.stopVoid();
     const c = this.ctx;
     const t = c.currentTime;
-    const d = Math.max(1, Math.min(4, depth | 0));
+    const d = Math.max(1, Math.min(8, depth | 0)); // (v18.0: 5-8 on levels 21-24 - 1-4 exactly as before)
+    const deep = Math.max(0, d - 4); // how far past 20's it goes
     const out = c.createGain();
     out.gain.value = 0;
     out.gain.setTargetAtTime(1, t, 2.5);
@@ -2591,9 +2592,9 @@ class SoundEngine {
     const noise = c.createBufferSource();
     noise.buffer = this.noiseBuf;
     noise.loop = true;
-    const lp = this._filter('lowpass', 210 - d * 32, 0.9);
+    const lp = this._filter('lowpass', deep ? 82 - deep * 6 : 210 - d * 32, 0.9);
     const wind = c.createGain();
-    wind.gain.value = 0.045 + d * 0.012;
+    wind.gain.value = 0.045 + Math.min(d, 4) * 0.012 + deep * 0.006;
     const lfo = c.createOscillator();
     lfo.frequency.value = 0.045 + d * 0.01;
     const ld = c.createGain();
@@ -2605,13 +2606,14 @@ class SoundEngine {
     wind.connect(out);
     // the rumble: a low beating pair of sines, lower each level
     const rg = c.createGain();
-    rg.gain.value = 0.02 + d * 0.008;
+    rg.gain.value = 0.02 + Math.min(d, 4) * 0.008 + deep * 0.006;
+    const rf = deep ? 22 - deep * 1.5 : 38 - d * 4; // lower again, past 20's
     const r1 = c.createOscillator();
     r1.type = 'sine';
-    r1.frequency.value = 38 - d * 4;
+    r1.frequency.value = rf;
     const r2 = c.createOscillator();
     r2.type = 'sine';
-    r2.frequency.value = 38 - d * 4 + 0.6;
+    r2.frequency.value = rf + 0.6;
     r1.connect(rg);
     r2.connect(rg);
     rg.connect(out);
@@ -2643,8 +2645,8 @@ class SoundEngine {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const k = gain * (this.calm ? 0.6 : 1);
-    const d = Math.max(1, Math.min(4, depth | 0));
-    const len = 3.6 + d * 0.4;
+    const d = Math.max(1, Math.min(8, depth | 0)); // (v18.0: 5-8 on 21-24, a little deeper again)
+    const len = 3.6 + Math.min(d, 4) * 0.4;
     const n = this._noise(t, len);
     const bp = this._filter('bandpass', 1500 - d * 120, 6);
     bp.frequency.setValueAtTime(1500 - d * 120, t);

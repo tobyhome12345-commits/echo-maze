@@ -34,6 +34,15 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v18.0',
+      title: 'The crumble',
+      lines: [
+        { text: 'The story goes on past level 20: four more levels where the void is taking the maze.', minLevel: 20 },
+        { text: 'Already reached the end? Continue takes you on to level 21 - nothing you had is lost.', minLevel: 20 },
+        { text: 'A new scene, before level 22.', minLevel: 21 },
+      ],
+    },
+    {
       version: 'v17.1',
       title: 'Caught',
       lines: ['When something catches you, the Caught screen now tells you what it was, speaking to you.'],

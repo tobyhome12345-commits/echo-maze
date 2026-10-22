@@ -75,6 +75,8 @@ const FULL_EXTRA = [
   { name: 'monster descriptions on a tablet', size: { w: 1024, h: 768, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
   { name: 'monster descriptions on a phone', size: { w: 844, h: 390, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
   { name: 'Act 2 with its monsters, and saves', load: ['act2-test.js'], runs: [['Act2Test', 'walkMonsters'], ['Act2Test', 'firstTime'], ['Act2Test', 'perf']] },
+  // (v18.0) Act 2 part 2, levels 21-24: the void, the crumbling floor, dead air and the Alarm, the creep, the wrong way out
+  { name: 'Act 2 part 2 (v18.0)', load: ['act2-test.js'], runs: ['crumble', 'deadair', 'creep', 'wrongway'].map((n) => ['Act2Test', n]) },
   { name: 'Act 2 on a phone', size: { w: 844, h: 390, mobile: true }, load: ['act2-test.js'], runs: [['Act2Test', 'perf']] },
 ];
 
@@ -122,10 +124,10 @@ function staticChecks() {
 function act2Check() {
   try {
     const out = execFileSync(process.execPath, [path.join(__dirname, 'act2-check.js'), '--quiet'], { stdio: 'pipe' }).toString();
-    ok(`Act 2: levels 17-20 can be finished, each through its broken rule (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
+    ok(`Act 2: levels 17-24 can be finished, each through its broken rule (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
   } catch (e) {
     const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
-    ok('Act 2: levels 17-20 can be finished, each through its broken rule', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
+    ok('Act 2: levels 17-24 can be finished, each through its broken rule', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
   }
 }
 
@@ -207,7 +209,7 @@ function whatsNewCheck(version, rows) {
     for (const l of n.lines || []) {
       const o = typeof l === 'string' ? { text: l } : l;
       if (typeof o.text !== 'string' || !o.text.trim() || o.text.length > 170) problems.push(`${n.version}: every line is plain text of at most 170 characters ("${String(o.text).slice(0, 40)}...")`);
-      if (o.minLevel !== undefined && !(Number.isInteger(o.minLevel) && o.minLevel >= 1 && o.minLevel <= 17)) problems.push(`${n.version}: minLevel must be a level, 1-17`);
+      if (o.minLevel !== undefined && !(Number.isInteger(o.minLevel) && o.minLevel >= 1 && o.minLevel <= 25)) problems.push(`${n.version}: minLevel must be a level, 1-25`); // (v18.0: the campaign is 24 levels)
       if (o.tag !== undefined && o.tag !== 'Level editor') problems.push(`${n.version}: the only tag is 'Level editor'`);
     }
   }

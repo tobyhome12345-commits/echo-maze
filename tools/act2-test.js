@@ -16,9 +16,20 @@
  *                        (monsters: leave them in, or take them out)
  *   Act2Test.walkAll(monsters)   17-20 one after another;  Act2Test.walkMonsters()  17, 19 and 20 with their monsters
  *                        in, in every mode
- *   Act2Test.firstTime() a save that finished 16 carries on to 17 (not "Finished"); one past 20 is Finished; the editor
- *                        stays unlocked for whoever has cleared 16; a fresh save still starts with the tutorial
- *   Act2Test.perf()      at the page's current size: how long a frame of each of 17-20 takes, a ripple out
+ *   Act2Test.firstTime() a save that finished 16 carries on to 17 (not "Finished"), and (v18.0) one that finished 20 on
+ *                        to 21; one past 24 is Finished; the editor stays unlocked for whoever has cleared 16; a fresh
+ *                        save still starts with the tutorial
+ *   Act2Test.perf()      at the page's current size: how long a frame of each of 16-24 takes, a ripple out
+ *   (v18.0) Act2Test.crumble()   21: off a crumbling tile, it cracks CRUMBLE_CRACK later and is gone soon after; back onto
+ *                        it is a fall ("The void took you."); a monster over the void falls and is gone, with its sound
+ *   Act2Test.deadair()   22: a ray from outside goes into dead air and nothing comes back (a black patch); your steps in
+ *                        it are heard by nothing; a ripple from inside it never sets the Alarm off - one from outside does,
+ *                        and sends the monsters; a wave from outside never touches a monster inside it
+ *   Act2Test.creep()     23: the rings go on the schedule, the same every time; Easy later; Hardcore = Normal; standing
+ *                        still at the start, the void takes you; a hunter on a ring that goes falls with it
+ *   Act2Test.wrongway()  24: its first way out leads to the second part (nothing saved); caught there, Try again is the
+ *                        second part again; the level from the list or Continue is the first part; the second part's way
+ *                        out is the end of the game so far
  */
 window.Act2Test = (() => {
   const E = () => window.__echo;
@@ -97,7 +108,7 @@ window.Act2Test = (() => {
       key('ArrowDown', dy > 2);
       key('ArrowUp', dy < -2);
       step(1 / 60);
-      if (E().info().state !== 'play') break;
+      if (E().info().state !== 'play' || E().scriptLock().locked) break; // (the game has taken the controls: let go)
     }
     for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
   }
@@ -278,6 +289,217 @@ window.Act2Test = (() => {
     return T.done();
   }
 
+  // ------------------------------------------------------------------------------------------ (v18.0) 21-24
+  /** Walk from where you are onto tile (tx, ty) - a step at a time along a straight line of tiles. */
+  function stepTo(tx, ty) {
+    walkTo(px(tx), px(ty), 3);
+  }
+  async function crumble() {
+    const T = suite('crumble');
+    let lv = await enter(21);
+    const a2 = lv.act2;
+    const W = lv.W;
+    // the teaching bridge: the first crumbling tile east of the start
+    const sx = Math.floor(P().x / TILE);
+    const sy = Math.floor(P().y / TILE);
+    const c0 = a2.crumbles.find((c) => Math.floor(c.i / W) === sy && c.i % W > sx);
+    T.check('21: crumbling floor right after the start', !!c0 && (c0.i % W) - sx <= 3);
+    const cx = c0.i % W;
+    stepTo(cx, sy); // onto it...
+    T.check('...it holds you', c0.state === 0 && !a2.voidGrid[c0.i] && E().info().state === 'play');
+    const cracks = spy('stoneSplit');
+    const falls = spy('voidFall');
+    stepTo(cx + 1, sy); // ...and off it
+    const t0 = E().info().levelTime;
+    T.check('stepping off it starts it going', c0.state === 1, c0.state);
+    while (E().info().levelTime - t0 < 0.45) step(1 / 60);
+    T.check('0.45 s later: still there, no crack yet', c0.state === 1 && cracks.length === 0);
+    while (E().info().levelTime - t0 < 0.7) step(1 / 60);
+    T.check('0.7 s: it has cracked - you hear it', c0.state === 2 && cracks.length === 1);
+    while (E().info().levelTime - t0 < 1.1) step(1 / 60);
+    T.check('1.1 s: it is gone - void, and the fall that never lands', c0.state === 3 && a2.voidGrid[c0.i] === 1 && lv.blocked[c0.i] === 1 && falls.length >= 1);
+    cracks.restore();
+    // back onto it: you fall
+    const youFall = spy('voidFall');
+    key('ArrowLeft', true);
+    for (let i = 0; i < 40 && !E().info().falling && E().info().state === 'play'; i++) step(1 / 60);
+    key('ArrowLeft', false);
+    T.check('stepping back onto where it was: you fall', E().info().falling && youFall.length === 1);
+    for (let i = 0; i < 90 && E().info().state === 'play'; i++) step(1 / 60);
+    T.check('...and are caught by the void', E().info().state === 'caught', E().info().state);
+    await until(() => !$('caught').classList.contains('hidden'), 2500);
+    T.check('the Caught screen: "The void took you."', $('caught-text').textContent === 'The void took you.', $('caught-text').textContent);
+    youFall.restore();
+    falls.restore();
+    // a monster over the void falls, and is gone - you hear it from where it was
+    lv = await enter(21, true);
+    const e = E().info().enemies[0];
+    const vi = Array.from(lv.act2.voidGrid).findIndex((v) => v === 1);
+    const its = spy('voidFall');
+    e.x = px(vi % lv.W);
+    e.y = px(Math.floor(vi / lv.W));
+    step(1 / 60);
+    T.check('a monster over the void falls, and is gone for this attempt', E().info().enemies.length === 0 && its.length === 1 && its[0][1] > 0);
+    its.restore();
+    await toTitle();
+    return T.done();
+  }
+
+  async function deadair() {
+    const T = suite('deadair');
+    let lv = await enter(22, true);
+    const a2 = lv.act2;
+    const W = lv.W;
+    const dead = (x, y) => a2.dead[y * W + x] === 1;
+    // from the start, ping east: the first patch of dead air is in the way
+    const sy = Math.floor(P().y / TILE);
+    let zx = Math.floor(P().x / TILE);
+    while (zx < W && !dead(zx, sy)) zx++;
+    T.check('22: dead air just along from the start', zx < W && zx - Math.floor(P().x / TILE) <= 6, zx);
+    ping();
+    step(0.02);
+    const rp = E().ripples()[E().ripples().length - 1];
+    const d0 = zx * TILE - P().x;
+    const east = 0; // the ray straight east
+    T.check(`a ray that reaches it goes in and stops there (${Math.round(rp.dist[east])} px, the edge is ${Math.round(d0)})`, Math.abs(rp.dist[east] - d0) < 3 && rp.type[east] === 0);
+    step(1.0);
+    T.check('...and what is left on the map is a black patch where it went in', E().deadSeen().includes(sy * W + zx), E().deadSeen());
+    // the Alarm: a ripple from inside dead air does not set it off; one from outside, within reach, does
+    const al = E().info().enemies.find((e) => e.kind === 'alarm');
+    const atx = Math.floor(al.x / TILE);
+    const aty = Math.floor(al.y / TILE);
+    let hide = -1;
+    let open = -1;
+    for (let i = 0; i < a2.dead.length; i++) {
+      const x = i % W;
+      const y = Math.floor(i / W);
+      const d = Math.hypot(px(x) - al.x, px(y) - al.y);
+      if (lv.walls[i] || lv.blocked[i] || d > 200 || d < 60) continue;
+      if (a2.dead[i] && hide < 0) hide = i;
+      if (!a2.dead[i] && open < 0 && Math.abs(x - atx) <= 1) open = i;
+    }
+    const screams = spy('scream');
+    E().tp(px(hide % W), px(Math.floor(hide / W)));
+    step(1.6); // (the recharge)
+    ping();
+    for (let i = 0; i < 90; i++) step(1 / 60);
+    T.check('a ripple sent from INSIDE dead air, the Alarm in its reach: no scream', screams.length === 0 && !al.spent, { hide: [hide % W, Math.floor(hide / W)], spent: al.spent });
+    E().tp(px(open % W), px(Math.floor(open / W)));
+    step(1.6);
+    const before = E().info().enemies.filter((e) => e.kind === 'echo').map((e) => e.state);
+    ping();
+    for (let i = 0; i < 90; i++) step(1 / 60);
+    const after = E().info().enemies.filter((e) => e.kind === 'echo').map((e) => e.state);
+    T.check(`the same from outside it: it screams, and the monsters come (${before.join(',')} -> ${after.join(',')})`, screams.length === 1 && al.spent && after.some((s) => s === 'hunt'));
+    screams.restore();
+    // your footsteps in dead air: nothing hears them - outside it, they do
+    for (const inDead of [true, false]) {
+      lv = await enter(22, true);
+      const e = E().info().enemies.find((x) => x.kind === 'echo');
+      const spot = inDead ? [zx, sy] : [2, sy];
+      E().tp(px(spot[0]), px(spot[1]));
+      e.x = P().x;
+      e.y = P().y - 60;
+      e.state = 'search';
+      e.timer = 30;
+      e.path = null;
+      key(inDead ? 'ArrowDown' : 'ArrowRight', true);
+      for (let i = 0; i < 24; i++) step(1 / 60);
+      key(inDead ? 'ArrowDown' : 'ArrowRight', false);
+      if (inDead) T.check('walking in dead air, a listening monster close by: it hears nothing', e.state === 'search', e.state);
+      else T.check('walking outside it, the same monster: it hears you', e.state === 'track', e.state);
+    }
+    // a wave from outside never touches a monster inside dead air
+    lv = await enter(22, true);
+    const m = E().info().enemies.find((x) => x.kind === 'echo');
+    m.x = px(zx);
+    m.y = px(sy);
+    m.state = 'idle';
+    E().tp(px(zx - 3), px(sy));
+    step(1.6);
+    ping();
+    for (let i = 0; i < 60; i++) step(1 / 60);
+    T.check('a monster standing in dead air: a ripple from outside never reaches it', m.state === 'idle', m.state);
+    await toTitle();
+    return T.done();
+  }
+
+  async function creep() {
+    const T = suite('creep');
+    const times = {};
+    for (const mode of ['normal', 'easy', 'hardcore', 'normal']) {
+      const lv = await enter(23, false, mode);
+      const cr = lv.act2.creep;
+      const first = cr.layers[0];
+      const grind = spy('stoneGrind');
+      while (E().info().levelTime < first.t - 0.05) step(1 / 30);
+      const beforeOk = first.tiles.every((i) => !lv.act2.voidGrid[i]);
+      while (E().info().levelTime < first.t + 0.05) step(1 / 60);
+      const afterOk = first.tiles.every((i) => lv.act2.voidGrid[i] === 1);
+      grind.restore();
+      (times[mode] = times[mode] || []).push(cr.layers.map((l) => l.t).join());
+      T.check(`${mode}: the outer ring goes at ${first.t} s - not before, all of it, with a rumble`, beforeOk && afterOk && grind.length >= 1);
+    }
+    T.check('the same schedule every attempt', times.normal[0] === times.normal[1]);
+    T.check(`Easy goes slower (${times.easy[0].split(',').slice(0, 3).join(', ')} s...) and Hardcore is Normal's`, +times.easy[0].split(',')[1] > +times.normal[0].split(',')[1] && times.hardcore[0] === times.normal[0]);
+    // standing still at the start: the void takes you when your ring goes
+    let lv = await enter(23);
+    const ring1 = lv.act2.creep.layers[1].t;
+    for (let i = 0; i < 400 && E().info().state === 'play'; i++) step(0.1);
+    T.check(`standing still at the start: the void takes you as your ring goes (${ring1} s)`, E().info().state === 'caught' && E().info().levelTime >= ring1 && E().info().levelTime < ring1 + 1.2, E().info().levelTime);
+    // a hunter on a ring that goes falls with it (you wait in the middle, where the void never comes)
+    lv = await enter(23, true);
+    const n0 = E().info().enemies.length;
+    const W = lv.W;
+    const safe = lv.act2.creep.voidAt.findIndex((t, i) => t === Infinity && !lv.blocked[i] && Math.hypot(px(i % W) - lv.exit.x, px(Math.floor(i / W)) - lv.exit.y) > 100);
+    E().tp(px(safe % W), px(Math.floor(safe / W)));
+    const falls = spy('voidFall');
+    for (let i = 0; i < 300 && E().info().state === 'play' && E().info().enemies.length === n0; i++) step(0.25);
+    falls.restore();
+    T.check(`a hunter whose ring goes falls with it (${n0} -> ${E().info().enemies.length})`, E().info().enemies.length < n0 && falls.length >= 1);
+    await toTitle();
+    return T.done();
+  }
+
+  async function wrongway() {
+    const T = suite('wrongway');
+    const prog = () => (E().settings().progress || {}).normal || 0;
+    const p0 = prog();
+    let lv = await enter(24);
+    T.check('24: the first part', E().info().part === 1 && lv.W === 31);
+    // walk into its way out
+    const ex = Math.floor(lv.exit.x / TILE);
+    const ey = Math.floor(lv.exit.y / TILE);
+    E().tp(px(ex), px(ey - 1));
+    key('ArrowDown', true);
+    for (let i = 0; i < 30 && E().info().state === 'play' && !E().scriptLock().locked; i++) step(1 / 60);
+    key('ArrowDown', false);
+    for (let i = 0; i < 40 && E().info().part !== 2; i++) step(0.1);
+    T.check('its way out feels like any other - and leads into the second part', E().info().levelNum === 24 && E().info().part === 2 && L().W < 31);
+    T.check('...and nothing is saved for it', prog() === p0, [p0, prog()]);
+    for (let i = 0; i < 30 && E().scriptLock().locked; i++) step(0.25);
+    // caught in the second part: Try again is the second part
+    const h = E().hunter();
+    T.check('the second part: one Warden, in the stone', !!h && h.variant === 'regular' && h.state !== 'hunt');
+    for (let i = 0; i < 200 && E().info().state === 'play'; i++) step(0.1);
+    T.check('standing still there: it comes for you', E().info().state === 'caught');
+    await until(() => !$('caught').classList.contains('hidden'), 2500);
+    $('btn-retry').click();
+    await until(() => E().info().state === 'play', 3000);
+    T.check('Try again: the second part again, from its own start', E().info().levelNum === 24 && E().info().part === 2 && L().W < 31 && Math.hypot(P().x - L().start.x, P().y - L().start.y) < 2);
+    // the level from the list (or Continue, or a reload - nothing is kept): the first part
+    E().toTitle();
+    E().go(24);
+    T.check('starting 24 again (Continue, the level list, a reload): the first part', E().info().part === 1 && L().W === 31);
+    await toTitle();
+    // the second part's way out: the end of the game so far
+    const r = await walk(24, false);
+    T.check(`walked through both parts (${r.part1} s + ${(r.seconds - r.part1).toFixed(1)} s): the end`, r.cleared && E().info().state === 'ending', r);
+    T.check('...and only now is it saved', prog() >= 25, prog());
+    await toTitle();
+    return T.done();
+  }
+
   // ------------------------------------------------------------------------------------------ the way through
   /**
    * Play level n along the way the solver found, with the real keys: walking tile to tile, pinging where it pings
@@ -287,10 +509,26 @@ window.Act2Test = (() => {
    */
   async function walk(n, monsters = false, mode = 'normal', seed = 1, wait = 0) {
     E().seed(seed);
-    const lv = await enter(n, monsters, mode);
+    let lv = await enter(n, monsters, mode);
+    const first = await walkRoute(n, lv, monsters, wait);
+    // (v18.0) 24: its first way out leads into its second part - walk that too
+    if (first.part2) {
+      for (let i = 0; i < 40 && (E().info().part !== 2 || E().scriptLock().locked) && E().info().state === 'play'; i++) step(0.25);
+      step(0.2);
+      if (!monsters) E().info().enemies.length = 0;
+      lv = L();
+      const second = await walkRoute(n, lv, monsters, 0);
+      second.seconds = +(first.seconds + second.seconds).toFixed(1);
+      second.part1 = first.seconds;
+      return second;
+    }
+    return first;
+  }
+  async function walkRoute(n, lv, monsters, wait) {
+    const mode = E().settings().mode;
     const sol = EchoStory.solve(lv);
     const W = lv.W;
-    const out = { level: n, mode, monsters, cleared: false, caught: false, seconds: 0 };
+    const out = { level: n, mode, monsters, cleared: false, caught: false, seconds: 0, part: E().info().part };
     if (!sol.ok) return Object.assign(out, { error: sol.why });
     let cur = Math.floor(P().y / TILE) * W + Math.floor(P().x / TILE);
     for (let i = 0; i < wait * 60 && E().info().state === 'play'; i++) step(1 / 60);
@@ -323,13 +561,14 @@ window.Act2Test = (() => {
       }
       walkTo(px(target % W), px(Math.floor(target / W)), 3);
       cur = Math.floor(P().y / TILE) * W + Math.floor(P().x / TILE);
-      if (E().info().levelNum === n) out.seconds = +(E().info().levelTime - t0).toFixed(1);
+      if (E().info().levelNum === n && E().info().part === out.part) out.seconds = +(E().info().levelTime - t0).toFixed(1);
     }
     // the way out: keep walking at it (its last beat takes the controls)
-    for (let i = 0; i < 400 && E().info().state === 'play' && E().info().levelNum === n; i++) step(1 / 60);
+    for (let i = 0; i < 400 && E().info().state === 'play' && E().info().levelNum === n && E().info().part === out.part; i++) step(1 / 60);
     for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'ShiftLeft']) key(k, false);
     const s = E().info();
-    out.cleared = (s.levelNum === n + 1 && s.state === 'play') || s.state === 'ending';
+    out.cleared = (s.levelNum === n + 1 && s.state === 'play') || s.state === 'ending' || (s.state === 'cutscene' && s.levelNum === n); // (21 -> the Alarm's scene)
+    out.part2 = n === 24 && out.part === 1 && s.levelNum === 24 && s.part === 2 && s.state === 'play';
     out.caught = s.state === 'caught' || (s.state === 'title' && mode === 'hardcore');
     out.state = s.state;
     out.levelNow = s.levelNum;
@@ -337,7 +576,7 @@ window.Act2Test = (() => {
   }
   async function walkAll(monsters = false) {
     const T = suite('walkAll');
-    for (const n of [17, 18, 19, 20]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 23, 24]) {
       const r = await walk(n, monsters);
       T.check(`level ${n}: walked through to the way out${monsters ? ' (monsters in)' : ' (monsters out)'}`, r.cleared, r);
       T.note(r);
@@ -346,14 +585,14 @@ window.Act2Test = (() => {
     return T.done();
   }
   /**
-   * With their monsters in, in every mode: 17, 19 and 20 (on 20, a clean run and one that stands still for a second
+   * With their monsters in, in every mode: 17, 19, 20 and (v18.0) 21-24 (on 20, a clean run and one that stands still for a second
    * less than the Warden's wake first). Not 18: its stalker patrols where it likes, and a bot that cannot hear it
    * walks into it about one run in four - see CLAUDE.md, v17.0.
    */
   async function walkMonsters() {
     const T = suite('walkMonsters');
     for (const mode of ['easy', 'normal', 'hard', 'hardcore']) {
-      for (const n of [17, 19, 20]) {
+      for (const n of [17, 19, 20, 21, 22, 23, 24]) {
         const r = await walk(n, true, mode, 1);
         T.check(`level ${n} on ${mode}: walked through with its monsters in`, r.cleared, r);
         await toTitle();
@@ -377,7 +616,8 @@ window.Act2Test = (() => {
     if (best === 17) T.check('a save that finished 16 (best 17): Continue (Level 17), not Finished', !cont.classList.contains('hidden') && /17/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 17) T.check('...and the level editor stays unlocked (no warning flag needed)', E().settings().editor.unlocked);
     if (best === 16) T.check('a save on 16: Continue (Level 16), the editor not unlocked by it', /16/.test(cont.textContent) && !E().settings().editor.unlocked);
-    if (best >= 21) T.check('a save past 20: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
+    if (best === 21) T.check('(v18.0) a save that finished 20 (best 21): Continue (Level 21), not Finished', !cont.classList.contains('hidden') && /21/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
+    if (best >= 25) T.check('a save past 24: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
     if (best <= 1) T.check('a fresh save: Begin starts with the tutorial (level 0)', E().newPlayer());
     if (best === 17) {
       $('btn-continue').click();
@@ -385,7 +625,13 @@ window.Act2Test = (() => {
       T.check('Continue from that save: level 17, the broken gaol', E().info().levelNum === 17 && E().info().level.story.kind === 'liar');
       T.check('...its progress intact', ((E().settings().progress || {}).normal || 0) >= 17);
     }
-    T.check(`the campaign is ${STORY_LAST} levels (17-20 are story levels)`, E().settings().campaignLevels === 20 && isStoryLevel(17) && isStoryLevel(20) && !isStoryLevel(21));
+    if (best === 21) {
+      $('btn-continue').click();
+      await until(() => E().info().state === 'play' && E().info().levelNum === 21, 4000);
+      T.check('Continue from that save: level 21, the crumble', E().info().levelNum === 21 && E().info().level.story.kind === 'crumble');
+      T.check('...its progress intact', ((E().settings().progress || {}).normal || 0) >= 21);
+    }
+    T.check(`the campaign is ${STORY_LAST} levels (17-24 are story levels)`, E().settings().campaignLevels === 24 && isStoryLevel(17) && isStoryLevel(24) && !isStoryLevel(25));
     T.note({ progress: E().settings().progress, editor: E().settings().editor.unlocked, title: $('mode-tag-' + E().settings().mode) ? $('mode-tag-' + E().settings().mode).textContent : null, cont: $('btn-continue').classList.contains('hidden') ? null : $('btn-continue').textContent });
     return T.done();
   }
@@ -394,7 +640,7 @@ window.Act2Test = (() => {
   async function perf() {
     const T = suite('perf');
     const size = `${innerWidth}x${innerHeight}${document.body.classList.contains('touch') ? ' touch' : ''}`;
-    for (const n of [16, 17, 18, 19, 20]) {
+    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24]) {
       await enter(n, true);
       ping();
       step(0.3);
@@ -411,5 +657,5 @@ window.Act2Test = (() => {
     return T.done();
   }
 
-  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf };
+  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway };
 })();

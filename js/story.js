@@ -144,6 +144,14 @@ const EchoStory = (() => {
     //   E  an echo monster      T  a stalker      d  a drip (19: the one sound you can find your way by)
     //   W  (20) a Warden at level 15's speed, in the stone behind you until `wake` s in - then it always knows
     //      where you are, and comes after you
+    // (v18.0) ACT 2 PART 2 - the void is real now, and it is taking the maze:
+    //   v  VOID - the floor is gone. Step onto it and you fall; so does a monster. Always shown (drawVoid).
+    //   c  (21) CRUMBLING FLOOR - it holds you, but a moment after you step OFF it, it cracks and falls into the void
+    //   z  (22) DEAD AIR - walkable. A ripple that goes in never comes back; your footsteps in it are lost (nothing
+    //      hears them); and a ripple you send from INSIDE it does not set an Alarm off
+    //   L  an Alarm (js/game.js, exactly as in the editor) - in the campaign from 22
+    // 23 has `creep` (the void eating the map from the edges in, ring by ring, on a fixed schedule) and 24 has
+    // `part2` (what you reach through its first way out - js/game.js starts it as level 24, part 2).
     17: {
       kind: 'liar',
       act2: true,
@@ -231,6 +239,129 @@ const EchoStory = (() => {
         '#############################',
       ],
     },
+    // ================================================================== ACT 2 PART 2 (v18.0): THE VOID IS REAL
+    21: {
+      kind: 'crumble',
+      act2: true,
+      void: 5,
+      map: [
+        // <map21>
+        '##################################',
+        '#S.cccc.##############vvccccc.Xvv#',
+        '###vvvv.##############vvcvvvvvvvv#',
+        '#######.#############.cccccccv..v#',
+        '#######.vvvvv...#####.vvvvvvcc..v#',
+        '#######.ccccc...#####.vvvvvvvvvvv#',
+        '#######.vvvvv...####vcv###########',
+        '#######.############vcv###########',
+        '#######.############vcv###########',
+        '##..............p....cvvvv...#####',
+        '##.E......p...........cccc...#####',
+        '##...................#vvvv...#####',
+        '##################################',
+        // </map21>
+      ],
+    },
+    22: {
+      kind: 'deadair',
+      act2: true,
+      void: 6,
+      map: [
+        // <map22>
+        '#################################',
+        '##.E....#########################',
+        '##......#################......##',
+        '####.####################.####.##',
+        '####.#######....L....####.####.##',
+        '####.#######.........####.###zz##',
+        '####.#zz####zz.....zz####.###zz##',
+        '#S....zz....zz.p...zz.....####.##',
+        '##....zz....zz.....zz#########.##',
+        '######zz#.##zz...p.zz#########.##',
+        '#########.##.........#########.##',
+        '#########.################X....##',
+        '########.....####################',
+        '########...E.####################',
+        '#################################',
+        // </map22>
+      ],
+    },
+    23: {
+      kind: 'creep',
+      act2: true,
+      void: 7,
+      // the void comes in from the edges: ring 0 (the outer wall) goes at `start` s, the next ring `every` s later,
+      // and so on for `rings` rings - the same every attempt. Easy: every time x `easy`. Hardcore = Normal.
+      creep: { start: 10, every: 6, rings: 8, easy: 1.35 },
+      map: [
+        // <map23>
+        '###################################',
+        '#.................................#',
+        '#.#######.#######.#######.#######.#',
+        '#S#.............................#.#',
+        '#.#.###########################.#.#',
+        '#.#.#.........................#.#.#',
+        '#.#.#.#######################...#.#',
+        '#.#.#.#.....................#.#.#.#',
+        '#.#.#.#.###################.#.#.#.#',
+        '#.#.#.#.###################.#.#.#.#',
+        '#.#.#.#.###################.#.#.#.#',
+        '#.#.#.#......X#############.#...#.#',
+        '#.#.#.#.###################.#.#.#.#',
+        '#.#.#.#.###################.#.#.#.#',
+        '#.#.#.#.###################.#.#.#.#',
+        '#.#.#.#.....................#.#.#.#',
+        '#.#.#.#####.#####.######.####...#.#',
+        '#.#.#.........................#.#.#',
+        '#.#.###########################.#.#',
+        '#.#E............................#.#',
+        '#.###############################.#',
+        '#................................E#',
+        '###################################',
+        // </map23>
+      ],
+    },
+    24: {
+      kind: 'wrong',
+      act2: true,
+      void: 8,
+      map: [
+        // <map24>
+        '###############################',
+        '#S......#...#.....#...........#',
+        '#.#####.#.#######.#.#########.#',
+        '#.#...#...#.....#...#.......#.#',
+        '#.#.#.#####.###.#####.#####.###',
+        '#...#.......#.#.......#...#...#',
+        '#.###.#####.#.#######.#.#.###.#',
+        '#.#...#...#...#.....#...#...#.#',
+        '#.#.###.#.#####.###.#######.#.#',
+        '#...#...#.E.....#...#.......#.#',
+        '###.#.###########.###.#####.#.#',
+        '#.....#.......E...#.......#..X#',
+        '###############################',
+        // </map24>
+      ],
+      // through the first way out: a smaller copy of it, half eaten, whose real way out is the other way
+      part2: {
+        wake: 10.0,
+        map: [
+          // <map24b>
+          '#####################',
+          '#X.#######....#vvvvv#',
+          '##.#######.####vvvvv#',
+          '##.###.........vvvvv#',
+          '##.vv#.#######.######',
+          '##.v##.vvvvvv#.....S#',
+          '##.###.#######.vvvv.#',
+          '##.....###.....vvvv.#',
+          '####.####vvvvv#vvvv.#',
+          '####.....vvvvv#W....#',
+          '#####################',
+          // </map24b>
+        ],
+      },
+    },
   };
   /**
    * (v17.0) THE VOID, by `void` level (17: 1 ... 20: 4). Drawing and sound only - nothing in it is read by anything
@@ -242,10 +373,17 @@ const EchoStory = (() => {
     2: { band: 2.0, staticA: 0.08, flick: 0.35, fallEvery: [28, 18] },
     3: { band: 2.7, staticA: 0.11, flick: 0.45, fallEvery: [22, 16] },
     4: { band: 3.5, staticA: 0.15, flick: 0.6, fallEvery: [16, 14] },
+    // (v18.0) 21-24: the void is real - the static thicker, the falls closer together (the band of black grows less:
+    // the void is inside the map now, and the edges must still be readable)
+    5: { band: 3.7, staticA: 0.17, flick: 0.65, fallEvery: [14, 12] },
+    6: { band: 3.9, staticA: 0.19, flick: 0.7, fallEvery: [12, 10] },
+    7: { band: 4.1, staticA: 0.21, flick: 0.75, fallEvery: [11, 9] },
+    8: { band: 4.3, staticA: 0.23, flick: 0.8, fallEvery: [10, 8] },
   };
   /** (v17.0) Act 2's levels: hand-drawn like 13-16, each breaking one rule of the maze. */
   const isAct2 = (n) => !!(LEVELS[n] && LEVELS[n].act2);
 
+  const ALARM_PITCH = 1380; // (v18.0) an Alarm's hum: the middle of its range in MONSTER_TYPES (js/level.js)
   const BAR_R = 3.4; // px: an iron bar, seen from above
   const BAR_AT = [7, 20, 33]; // px across its tile: gaps of 6-7 px, and you are 18 px across
   const DOOR_R = 20; // px: the gaol door fills its 40 px doorway (this is the size it is DRAWN at)
@@ -265,8 +403,10 @@ const EchoStory = (() => {
   const ACT2_WARN = 1.5;
 
   // ------------------------------------------------------------ the maze
-  function build(n, cfg) {
-    const spec = LEVELS[n];
+  function build(n, cfg, part = 1) {
+    // (v18.0) level 24 is played in two parts: the second is its `part2` laid over the level's own settings
+    const base = LEVELS[n];
+    const spec = part === 2 && base.part2 ? Object.assign({}, base, base.part2, { part: 2, part2: null }) : base;
     const map = spec.map;
     const H = map.length;
     const W = map[0].length;
@@ -287,13 +427,17 @@ const EchoStory = (() => {
     const slideB = new Set();
     const foldTiles = {};
     const monsters = [];
+    // (v18.0) Act 2 part 2's
+    const voids = [];
+    const crumbleTiles = [];
+    const deadTiles = [];
     const c = (tx) => (tx + 0.5) * TILE;
     for (let y = 0; y < H; y++) {
       if (map[y].length !== W) console.warn(`EchoStory: level ${n} row ${y} is ${map[y].length} tiles, not ${W}`);
       for (let x = 0; x < W; x++) {
         const ch = map[y][x];
         const i = y * W + x;
-        walls[i] = ch === '#' || ch === 'P' || ch === 'h' || ch === 'A' ? 1 : 0; // (a hidden wall and a sliding wall in A are stone)
+        walls[i] = ch === '#' || ch === 'P' || ch === 'h' || ch === 'A' ? 1 : 0; // (a hidden wall and a sliding wall in A are stone; the void, crumbling floor and dead air are not)
         if (ch === 'S') start = { x: c(x), y: c(y) };
         else if (ch === 'X') exit = { x: c(x), y: c(y), r: EXIT_R };
         else if (ch === 'K') key = { x: c(x), y: c(y), r: KEY_R, taken: false };
@@ -309,6 +453,10 @@ const EchoStory = (() => {
         else if (ch >= '1' && ch <= '4') (foldTiles[ch] = foldTiles[ch] || []).push(i);
         else if (ch === 'E') monsters.push({ kind: 'echo', x: c(x), y: c(y), pitch: 52 });
         else if (ch === 'T') monsters.push({ kind: 'stalker', x: c(x), y: c(y), pitch: 64 });
+        else if (ch === 'v') voids.push(i);
+        else if (ch === 'c') crumbleTiles.push(i);
+        else if (ch === 'z') deadTiles.push(i);
+        else if (ch === 'L') monsters.push({ kind: 'alarm', x: c(x), y: c(y), pitch: ALARM_PITCH });
         else if (ch === 'b') {
           barTiles.push(y * W + x);
           for (const bx of BAR_AT) obstacles.push({ x: x * TILE + bx, y: c(y), r: BAR_R, bar: true });
@@ -320,6 +468,10 @@ const EchoStory = (() => {
     // what cannot be walked through: walls, every tile with a pillar or a row of bars in it, and the gaol door
     const blocked = walls.slice();
     for (const o of obstacles) blocked[Math.floor(o.y / TILE) * W + Math.floor(o.x / TILE)] = 1;
+    // (v18.0) no monster ever walks onto the void on purpose - nor onto crumbling floor, so a bridge over the void is
+    // the edge of its world (it still falls if the void comes to it)
+    for (const i of voids) blocked[i] = 1;
+    for (const i of crumbleTiles) blocked[i] = 1;
     if (door) blocked[door.ty * W + door.tx] = 1;
 
     // Assert what the level depends on (cheap, and the reason a broken map is a warning rather than a mystery):
@@ -369,7 +521,16 @@ const EchoStory = (() => {
         for (const g of ghosts) rayWalls[g.i] = 1;
         for (const h of hidden) rayWalls[h.i] = 0;
       }
-      act2 = { kind: spec.kind, void: spec.void || 1, ghosts, hidden, slides, slideRange: spec.slideRange || 240, folds, foldPair, rayWalls };
+      // (v18.0) the void (1 = the floor is gone), the crumbling floor, dead air, and 23's schedule
+      const voidGrid = new Uint8Array(W * H);
+      for (const i of voids) voidGrid[i] = 1;
+      let dead = null;
+      if (deadTiles.length) {
+        dead = new Uint8Array(W * H);
+        for (const i of deadTiles) dead[i] = 1;
+      }
+      const crumbles = crumbleTiles.map((i) => ({ i, state: 0, at: 0 })); // 0 whole, 1 stepped off, 2 cracked, 3 gone
+      act2 = { kind: spec.kind, void: spec.void || 1, ghosts, hidden, slides, slideRange: spec.slideRange || 240, folds, foldPair, rayWalls, voidGrid, crumbles, dead, creep: spec.creep ? creepSchedule(W, H, walls, spec.creep, cfg.mode) : null, part: spec.part || 1 };
     }
 
     const built = {
@@ -416,6 +577,27 @@ const EchoStory = (() => {
   }
 
   /**
+   * (v18.0) 23: when each tile goes. Ring k (0 = the outer wall, k tiles in from the edge) goes into the void at
+   * start + k x every seconds (x `easy` on Easy; Hardcore is Normal), for `rings` rings - fixed, the same every time.
+   * Returns { layers: [{ t, tiles }], voidAt: seconds per tile (Infinity: never) }.
+   */
+  function creepSchedule(W, H, walls, cr, mode) {
+    const k = mode === 'easy' ? cr.easy || 1 : 1;
+    const voidAt = new Float32Array(W * H).fill(Infinity);
+    const layers = [];
+    for (let r = 0; r < cr.rings; r++) layers.push({ t: (cr.start + r * cr.every) * k, tiles: [] });
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const r = Math.min(x, y, W - 1 - x, H - 1 - y);
+        if (r >= cr.rings) continue;
+        layers[r].tiles.push(y * W + x);
+        voidAt[y * W + x] = layers[r].t;
+      }
+    }
+    return { layers, voidAt };
+  }
+
+  /**
    * (v17.0) Can Act 2's level be finished, through its own broken rule? A search over where you stand AND every
    * sliding wall's state (18: a ping of yours toggles each one in range, exactly as the game does - and one never
    * slides onto the tile you are on), stepping through folds (19) and walking through ghost walls but not hidden
@@ -426,6 +608,8 @@ const EchoStory = (() => {
     const W = level.W;
     const H = level.H;
     const a2 = level.act2;
+    if (a2 && a2.crumbles && a2.crumbles.length) return solveCrumble(level);
+    if (a2 && a2.creep) return solveCreep(level);
     const tileOf = (p) => Math.floor(p.y / TILE) * W + Math.floor(p.x / TILE);
     const s0 = tileOf(level.start);
     const goal = tileOf(level.exit);
@@ -500,6 +684,122 @@ const EchoStory = (() => {
     }
     route.reverse();
     return { ok: true, steps: route.length - pings, pings, route, why: '' };
+  }
+
+  /**
+   * (v18.0) 21: the crumbling floor. A crumbling tile holds you once: the moment you step off it, it is gone. So the
+   * search is over where you stand AND which crumbling tiles are gone (a set, kept as a bit mask - every crumbling
+   * tile you have left). It searches EVERY state it can reach, so it can also say whether there is a way to get
+   * STUCK - somewhere the way out can no longer be reached from (`stuck`: how many such places).
+   */
+  function solveCrumble(level) {
+    const W = level.W;
+    const H = level.H;
+    const cr = level.act2.crumbles;
+    const bit = new Map(cr.map((c, k) => [c.i, 1n << BigInt(k)]));
+    const tileOf = (p) => Math.floor(p.y / TILE) * W + Math.floor(p.x / TILE);
+    const s0 = tileOf(level.start);
+    const goal = tileOf(level.exit);
+    const open = (i, mask) => {
+      const b = bit.get(i);
+      if (b !== undefined) return (mask & b) === 0n; // a crumbling tile: there until you have left it
+      return level.blocked[i] !== 1;
+    };
+    const key = (i, mask) => i + ':' + mask.toString(36);
+    const from = new Map([[key(s0, 0n), null]]);
+    const states = [[s0, 0n]];
+    const next = new Map(); // state -> the states it leads to (for the stuck count)
+    for (let h = 0; h < states.length; h++) {
+      if (states.length > 400000) return { ok: false, why: 'too many states to search', steps: -1 };
+      const [i, mask] = states[h];
+      const k0 = key(i, mask);
+      const outs = [];
+      if (i !== goal) {
+        const x = i % W;
+        const y = (i / W) | 0;
+        const left = bit.has(i) ? mask | bit.get(i) : mask; // stepping off a crumbling tile: gone
+        for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) {
+          if (j < 0 || !open(j, left)) continue;
+          const k2 = key(j, left);
+          outs.push(k2);
+          if (from.has(k2)) continue;
+          from.set(k2, k0);
+          states.push([j, left]);
+        }
+      }
+      next.set(k0, outs);
+    }
+    // which states can still get out (backwards from every state on the way out)
+    const back = new Map();
+    for (const [k, outs] of next) for (const o of outs) (back.get(o) || back.set(o, []).get(o)).push(k);
+    const canOut = new Set();
+    const q = [];
+    for (const k of next.keys()) if (+k.split(':')[0] === goal) {
+      canOut.add(k);
+      q.push(k);
+    }
+    while (q.length) {
+      const k = q.pop();
+      for (const p of back.get(k) || []) if (!canOut.has(p)) {
+        canOut.add(p);
+        q.push(p);
+      }
+    }
+    let stuck = 0;
+    for (const k of next.keys()) if (!canOut.has(k)) stuck++;
+    // the shortest way out (the states were searched breadth-first, so the first one at the goal is it)
+    const end = states.find(([i]) => i === goal);
+    if (!end) return { ok: false, why: 'no way from the start to the way out', steps: -1, stuck };
+    const route = [];
+    for (let k = key(end[0], end[1]); k !== null; k = from.get(k)) route.push({ tile: +k.split(':')[0], ping: false });
+    route.reverse();
+    return { ok: true, steps: route.length - 1, pings: 0, route, why: '', stuck, states: states.length };
+  }
+
+  /**
+   * (v18.0) 23: the creep. Every tile is there until its ring goes (voidAt); walking at your speed from the moment you
+   * can move, can you always be off a tile before it goes? A breadth-first search in time (waiting never helps: the
+   * void only grows). `spare` is how much slower than a clean walk you could go along the way it found and still
+   * get out (0.3 = 30% slower), counting from when the level gives you the controls.
+   */
+  const CREEP_CONTROLS_AT = 0.7; // s: when the level hands you the controls (startAct2)
+  function solveCreep(level) {
+    const W = level.W;
+    const H = level.H;
+    const voidAt = level.act2.creep.voidAt;
+    const tileOf = (p) => Math.floor(p.y / TILE) * W + Math.floor(p.x / TILE);
+    const s0 = tileOf(level.start);
+    const goal = tileOf(level.exit);
+    const tau = TILE / 170; // s a tile, at walking speed
+    const steps = new Int32Array(W * H).fill(-1);
+    const from = new Int32Array(W * H).fill(-1);
+    steps[s0] = 0;
+    const q = [s0];
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h];
+      if (i === goal) break;
+      const t = CREEP_CONTROLS_AT + steps[i] * tau;
+      const x = i % W;
+      const y = (i / W) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) {
+        if (j < 0 || steps[j] >= 0 || level.blocked[j] === 1) continue;
+        if (t + tau >= voidAt[j] || t + tau >= voidAt[i]) continue; // it would be gone before you got there - or under you as you left
+        steps[j] = steps[i] + 1;
+        from[j] = i;
+        q.push(j);
+      }
+    }
+    if (steps[goal] < 0) return { ok: false, why: 'the void gets there first', steps: -1 };
+    const route = [];
+    for (let i = goal; i >= 0; i = from[i]) route.push({ tile: i, ping: false });
+    route.reverse();
+    // the tightest tile of the way: (time you leave it) / (time it goes)
+    let use = 0;
+    route.forEach((r, k) => {
+      if (voidAt[r.tile] === Infinity) return;
+      use = Math.max(use, (CREEP_CONTROLS_AT + (k + 1) * tau) / voidAt[r.tile]);
+    });
+    return { ok: true, steps: route.length - 1, pings: 0, route, why: '', spare: use > 0 ? 1 / use - 1 : Infinity };
   }
 
   // ------------------------------------------------------------ the beats
@@ -1083,8 +1383,10 @@ const EchoStory = (() => {
         [0, () => fade(0, 1.4)],
         [0.7, () => env.banner()],
       ];
-      // 16 -> 17: the same fade as 15 -> 16 - and as 17 begins, a low rumble and the picture glitching, once
-      if (S.n === 17) {
+      // 16 -> 17: the same fade as 15 -> 16 - and as 17 begins, a low rumble and the picture glitching, once.
+      // (v18.0) 24's second part opens the same way, without its hint: the "way out" was not one.
+      if (S.spec.part === 2) ev.splice(1, 1);
+      if (S.n === 17 || S.spec.part === 2) {
         ev.push([0.15, () => {
           if (audio) {
             audio.stoneGrind(0, 0.35);
@@ -1147,8 +1449,9 @@ const EchoStory = (() => {
      * World space, over everything in the maze: the void eating the edges of the map - bands of black creeping in
      * from every side, and a slow static in them that flickers. Stronger each level (VOID). Drawing only.
      */
-    function drawVoid(ctx, artT) {
+    function drawVoid(ctx, artT, now = clock) {
       if (!lv || !S.spec.act2) return;
+      drawVoidTiles(ctx, artT, now); // (v18.0: the void inside the map)
       const V = VOID[S.spec.void] || VOID[1];
       const W = lv.pxW;
       const H = lv.pxH;
@@ -1196,6 +1499,81 @@ const EchoStory = (() => {
       ctx.restore();
     }
 
+    /**
+     * (v18.0) The void INSIDE the map: every tile whose floor is gone, black with the same slow static - always shown,
+     * like the void at the edges (it is not something a ripple finds: it is where there is nothing to find). On 23 the
+     * next ring to go shows a thin static over it for the last 2 s before it goes. Drawing only.
+     */
+    const CREEP_WARN = 2.0;
+    function drawVoidTiles(ctx, artT, now) {
+      const a2 = lv.act2;
+      if (!a2 || !a2.voidGrid) return;
+      const W = lv.W;
+      const g = a2.voidGrid;
+      let any = false;
+      const path = new Path2D();
+      for (let i = 0; i < g.length; i++) {
+        if (!g[i]) continue;
+        any = true;
+        path.rect((i % W) * TILE, Math.floor(i / W) * TILE, TILE, TILE);
+      }
+      const warn = [];
+      if (a2.creep) {
+        for (const L of a2.creep.layers) {
+          const left = L.t - now;
+          if (left > 0 && left < CREEP_WARN) warn.push({ L, k: 1 - left / CREEP_WARN });
+        }
+      }
+      if (!any && !warn.length) return;
+      ensureStatic();
+      const V = VOID[S.spec.void] || VOID[1];
+      const step = Math.floor(artT * (calm() ? 3 : 6));
+      ctx.save();
+      if (any) {
+        ctx.fillStyle = 'rgba(0,0,0,0.94)';
+        ctx.fill(path);
+        const pat = ctx.createPattern(staticCanvas, 'repeat');
+        if (pat) {
+          try {
+            pat.setTransform(new DOMMatrix([1, 0, 0, 1, -((step * 37) % 96), -((step * 61) % 96)])); // the static moves; the void does not
+          } catch (e) {
+            /* an old browser: the static simply stands still */
+          }
+          ctx.globalAlpha = Math.min(0.5, V.staticA * 2.2) * (calm() ? 0.6 : 1);
+          ctx.fillStyle = pat;
+          ctx.fill(path);
+        }
+      }
+      // 23: the next ring, about to go - a faint static over it, thickening (never a flash)
+      for (const w of warn) {
+        const wp = new Path2D();
+        for (const i of w.L.tiles) if (!g[i]) wp.rect((i % W) * TILE, Math.floor(i / W) * TILE, TILE, TILE);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = `rgba(0,0,0,${0.45 * w.k})`;
+        ctx.fill(wp);
+        const pat = ctx.createPattern(staticCanvas, 'repeat');
+        if (pat) {
+          ctx.globalAlpha = 0.35 * w.k * (calm() ? 0.6 : 1);
+          ctx.fillStyle = pat;
+          ctx.fill(wp);
+        }
+      }
+      ctx.restore();
+    }
+    function ensureStatic() {
+      if (staticCanvas) return;
+      staticCanvas = document.createElement('canvas');
+      staticCanvas.width = 96;
+      staticCanvas.height = 96;
+      const g = staticCanvas.getContext('2d');
+      const r = rng(0x5747);
+      for (let i = 0; i < 420; i++) {
+        const v = 120 + Math.floor(r() * 120);
+        g.fillStyle = `rgba(${v},${v + 10},${v + 20},${0.25 + r() * 0.6})`;
+        g.fillRect(Math.floor(r() * 96), Math.floor(r() * 96), 1 + Math.floor(r() * 2), 1);
+      }
+    }
+
     // ===================================================== the way out of each
     /** The player has reached this level's way out (js/game.js asks, instead of finishing the level itself). */
     function atExit() {
@@ -1223,10 +1601,12 @@ const EchoStory = (() => {
         env.walk(0, 0);
         if (audio) audio.breath(1);
         env.music(null);
+        // (v18.0) 24: its first way out feels exactly like any other - and leads into its second part, not out
+        const onward = kind === 'wrong' && S.spec.part !== 2;
         play(
           [
             [0.2, () => fade(1, 1.1)],
-            [1.5, () => env.finish()],
+            [1.5, () => (onward ? env.nextPart() : env.finish())],
           ],
           null
         );
@@ -1419,5 +1799,5 @@ const EchoStory = (() => {
     };
   }
 
-  return { LEVELS, BAR_R, DOOR_R, KEY_R, DRIP_R, LIGHT_RGB, build, create, solve, isAct2 };
+  return { LEVELS, BAR_R, DOOR_R, KEY_R, DRIP_R, LIGHT_RGB, build, create, solve, isAct2, creepSchedule };
 })();

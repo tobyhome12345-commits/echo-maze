@@ -318,7 +318,7 @@ function wardenConfig(modeId) {
  * zeroed. The Warden that hunts you on 15 and 16 is not one of the generator's monsters: the level places it.
  */
 const STORY_FIRST = 14;
-const STORY_LAST = 20; // (v17.0: Act 2, levels 17-20, follows 14-16)
+const STORY_LAST = 24; // (v17.0: Act 2, levels 17-20, follows 14-16; v18.0: Act 2 part 2, levels 21-24)
 const isStoryLevel = (n) => n >= STORY_FIRST && n <= STORY_LAST;
 function storyConfig(n, modeId) {
   const base = levelConfig(n, modeId, true); // `true`: the plain curve, before this exception
@@ -591,8 +591,9 @@ function shuffle(arr, rand) {
 /**
  * Build a level. Same (n, runSeed) always produces the same layout so that
  * retrying a level after being caught gives you the same maze.
+ * (v18.0) `part`: level 24 is played in two parts - 2 builds its second (js/story.js). Nothing else reads it.
  */
-function generateLevel(n, runSeed, modeId = 'normal') {
+function generateLevel(n, runSeed, modeId = 'normal', part = 1) {
   const cfg = levelConfig(n, modeId);
   // Level 0 is the tutorial: hand-drawn, the same every time, and it never reaches the generator below - so it
   // draws no random numbers at all and cannot move anything on levels 1-12.
@@ -600,7 +601,7 @@ function generateLevel(n, runSeed, modeId = 'normal') {
   // Level 13 is the capture, hand-drawn in the same way and for the same reason (js/warden.js).
   if (n === WARDEN_LEVEL) return EchoWarden.build(cfg);
   // ...and so are 14-16, which follow it (js/story.js).
-  if (isStoryLevel(n)) return EchoStory.build(n, cfg);
+  if (isStoryLevel(n)) return EchoStory.build(n, cfg, part);
   const rand = mulberry32((runSeed ^ Math.imul(n, 0x9e3779b1)) >>> 0);
   const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
 

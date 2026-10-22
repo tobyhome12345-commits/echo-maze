@@ -18,6 +18,9 @@
  *                              lays them in their cell, shuts the gaol's door and locks it - then slides the key back
  *                              in. No words at all. Lit only by drops of water. Unskippable the first time (the game
  *                              decides: env.canSkip), and marked seen only once it has played to the end.
+ *   'alarm'   (level 21 -> 22, v18.0) an explorer pings ahead as always; the wave reaches something small and still
+ *                              on the wall, and it SCREAMS. An echo monster comes fast for the spot they stood on - they
+ *                              have slipped into a side passage and hold still. It listens, finds no one, and goes.
  *
  * Everything runs off one clock (`time`, seconds since the cutscene began), and
  * everything you hear is synthesised - including the mumble of the explorer's
@@ -204,6 +207,35 @@ const EchoCutscene = (() => {
     [12.8, "Can't ping down here. But nothing can hear me either."],
   ];
 
+  // ------------------------------------------------ the alarm scene (levels 21 -> 22, v18.0)
+  // An explorer walks the corridor and pings ahead, as they always do. The wave reaches something small and still on
+  // the wall - it had been humming, faintly - and it SCREAMS, exactly as an Alarm does in the game: once, and then it
+  // is silent for good. Far behind them something answers: an echo monster, coming fast for the spot they were on
+  // when it screamed. They slip into the side passage and hold still. It arrives, listens (an echo monster's
+  // listening time), hears nothing and wanders off. The scream did not hurt them; it told everything where they were.
+  const AL_S = 4.4;
+  const AL_Y = 178;
+  const AL_PING_X = 560; // where they stand to ping - and so the spot the scream sends everything to
+  const AL_X = 860; // the alarm, on down the corridor
+  const AL_PING_T = 6.0;
+  const AL_REACH = 430; // the ping's reach
+  const AL_SCREAM_T = AL_PING_T + (AL_X - 14 - AL_PING_X) / 520; // the wave (RIPPLE_SPEED 520) reaches it
+  const AL_MON = { x0: 40, v: 140 }; // the echo monster: in from the dark behind them, at a hunting pace
+  const AL_MON_T0 = AL_SCREAM_T + 0.9;
+  const AL_ARRIVE_T = AL_MON_T0 + (AL_PING_X - AL_MON.x0) / AL_MON.v; // it reaches the spot
+  const AL_LEAVE_T = AL_ARRIVE_T + 3.5; // it listens there, hears nothing, and wanders off
+  const AL_CARD_T = AL_LEAVE_T + 2.2;
+  const AL_END_T = AL_CARD_T + 4.8;
+  // the explorer: walk to the spot, ping, flinch at the scream, hurry to the side passage and up it, hold still
+  const AL_PATH = [[0, 100, AL_Y], [5.4, AL_PING_X, AL_Y], [AL_SCREAM_T + 0.5, AL_PING_X, AL_Y], [AL_SCREAM_T + 1.5, 700, AL_Y], [AL_SCREAM_T + 2.4, 700, 80], [99, 700, 80]];
+  const AL_LINES = [
+    [1.0, 'Ping first. Always ping first.'],
+    [AL_SCREAM_T + 0.4, 'No - stop - be quiet-'],
+    [AL_SCREAM_T + 2.7, 'Something is coming. Coming here.'],
+    [AL_LEAVE_T + 0.6, 'It went to where I was. Not where I am.'],
+  ];
+  const AL_RGB = '255,236,40'; // the Alarm's siren yellow (the Default palette's)
+
   // ------------------------------------------------ the muffler scene (levels 10 -> 11)
   // A sixth explorer pings a dark corridor and the echo simply STOPS: something swallows the wave, leaving a gap in
   // the echo map. A deep hum, and slow dull thumps that come closer. They drop into a crouch and creep back - but a
@@ -273,6 +305,7 @@ const EchoCutscene = (() => {
   const PAL_SCENT = { glow: '196,236,170', cone: '210,242,196', body: '206,236,196', hand: '214,242,204', head: '234,250,228', lamp: '246,255,240' };
   const PAL_MIMIC = { glow: '255,176,156', cone: '255,200,182', body: '255,200,186', hand: '255,210,196', head: '255,228,216', lamp: '255,242,234' }; // a coral lamp
   const PAL_DECOY = { glow: '255,196,236', cone: '255,214,242', body: '255,214,240', hand: '255,224,246', head: '255,240,250', lamp: '255,248,252' }; // a pink-white lamp
+  const PAL_ALARM = { glow: '180,214,240', cone: '200,226,246', body: '200,222,240', hand: '210,230,246', head: '230,242,252', lamp: '244,250,255' }; // (v18.0) a cold lamp, so the yellow stands out
   const PAL_STALKER = { glow: '170,226,240', cone: '196,238,248', body: '196,232,242', hand: '206,240,248', head: '228,248,253', lamp: '242,254,255' }; // a cold white lamp, so the orange stalker stands out
   const LIME = '190,240,70';
   const EXITGREEN = '93,255,160'; // the exit's green, which the mimic copies
@@ -353,9 +386,9 @@ const EchoCutscene = (() => {
   ];
 
   // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
-  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S, kept: 0 };
-  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER, kept: PAL_KEEPER };
-  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14, kept: 14 };
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S, kept: 0, alarm: AL_S };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER, kept: PAL_KEEPER, alarm: PAL_ALARM };
+  const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14, kept: 14, alarm: 12 };
 
   // ------------------------------------------------------------------- stage
   /** A small hand-built stretch of maze: a two-wide corridor with side passages and two pillars. */
@@ -455,6 +488,8 @@ const EchoCutscene = (() => {
     let dcStep = { echo: 0, scent: 0 }; // distance walked since each monster's last footstep
     // stalker scene state
     let crouchAmt = 0; // 0..1: how far down the explorer is (smaller, and the lamp dims)
+    let alMon = { x: -200, stepDist: 0 }; // (v18.0) the alarm scene's echo monster
+    let alHumCd = 0;
     let stMon = { x: -200, heading: 0, stepDist: 0, clickCd: 0.8, listening: false, moving: false }; // the stalker
     // muffler scene state (the muffler itself is never drawn)
     let mfMon = { x: MF_X0, stepDist: 0, thumpCd: 0.6, stopped: false }; // where it is, and its slow thumps
@@ -1106,6 +1141,176 @@ const EchoCutscene = (() => {
       if (st >= DC_DROP_T - 0.3 && st < 19.6) target = 610;
       camX = lerp(camX, target, Math.min(1, dt * 2.2));
       camY = 150;
+    }
+
+    // ------------------------------------------- the alarm scene (v18.0): the timeline
+    /** Where the echo monster is at scene time st: out in the dark, coming for the spot, listening there, wandering off. */
+    function alarmMonX(st) {
+      if (st < AL_MON_T0) return -200;
+      if (st < AL_ARRIVE_T) return AL_MON.x0 + AL_MON.v * (st - AL_MON_T0);
+      if (st < AL_LEAVE_T) return AL_PING_X;
+      return AL_PING_X - 55 * (st - AL_LEAVE_T);
+    }
+
+    function buildAlarm() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      const S9 = AL_S;
+
+      at(0.6, () => {
+        showCard('Some things only call.');
+        audio.swell(49);
+      });
+      at(S9 - 1.0, hideCard);
+      at(S9, () => {
+        rings = [];
+      });
+      at(S9 + 0.8, () => {
+        el.caption.textContent = 'Day 71';
+        el.caption.classList.add('show');
+      });
+      at(S9 + 3.4, () => el.caption.classList.remove('show'));
+      AL_LINES.forEach(([t, text]) => at(S9 + t, () => say(text)));
+      [2.0, 4.6].forEach((t) => at(S9 + t, () => audio.breath(0.9)));
+
+      // the ping - the game's real ripple, down the corridor towards the thing on the wall
+      at(S9 + AL_PING_T, () => {
+        audio.ping(0.85);
+        stage.cfg.rippleRadius = AL_REACH;
+        env.castRipple(person.x, person.y, AL_REACH);
+      });
+      // the wave reaches it: it screams (the game's own sound), once
+      at(S9 + AL_SCREAM_T, () => {
+        const h = heard(AL_X, AL_Y, 1600);
+        audio.scream(h.pan, Math.max(h.g, 0.5), false);
+        shake = isCalm() ? 0 : 6;
+      });
+      // something answers, far behind them
+      at(S9 + AL_MON_T0 - 0.2, () => {
+        mvoice = audio.createEnemyVoice(52);
+        const h = heard(AL_MON.x0, AL_Y, 900);
+        audio.enemyAlert(h.pan, Math.max(0.35, h.g));
+      });
+      [[AL_ARRIVE_T - 1.4, 0.45], [AL_ARRIVE_T - 0.8, 0.6], [AL_ARRIVE_T - 0.3, 0.75], [AL_ARRIVE_T + 0.5, 0.75], [AL_ARRIVE_T + 1.4, 0.6]].forEach(([t, g]) => at(S9 + t, () => audio.heartbeat(g)));
+      at(S9 + AL_CARD_T, () => {
+        showCard('It cannot hurt you. Never let your ripple touch it.\nWhen it screams, they all come to where you stood.');
+        audio.swell(47, 1.1);
+      });
+      at(S9 + AL_CARD_T + 4.2, hideCard);
+      at(S9 + AL_END_T, () => finish());
+
+      // [sound captions] (Visual cues option)
+      const fxs = (t, text, dur) => at(S9 + t, () => fx(text, dur));
+      fxs(2.6, '[a faint, steady hum]', 1.9);
+      fxs(AL_PING_T, '[sonar ping]', 1.2);
+      fxs(AL_SCREAM_T, '[an alarm shrieks]', 2.0);
+      fxs(AL_MON_T0, '[fast footsteps, coming closer]', 2.4);
+      fxs(AL_ARRIVE_T, '[the footsteps stop]', 1.6);
+      fxs(AL_LEAVE_T + 0.3, '[footsteps, going away]', 1.8);
+
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    /** Per-frame logic of the alarm scene. */
+    function updateAlarmScene(dt) {
+      if (time < AL_S) {
+        ringTimer -= dt;
+        if (ringTimer <= 0) {
+          ringTimer = 2.4;
+          rings.push({ t: 0 });
+        }
+        for (const r of rings) r.t += dt;
+        rings = rings.filter((r) => r.t < 7);
+        return;
+      }
+      const st = time - AL_S;
+      shake = Math.max(0, shake - dt * 30);
+
+      // the explorer: walk, stop and ping, hurry into the side passage, hold perfectly still
+      const bx = person.x;
+      const by = person.y;
+      const p = pathAt(AL_PATH, st);
+      person.x = p.x;
+      person.y = p.y;
+      const moved = Math.hypot(person.x - bx, person.y - by);
+      isWalking = moved > 0.01;
+      if (isWalking) {
+        angle = Math.atan2(person.y - by, person.x - bx);
+        stepDist += moved;
+        if (stepDist >= 30) {
+          stepDist = 0;
+          audio.footstep(0.35);
+        }
+      } else if (st > AL_SCREAM_T + 2.4) {
+        angle = Math.atan2(AL_Y - person.y, AL_PING_X - person.x); // watching the corridor from the passage
+      }
+      lampFlicker = 0.86 + 0.14 * Math.sin(time * 19) + (Math.random() - 0.5) * 0.08;
+
+      // the alarm hums until the wave finds it - and never again
+      if (st < AL_SCREAM_T) {
+        alHumCd -= dt;
+        if (alHumCd <= 0) {
+          alHumCd = 1.15; // the game's ALARM_HUM_GAP
+          const h = heard(AL_X, AL_Y, 520);
+          if (h.g > 0.01) audio.alarmHum(h.pan, h.g);
+        }
+      }
+
+      // the echo monster: its steps and voice
+      const before = alMon.x;
+      alMon.x = alarmMonX(st);
+      if (alMon.x > 0 && before > 0) {
+        alMon.stepDist += Math.abs(alMon.x - before);
+        if (alMon.stepDist >= 22) {
+          alMon.stepDist = 0;
+          const h = heard(alMon.x, AL_Y, 700);
+          audio.enemyStep(h.pan, 0.45 + 0.4 * h.g);
+        }
+      }
+      if (mvoice) {
+        const near = clamp(1 - Math.abs(alMon.x - person.x) / 600, 0, 1);
+        const h = heard(alMon.x, AL_Y, 900);
+        const listening = st >= AL_ARRIVE_T && st < AL_LEAVE_T;
+        audio.updateEnemyVoice(mvoice, { gain: h.g * (0.12 + 0.3 * near), pan: h.pan, mood: st >= AL_LEAVE_T ? 0.3 : listening ? 0.65 : 0.9, muffle: false });
+      }
+      danger = clamp(1 - Math.abs(alMon.x - person.x) / 400, 0, 1);
+
+      // the camera: with them, then held between the passage and the spot while it comes
+      const target = st < AL_PING_T ? person.x + 110 : st < AL_SCREAM_T + 1.0 ? 700 : 620;
+      camX = lerp(camX, target, Math.min(1, dt * 2.2));
+      camY = 150;
+    }
+
+    /** Everything in the alarm scene: the walls the lamp shows, the ripple, the alarm (lit by the wave, then spent), the monster. */
+    function drawAlarmWorld() {
+      const st = sceneT();
+      const soft = isCalm();
+      drawLitWalls(person.x, person.y, 170, 0.45);
+      env.drawRippleLayer(); // the explorer's real ping
+      // the alarm: shown as the wave reaches it, then dim and cracked - spent
+      if (st >= AL_SCREAM_T - 0.05) {
+        const since = st - AL_SCREAM_T;
+        const a = since < 1.6 ? 1 : 0.42;
+        EchoArt.draw(ctx, 'alarm', AL_X, AL_Y, 18, { a, t: time, spent: since >= 1.6 });
+        if (since < 1.6) {
+          // the scream: rings out from it (a ring, never a flash)
+          ctx.globalCompositeOperation = 'lighter';
+          const r = since / 1.6;
+          ctx.strokeStyle = `rgba(${AL_RGB},${(1 - r) * (soft ? 0.25 : 0.5)})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(AL_X, AL_Y, 70 + 420 * r, 0, TAU);
+          ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
+      if (alMon.x > 0) {
+        const d = Math.hypot(alMon.x - person.x, AL_Y - person.y);
+        const listening = st >= AL_ARRIVE_T && st < AL_LEAVE_T;
+        drawEchoBody(alMon.x, AL_Y, st >= AL_LEAVE_T ? Math.PI : 0, 1, clamp(1 - d / 420, 0.2, soft ? 0.55 : 0.95) * (listening ? 0.85 + 0.15 * Math.sin(time * 5) : 1));
+      }
+      if (personVisible) drawPerson();
     }
 
     // ------------------------------------------- the stalker scene: the timeline
@@ -2018,6 +2223,8 @@ const EchoCutscene = (() => {
       dcStep = { echo: 0, scent: 0 };
       crouchAmt = 0;
       stMon = { x: -200, heading: 0, stepDist: 0, clickCd: 0.8, listening: false, moving: false };
+      alMon = { x: -200, stepDist: 0 };
+      alHumCd = 0.5;
       mfMon = { x: MF_X0, stepDist: 0, thumpCd: 0.6, stopped: false };
       sgMon = { x: SG_X0, y: PY, phase: 'sing', arc: 0 };
       sgTickIdx = 0;
@@ -2054,6 +2261,7 @@ const EchoCutscene = (() => {
       else if (kind === 'muffler') buildMuffler();
       else if (kind === 'singer') buildSinger();
       else if (kind === 'keeper') buildKeeper();
+      else if (kind === 'alarm') buildAlarm();
       else if (kind === 'kept') buildKept();
       else build();
       // (v16.0) a scene the game says cannot be skipped yet (the keeper scene's first viewing) shows no Skip button
@@ -2128,6 +2336,10 @@ const EchoCutscene = (() => {
       }
       if (kind === 'singer') {
         updateSingerScene(dt);
+        return;
+      }
+      if (kind === 'alarm') {
+        updateAlarmScene(dt);
         return;
       }
       if (kind === 'keeper') {
@@ -2206,7 +2418,7 @@ const EchoCutscene = (() => {
 
     function drawPerson() {
       const lamp = lampFlicker;
-      const walking = kind === 'mimic' || kind === 'decoy' || kind === 'stalker' || kind === 'muffler' || kind === 'singer' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
+      const walking = kind === 'mimic' || kind === 'decoy' || kind === 'stalker' || kind === 'muffler' || kind === 'singer' || kind === 'alarm' ? isWalking : Math.abs(xAt(sceneT() + 0.05) - xAt(sceneT())) > 0.001;
       const phase = time * 9;
       ctx.save();
       ctx.translate(person.x + offX, person.y + (walking ? Math.sin(phase) * 0.8 : 0));
@@ -2623,6 +2835,8 @@ const EchoCutscene = (() => {
         drawMufflerWorld();
       } else if (kind === 'singer') {
         drawSingerWorld();
+      } else if (kind === 'alarm') {
+        drawAlarmWorld();
       } else if (kind === 'keeper') {
         drawKeeperWorld();
       } else if (kind === 'kept') {

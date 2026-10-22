@@ -162,9 +162,10 @@ window.WhatsNewTest = (() => {
     W().close();
     // past level 16 - the same notes for a player who has reached level 17 (the screen, for a real save of each, is
     // checked by loading the page with that save: WhatsNewTest.spoilersHere)
-    const h17 = EchoWhatsNew.history(17).flatMap((e) => e.lines);
+    // (v18.0: past the LAST level - lines about 21-24 wait for level 20 and 21)
+    const h17 = EchoWhatsNew.history(STORY_LAST + 1).flatMap((e) => e.lines);
     const h3 = EchoWhatsNew.history(3).flatMap((e) => e.lines);
-    T.check('past level 16: every line, and no stand-in', hidden.every((h) => h17.some((l) => l.text === h)) && !h17.some((l) => l.generic));
+    T.check('past the last level: every line, and no stand-in', hidden.every((h) => h17.some((l) => l.text === h)) && !h17.some((l) => l.generic));
     T.check('the two players get different text', JSON.stringify(h3) !== JSON.stringify(h17));
     // the data itself: what a line about levels 13+ must have
     const story = EchoWhatsNew.NOTES.flatMap((n) => n.lines.map((l) => (typeof l === 'string' ? { text: l } : l))).filter((l) => /\blevels? 1[3-6]\b|scene|fragment|story/i.test(l.text) && !/^This!/.test(l.text) && !/cutscene/.test(l.text));

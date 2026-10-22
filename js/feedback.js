@@ -107,6 +107,15 @@ const EchoFeedback = (() => {
       ],
       blind: ['You walked straight into it.'],
     },
+    // (v18.0) Not a monster: the floor was gone (levels 21-24). It is always there to see - black, and the static in it.
+    void: {
+      fell: [
+        'Where the floor is black and full of static, there is no floor. Ping before you step.',
+        'Crumbling floor holds you once. Listen for the crack behind you, and do not go back.',
+        'The void does not move unless the level says so. Stop, look at the edges, and choose.',
+      ],
+      blind: ['Where the floor is black and full of static, there is no floor.'],
+    },
   };
   /** The one level where the way out is along dripping water (js/story.js): only its tips may say so. */
   const WATER_LEVEL = 16;

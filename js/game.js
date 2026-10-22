@@ -32,8 +32,8 @@
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
   // (v16.0: 'keeper' plays between level 13's capture and level 14 - see onCaptured. Level 13 never leaves through
   // advanceLevel, so its entry here is for the Continue / level-select catch-up in newRun, the rule every scene follows.)
-  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer', 14: 'keeper' };
-  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14 };
+  const SCENE_BEFORE_LEVEL = { 6: 'scent', 8: 'mimic', 9: 'decoy', 10: 'stalker', 11: 'muffler', 12: 'singer', 14: 'keeper', 22: 'alarm' };
+  const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14, alarm: 22 };
   // (v16.0) the scenes that cannot be skipped until they have been seen once - and that count as seen only when
   // they have played to the END (every other scene counts the moment it starts, as it always has)
   const SEEN_AT_END = { keeper: true };
@@ -71,7 +71,7 @@
   const COLORS = [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
   const COLOR_ROLE = [null, 'wall', 'obstacle', 'echo', 'exit', 'scent', 'puddle', 'decoy', 'stalker', 'singer', 'warden', 'lore', 'key', 'alarm', 'screecho'];
   // which palette colour each swatch on the title legend belongs to (drawing only: it tints the chip around it)
-  const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', puddle: 'puddle', decoy: 'decoy', exit: 'exit', note: 'lore' };
+  const LEGEND_ROLE = { wall: 'wall', boulder: 'obstacle', pillar: 'obstacle', echo: 'echo', scent: 'scent', stalker: 'stalker', singer: 'singer', alarm: 'alarm', puddle: 'puddle', decoy: 'decoy', exit: 'exit', note: 'lore' };
   const singerRgb = () => COLORS[T_SINGER]; // the tint of a singer's own ripples (magenta in the default palette)
   EchoPalette.onChange((rgb) => {
     for (let i = 1; i < COLOR_ROLE.length; i++) COLORS[i] = rgb[COLOR_ROLE[i]];
@@ -115,6 +115,11 @@
     18: 'Listen for the grinding.',
     19: 'Remember the drip.',
     20: 'It answers late.',
+    // (v18.0) Act 2 part 2
+    21: 'Every step is one way.',
+    22: 'Where nothing answers, nothing hears.',
+    23: 'It is coming in from the edges.',
+    24: 'Not every way out is out.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -266,6 +271,9 @@
     },
     finish: () => {
       storyDone = true; // handled at the end of updatePlay, once this frame's outcomes are settled
+    },
+    nextPart: () => {
+      nextPartPending = true; // (v18.0) 24: on into its second part, the same way
     },
   });
 
@@ -562,10 +570,21 @@
     const dx = x1 - x0;
     const dy = y1 - y0;
     const n = Math.ceil(Math.hypot(dx, dy) / 8);
+    // (v18.0) levels 21-24: a monster never cuts a corner across the void (its centre over it is a fall)
+    const vg = level.act2 && level.act2.voidGrid;
+    const overGap = (x, y) => {
+      for (const [ox, oy] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) {
+        const tx = Math.floor((x + ox) / TILE);
+        const ty = Math.floor((y + oy) / TILE);
+        if (tx >= 0 && ty >= 0 && tx < level.W && ty < level.H && vg[ty * level.W + tx]) return true;
+      }
+      return false;
+    };
     for (let i = 1; i <= n; i++) {
       const px = x0 + (dx * i) / n;
       const py = y0 + (dy * i) / n;
       if (circleHitsWall(px, py, r)) return false;
+      if (vg && overGap(px, py)) return false;
       for (const ob of level.obstacles) {
         if (Math.hypot(px - ob.x, py - ob.y) < r + ob.r) return false;
       }
@@ -1806,7 +1825,7 @@
   }
 
   function emitRipple() {
-    if (state !== 'play' || cooldown > 0 || scriptLock) return; // (a scripted beat on 14-16 has the controls)
+    if (state !== 'play' || cooldown > 0 || scriptLock || a2Falling) return; // (a scripted beat on 14-16 has the controls; v18.0: nor while you fall)
     if (crouchHeld()) return; // you cannot send a ripple while crouching
     cooldown = cfg.cooldown;
     ripplesUsed++;
@@ -1984,6 +2003,175 @@
     }
   }
 
+  // ----------------------------------------------- ACT 2 PART 2 (v18.0): levels 21-24 (js/story.js)
+  /**
+   * THE VOID IS REAL. Everything here is behind `level.act2` and its new parts (voidGrid, crumbles, dead, creep), so
+   * none of it runs on levels 0-20 or a custom level:
+   *   THE VOID     a tile whose floor is gone (voidGrid). Step onto it - your centre over it - and you fall: a fall
+   *                that never lands, then the Caught screen ('void'). A monster that is over it falls too, and is gone
+   *                for this attempt. Monsters never walk onto it (or onto crumbling floor) on purpose: it is `blocked`.
+   *   21 THE CRUMBLE  crumbling floor holds you; CRUMBLE_CRACK s after you step OFF it, it cracks, and CRUMBLE_FALL
+   *                later it falls into the void. There is no way back over it.
+   *   22 DEAD AIR  a ray that reaches it from outside goes in and never comes back (nothing drawn, no echo, nothing in
+   *                it touched); what is left on the map is a quiet black patch. Your footsteps in it are lost - nothing
+   *                hears them - and a ripple you send from inside it does not set an Alarm off.
+   *   23 THE CREEP the void eats the map from the edges in, a ring at a time, on the level's fixed schedule.
+   *   24 THE WRONG WAY OUT  its first way out leads to its second part (levelPart 2): Try again restarts THAT part,
+   *                anything else (Continue, the level list, a reload) starts the level from the beginning. Nothing
+   *                is saved until the second part's way out.
+   */
+  const CRUMBLE_CRACK = 0.6; // s after you step off a crumbling tile: it cracks...
+  const CRUMBLE_FALL = 0.35; // ...and this much later it is gone
+  const FALL_SECONDS = 0.8; // s of falling before the Caught screen
+  let levelPart = 1; // 24: which part of it is being played
+  let nextPartPending = false;
+  let a2Falling = null; // you are falling: { t }
+  let a2Tile = -1; // the tile you were last on (21)
+  let deadSeen = new Map(); // 22: tile -> when a ray reached it (the black patch on the map)
+  let crumbleLit = new Map(); // 21: crumbling tile -> when a ripple reached it
+  let a2CreepNext = 0; // 23: the next ring to go
+  const tileAt = (x, y) => Math.floor(y / TILE) * level.W + Math.floor(x / TILE);
+  const onDeadAir = () => !!(level.act2 && level.act2.dead && level.act2.dead[tileAt(player.x, player.y)]);
+  /** The floor under (x, y) is gone. */
+  const overVoid = (x, y) => !!(level.act2 && level.act2.voidGrid && level.act2.voidGrid[tileAt(x, y)]);
+  /** You step into the void: a fall that never lands, and then the Caught screen. */
+  function fallIntoVoid() {
+    if (a2Falling) return;
+    a2Falling = { t: 0 };
+    touch.releaseAll();
+    audio.voidFall(0, 0.9, level.act2.void);
+    cues.caption('[you fall]');
+  }
+  /** A monster over the void falls, from where it was, and is gone for this attempt. */
+  function monsterFalls(e) {
+    const sp = spatial(e.x, e.y, 1100);
+    audio.voidFall(sp.pan, Math.max(0.25, sp.g) * 0.7, level.act2.void);
+    cues.pulse('muffler', e.x, e.y, cueLoud(Math.max(0.3, sp.g)), { key: e, big: true });
+    cues.caption('[something falls into the void]');
+    audio.destroyEnemyVoice(e.voice);
+    e.voice = null;
+    enemies.splice(enemies.indexOf(e), 1);
+  }
+  /** A tile's floor is gone (21's crumbling floor, 23's rings). A wall there is gone too. */
+  function becomeVoid(i) {
+    const a2 = level.act2;
+    a2.voidGrid[i] = 1;
+    level.walls[i] = 0;
+    level.blocked[i] = 1;
+    if (level.rayWalls) level.rayWalls[i] = 0;
+  }
+  /** After you have moved: 21 - stepping off a crumbling tile starts it going; and the void under you. */
+  function voidTouch() {
+    const a2 = level.act2;
+    const ti = tileAt(player.x, player.y);
+    if (a2.crumbles.length && ti !== a2Tile) {
+      const prev = a2.crumbles.find((c) => c.i === a2Tile);
+      if (prev && prev.state === 0) {
+        prev.state = 1;
+        prev.at = levelTime + CRUMBLE_CRACK;
+      }
+      a2Tile = ti;
+    }
+    if (a2.voidGrid[ti]) fallIntoVoid();
+  }
+  function voidUpdate(dt) {
+    const a2 = level.act2;
+    for (const c of a2.crumbles) {
+      if (c.state === 0 || c.state === 3 || levelTime < c.at) continue;
+      const m = tileMid(c.i);
+      const sp = spatial(m.x, m.y, 800);
+      if (c.state === 1) {
+        c.state = 2;
+        c.at = levelTime + CRUMBLE_FALL;
+        audio.stoneSplit(sp.pan, Math.max(0.3, sp.g) * 0.45); // it cracks
+        cues.pulse('muffler', m.x, m.y, cueLoud(Math.max(0.3, sp.g)), { key: 'crumble' + c.i });
+        cues.caption('[stone cracks]');
+      } else {
+        c.state = 3;
+        becomeVoid(c.i);
+        audio.voidFall(sp.pan, Math.max(0.2, sp.g) * 0.4, a2.void); // ...and falls away, and never lands
+        cues.caption('[it falls away]');
+      }
+    }
+    // 23: the next ring goes - a low rumble, a little shake
+    const cr = a2.creep;
+    while (cr && a2CreepNext < cr.layers.length && levelTime >= cr.layers[a2CreepNext].t) {
+      for (const i of cr.layers[a2CreepNext++].tiles) becomeVoid(i);
+      audio.stoneGrind(0, 0.4);
+      audio.wardenStep(0, 0.5, false, true);
+      cues.pulse('muffler', player.x, player.y, 0.6, { key: 'creep', big: true });
+      cues.caption('[the edge gives way]');
+      if (!calm) shake = Math.max(shake, 3);
+    }
+    // anything over the void falls
+    for (let k = enemies.length - 1; k >= 0; k--) if (overVoid(enemies[k].x, enemies[k].y)) monsterFalls(enemies[k]);
+    if (overVoid(player.x, player.y)) fallIntoVoid();
+    if (a2Falling) {
+      a2Falling.t += dt;
+      if (a2Falling.t >= FALL_SECONDS && state === 'play') {
+        a2Falling = null;
+        onCaught('void', 'fell', null);
+      }
+    }
+  }
+  /** World space: 21's crumbling floor where a ripple found it (and cracking), 22's black patches. */
+  function voidDraw() {
+    const a2 = level.act2;
+    if (a2.crumbles.length) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineWidth = 1.3;
+      for (const c of a2.crumbles) {
+        if (c.state === 3) continue;
+        const lit = crumbleLit.get(c.i);
+        let a = lit !== undefined && levelTime >= lit ? Math.exp(-(levelTime - lit) / 1.3) * 0.7 : 0;
+        if (c.state === 2) a = Math.max(a, 0.55 + 0.25 * Math.sin(levelTime * 40)); // cracking: you can see it go
+        if (c.i === tileAt(player.x, player.y)) a = Math.max(a, 0.22); // the one under your feet: you feel it
+        if (a < 0.02) continue;
+        const tx = (c.i % level.W) * TILE;
+        const ty = Math.floor(c.i / level.W) * TILE;
+        const jit = c.state === 2 && !calm ? (Math.sin(levelTime * 53 + c.i) * 1.2) : 0;
+        ctx.strokeStyle = `rgba(${COLORS[T_WALL]},${a})`;
+        ctx.beginPath();
+        // a fixed little web of cracks for each tile (from its number - never a random draw)
+        let h = (c.i * 2654435761) >>> 0;
+        const r = () => ((h = (h * 1103515245 + 12345) >>> 0) % 1000) / 1000;
+        for (let q = 0; q < 3; q++) {
+          let x = tx + 6 + r() * 28 + jit;
+          let y = ty + 6 + r() * 28;
+          ctx.moveTo(x, y);
+          for (let w = 0; w < 3; w++) {
+            x = clamp(x + (r() - 0.5) * 18, tx + 2, tx + TILE - 2);
+            y = clamp(y + (r() - 0.5) * 18, ty + 2, ty + TILE - 2);
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.strokeRect(tx + 3 + jit, ty + 3, TILE - 6, TILE - 6);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (deadSeen.size) {
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
+      for (const [i, at] of deadSeen) {
+        const age = levelTime - at;
+        if (age < 0) continue;
+        if (age > 4) {
+          deadSeen.delete(i);
+          continue;
+        }
+        const a = Math.exp(-age / 1.6);
+        const tx = (i % level.W) * TILE;
+        const ty = Math.floor(i / level.W) * TILE;
+        ctx.fillStyle = `rgba(0,0,0,${0.9 * a})`;
+        ctx.fillRect(tx, ty, TILE, TILE);
+        ctx.strokeStyle = `rgba(150,160,178,${0.32 * a})`;
+        ctx.strokeRect(tx + 1.5, ty + 1.5, TILE - 3, TILE - 3);
+      }
+      ctx.setLineDash([]);
+    }
+  }
+
   // ---------------------------------------------------- levels 14-16 (js/story.js)
   /** What is solid on a story level besides the walls: the gaol door while it is shut, and a Warden still asleep. */
   const solidsBuf = [];
@@ -2070,7 +2258,12 @@
     EchoProfile.flush();
     if (n < STORY_LAST) {
       savedPending = newBest; // said at the next level's first quiet moment, not in the middle of the dark
-      startLevel(n + 1);
+      // (v18.0) a monster's scene before the next level plays here as it does from Next level (advanceLevel): 21 -> 22
+      const scene = SCENE_BEFORE_LEVEL[n + 1];
+      if (scene) {
+        story.stop(); // (the void's hum and the rest of this level's sound end with it)
+        startCutscene(scene);
+      } else startLevel(n + 1);
       return;
     }
     onStoryEnd(newBest);
@@ -2179,6 +2372,12 @@
     const dist = new Float32Array(RAYS);
     const type = new Uint8Array(RAYS);
     const hitId = new Int16Array(RAYS).fill(-1);
+    // (v18.0) 22: dead air. From outside, a ray that reaches it goes in and never comes back; from inside, your
+    // waves go out as ever - and an Alarm never hears one (rp.quiet, touchMonsters)
+    const a2dead = level.act2 && level.act2.dead;
+    const fromDead = !!(a2dead && a2dead[tileAt(ox, oy)]);
+    const deadIn = a2dead && !fromDead ? a2dead : null;
+    const deadHits = [];
     for (let i = 0; i < RAYS; i++) {
       const dx = COS[i];
       const dy = SIN[i];
@@ -2198,9 +2397,36 @@
           }
         }
       }
+      if (deadIn) {
+        const dd = raycastGrid(deadIn, ox, oy, dx, dy, best);
+        if (dd < best) {
+          const ti = tileAt(ox + dx * (dd + 1), oy + dy * (dd + 1));
+          if (ti >= 0 && ti < deadIn.length && deadIn[ti]) {
+            best = dd;
+            bt = 0; // it went in: nothing is lit, nothing comes back
+            bid = -1;
+            deadHits.push(ti, dd);
+          }
+        }
+      }
       dist[i] = best;
       type[i] = bt;
       hitId[i] = bid;
+    }
+    if (deadHits.length && !ambient && !singerRp) {
+      for (let k = 0; k < deadHits.length; k += 2) {
+        const at = levelTime + deadHits[k + 1] / v + lag;
+        if (!(deadSeen.get(deadHits[k]) >= at)) deadSeen.set(deadHits[k], at);
+      }
+    }
+    // (v18.0) 21: the crumbling floor this wave can see - its cracks show as the wave reaches them
+    if (level.act2 && level.act2.crumbles.length && !ambient && !singerRp) {
+      for (const c of level.act2.crumbles) {
+        if (c.state === 3) continue;
+        const m = tileMid(c.i);
+        const d = Math.hypot(m.x - ox, m.y - oy);
+        if (d <= R && hasLOS(ox, oy, m.x, m.y)) crumbleLit.set(c.i, levelTime + d / v + lag);
+      }
     }
 
     // (v17.0) LEVEL 17: which of this wave's wall hits are GHOST walls - drawn, and not there. They shimmer, very slightly:
@@ -2306,7 +2532,7 @@
     const seen = new Set();
     for (const bin of objBins.keys()) if (circles[bin] && (circles[bin].type === T_ENEMY || circles[bin].type === T_ALARM || circles[bin].type === T_SCREECHO)) seen.add(circles[bin].enemy); // (circles[bin]: the door's bin is named, not numbered)
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / v + 2.6 + lag, singer: singerRp, hitPlayer: false, ambient, dim: ambient ? 0.62 : 1, v, lag, ghost });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / v + 2.6 + lag, singer: singerRp, hitPlayer: false, ambient, dim: ambient ? 0.62 : 1, v, lag, ghost, quiet: fromDead, deadIn });
     // (v17.0) LEVEL 19: a wave that reaches a fold goes into it, and comes out of its pair - as far again as it had
     // left to go. Your waves only (a drop of water's stays where it fell), and one fold deep.
     if (level.act2 && level.act2.folds.length && !(opts && opts.fold) && !ambient && !singerRp) {
@@ -2369,6 +2595,8 @@
     if (state !== 'play' || r0 >= rp.R) return; // no monsters to alert, or the outgoing wave has ended
     for (const e of enemies) {
       if ((e.kind !== 'echo' && e.kind !== 'mimic' && e.kind !== 'alarm' && e.kind !== 'screecho') || rp.touched.has(e)) continue;
+      if (rp.quiet && e.kind === 'alarm') continue; // (v18.0) 22: a ripple sent from dead air - an Alarm never hears it
+      if (rp.deadIn && rp.deadIn[tileAt(e.x, e.y)]) continue; // ...and a wave from outside never gets into dead air
       const d = Math.hypot(e.x - rp.x, e.y - rp.y);
       if (d - e.r > r1 || d + e.r < r0) continue; // the front is not passing over it this frame
       if (!waveReaches(rp.x, rp.y, e)) continue;
@@ -2737,8 +2965,9 @@
     // is analog: any direction, speed from a crawl to the same 170 px/s. (0,0 unless a finger is pushing the stick.)
     let mvx = 0;
     let mvy = 0;
-    if (scriptLock) {
+    if (scriptLock || a2Falling) {
       // levels 14-16: a scripted beat has the controls. The player stands still - or is walked, for a beat.
+      // (v18.0: or you are falling)
       mvx = scriptWalk.x / WALK_SPEED;
       mvy = scriptWalk.y / WALK_SPEED;
     } else if (ix || iy) {
@@ -2764,8 +2993,11 @@
         player.stepDist = 0;
         if (!player.crouching) {
           // a crouching player makes no footstep sound, so nothing can hear one
-          audio.footstep(1);
-          hearFootstep(player.x, player.y);
+          if (level.act2 && onDeadAir()) audio.footstep(0.3); // (v18.0) 22: dead air - a dull step that nothing hears
+          else {
+            audio.footstep(1);
+            hearFootstep(player.x, player.y);
+          }
         }
       }
     }
@@ -2775,7 +3007,10 @@
       marks.push({ x: contact.x, y: contact.y, t: 0, life: 0.9, c: COLORS[T_WALL] });
     }
     player.blocked = !!contact;
-    if (level.act2) act2Touch(); // (v17.0: a ghost wall comes apart, a hidden one thunks, a fold takes you)
+    if (level.act2) {
+      act2Touch(); // (v17.0: a ghost wall comes apart, a hidden one thunks, a fold takes you)
+      voidTouch(); // (v18.0: crumbling floor behind you, the void under you)
+    }
     stalkersListen(walked); // a stalker hears your footsteps and your presence - unless you are crouching
     mufflersListen(walked); // a muffler hears them too, from farther - and even a crouched MOVE from up close
     updateSmell(dt, walked);
@@ -2865,7 +3100,11 @@
     // LEVELS 14-16: their scripted beats (js/story.js) - the same kind of thing, and it may take the controls
     // for a beat at a time (scriptLock), with the game still running underneath.
     if (level.story) story.update(dt);
-    if (level.act2) act2Update(dt); // (v17.0: 18's walls sliding, 19's waves through folds, 17's reveals fading)
+    if (level.act2) {
+      act2Update(dt); // (v17.0: 18's walls sliding, 19's waves through folds, 17's reveals fading)
+      voidUpdate(dt); // (v18.0: crumbling floor, the creep, anything falling)
+      if (state !== 'play') return; // (the void took you)
+    }
 
     // NEAR MISSES. Read-only, and last: every monster has already moved and the outcomes below decide the
     // level. All this does is notice that something came within a hair of you and did not get you.
@@ -2935,6 +3174,11 @@
     if (storyDone) {
       storyDone = false;
       onStoryCleared();
+    }
+    // (v18.0) 24: its first way out, walked through - on into its second part (nothing saved yet)
+    if (nextPartPending) {
+      nextPartPending = false;
+      if (state === 'play') startLevel(levelNum, false, 2);
     }
   }
 
@@ -3313,6 +3557,8 @@
 
     // the player: a small pale dot with a faint halo (smaller and dimmer while crouching)
     const low = !!player.crouching;
+    const fall = a2Falling ? Math.max(0, 1 - a2Falling.t / FALL_SECONDS) : 1; // (v18.0: falling away into the void)
+    ctx.globalAlpha = fall;
     const g = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 30);
     g.addColorStop(0, `rgba(200,235,255,${low ? 0.07 : 0.16})`);
     g.addColorStop(1, 'rgba(200,235,255,0)');
@@ -3322,8 +3568,9 @@
     ctx.fill();
     ctx.fillStyle = low ? 'rgba(200,225,240,0.6)' : 'rgba(235,248,255,0.95)';
     ctx.beginPath();
-    ctx.arc(player.x, player.y, low ? 3.2 : 4.5, 0, TAU);
+    ctx.arc(player.x, player.y, (low ? 3.2 : 4.5) * (0.3 + 0.7 * fall), 0, TAU);
     ctx.fill();
+    ctx.globalAlpha = 1;
     if (cooldown > 0) {
       const p = 1 - cooldown / cfg.cooldown;
       ctx.strokeStyle = 'rgba(150,215,255,0.32)';
@@ -3359,7 +3606,8 @@
     // (v17.0) Act 2: a hidden wall just found, a ghost one just gone - and the void eating the edges of the map
     if (level.act2) {
       act2Draw();
-      story.drawVoid(ctx, artT);
+      voidDraw(); // (v18.0)
+      story.drawVoid(ctx, artT, levelTime);
     }
     // Visual cues (accessibility): small glyphs on a ring about 45px (on screen) around you, one per audible sound
     if (visualCues) cues.draw(player.x, player.y, 1 / viewScale);
@@ -3557,7 +3805,14 @@
   }
 
   /** `retrying` = the same level again after being caught, which is what costs you the Flawless medal. */
-  function startLevel(n, retrying = false) {
+  function startLevel(n, retrying = false, part = 1) {
+    if (!retrying) levelPart = part; // (v18.0) 24's second part: kept for a Try again, nothing else
+    nextPartPending = false;
+    a2Falling = null;
+    a2Tile = -1;
+    deadSeen = new Map();
+    crumbleLit = new Map();
+    a2CreepNext = 0;
     screamLog = []; // (v15.7, ?debug only)
     destroyVoices();
     warden.stop(); // level 13's drone, if the last level was it
@@ -3594,7 +3849,7 @@
     } else {
       fxZones = [];
       returnPalette();
-      level = generateLevel(n, runSeed, mode);
+      level = generateLevel(n, runSeed, mode, levelPart);
       // The level's lore fragment, if this maze has one (js/lore.js). Placed AFTER the level is finished, from
       // its own random stream, reading the level and writing nothing to it - so it can move nothing else.
       level.fragment = EchoLore.place(level, n, mode, runSeed);
@@ -3936,6 +4191,7 @@
     'warden:upgraded': 'You could not outrun it.',
     alarm: 'The alarm gave you away.',
     screecho: 'The screecho screamed, then it found you.',
+    void: 'The void took you.', // (v18.0: not a monster - the floor was gone, levels 21-24)
   };
   const CAUGHT_FALLBACK = 'The echo found you.';
   let catchCount = 0; // (each catch numbered, so a catch's own delayed screen can never show for another)
@@ -4199,7 +4455,7 @@
   }
 
   /**
-   * THE END OF THE GAME SO FAR: level 20's way out (v17.0: it was 16's until Act 2). STUB - the area after it has not been built yet, so the game
+   * THE END OF THE GAME SO FAR: level 24's way out (v18.0; v17.0: 20's; it was 16's until Act 2). STUB - the area after it has not been built yet, so the game
    * ends on a short, deliberately temporary screen and goes back to the title. (Until v14.0 this screen came
    * straight after level 13's capture.) Replace this and the `#ending` overlay in index.html together when the
    * next area exists.
@@ -4334,6 +4590,7 @@
     { kind: 'muffler', name: 'Nothing Comes Back', blurb: 'What lives where the echo stops.', locked: 'You will see it when you clear level 10.' },
     { kind: 'singer', name: 'Keep Moving', blurb: 'What to do when the song finds you.', locked: 'You will see it when you clear level 11.' },
     { kind: 'keeper', name: 'Somewhere Deeper', blurb: 'Between one dark and the next.', locked: 'You will see it when you clear level 13.' },
+    { kind: 'alarm', name: 'Only A Voice', blurb: 'What calls the others.', locked: 'You will see it when you clear level 21.' }, // (v18.0)
     // (v16.2) HIDDEN: not listed at all until every fragment is found (js/lore.js secretUnlocked); never played for
     // you, only from here or the Fragments screen; skippable like any scene
     { kind: 'kept', name: 'Kept', blurb: 'For the ones who looked everywhere.', secret: true },
@@ -4465,6 +4722,7 @@
       stalker: byScene('stalker', 10),
       muffler: byScene('muffler', 11),
       singer: byScene('singer', 12),
+      alarm: byScene('alarm', 22), // (v18.0: in the campaign from level 22)
       fragment: EchoLore.count() > 0, // something left behind: only once one has been found
       water: reached >= 14, // the drips of levels 14 and 16 (a cue shape)
       heavy: reached >= 15, // what comes for you on 15 and 16 (a cue shape - never named)
@@ -5727,7 +5985,8 @@
   // Test hook: only exposed when the page is opened with ?debug
   if (/[?&]debug\b/.test(location.search)) {
     window.__echo = {
-      info: () => ({ state, levelNum, levelTime, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state }),
+      info: () => ({ state, levelNum, levelTime, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state, part: levelPart, falling: !!a2Falling }),
+      deadSeen: () => [...deadSeen.keys()], // (v18.0, 22: the black patches on the map now)
       tp: (x, y) => {
         player.x = x;
         player.y = y;
