@@ -34,6 +34,14 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v17.0',
+      title: 'The broken gaol',
+      lines: [
+        { text: 'The story goes on: four new levels after level 16, where the maze starts breaking its own rules.', minLevel: 16 },
+        { text: 'Already reached the end? Continue now takes you on to level 17 - nothing you had is lost.', minLevel: 16 },
+      ],
+    },
+    {
       version: 'v16.4',
       title: 'Who caught you',
       lines: ['When something catches you, the Caught screen now says what it was, in your own words.'],

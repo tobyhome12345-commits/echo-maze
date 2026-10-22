@@ -133,7 +133,118 @@ const EchoStory = (() => {
       // the release: when you step into the first gallery (px)
       tripX: 14 * 40 + 12,
     },
+    // ================================================================== ACT 2 (v17.0): THE BROKEN GAOL
+    // The gaol is being unmade, drifting into a void. Each level breaks ONE rule of the maze. No words but a hint.
+    // Story-only tiles (never in the editor, its format or share codes):
+    //   g  GHOST WALL  - a ripple draws it like stone; it is not there. Walk into it and it comes apart (a glitch).
+    //   h  HIDDEN WALL - real stone a ripple does NOT draw. Bump it and it thunks - and from then on it shows.
+    //   A / B          - a SLIDING WALL: in A to begin with; every ping of yours within `slideRange` sends it
+    //                    to its B (the tile beside it), and back. Ground before it moves.
+    //   1 2 3 4        - FOLDS, in pairs: step onto one and you are on its pair. A ripple goes through as well.
+    //   E  an echo monster      T  a stalker      d  a drip (19: the one sound you can find your way by)
+    //   W  (20) a Warden at level 15's speed, in the stone behind you until `wake` s in - then it always knows
+    //      where you are, and comes after you
+    17: {
+      kind: 'liar',
+      act2: true,
+      void: 1,
+      map: [
+        '#############################',
+        '#############################',
+        '#S..g..h....#################',
+        '######.######################',
+        '######.......h............###',
+        '##########.########.#####.###',
+        '##########.########.#####.###',
+        '##########.########.#####.###',
+        '#.............g.....#####g###',
+        '#.#######.###############.###',
+        '#.#######.###############.###',
+        '#.#######.###############.###',
+        '#.......E.........h......X###',
+        '#############################',
+      ],
+    },
+    18: {
+      kind: 'shuffle',
+      act2: true,
+      void: 2,
+      slideRange: 240, // px from where you ping to a sliding wall: about six tiles
+      map: [
+        '###########################',
+        '###B########B##############',
+        '#S.A........A....##########',
+        '################.##########',
+        '################.##########',
+        '#######..........##########',
+        '#######..........###B######',
+        '#######....T........A..X###',
+        '#######..........######.###',
+        '#########.#####A#######.###',
+        '#########......B........###',
+        '###########################',
+      ],
+    },
+    19: {
+      kind: 'loop',
+      act2: true,
+      void: 3,
+      map: [
+        '##########################',
+        '####################2...X#',
+        '##########################',
+        '#1.S.d..................1#',
+        '########.#################',
+        '####.....#...............#',
+        '####.###.#.#############.#',
+        '####.#...#.#...........#.#',
+        '####.#.###.#.#########.#.#',
+        '####.......#.#..E......#.#',
+        '########.###.#.#######.#.#',
+        '########.....#.#########2#',
+        '##########################',
+      ],
+    },
+    20: {
+      kind: 'behind',
+      act2: true,
+      void: 4,
+      // the ripple, here: it travels at this fraction of its usual speed, and what it finds shows this much later
+      ripple: { speed: 0.42, lag: 0.45 },
+      // s into the level when the Warden breaks out of the stone just behind where you start (you can move from
+      // 0.7 s). It only ever reaches you along the way you came, so this is your head start: about 10 s of standing
+      // still in all, more for every stretch you walk (tools/act2-check.js measures it - and fails under 3 s)
+      wake: 10.0,
+      map: [
+        '#############################',
+        '#W.S..#.........#...........#',
+        '#####.#.#######.#.#########.#',
+        '#.....#.#.....#...#.......#.#',
+        '#.#####.#.###.#####.#####.#.#',
+        '#.#.....#.#.#.......#...#...#',
+        '#.#.#####.#.#########.#.###.#',
+        '#...#.....#...........#.....#',
+        '#####.#############.#######.#',
+        '#.....#......E....#.#.......#',
+        '#.#####.#########.#.#.#.#####',
+        '#.......#.........#...#....X#',
+        '#############################',
+      ],
+    },
   };
+  /**
+   * (v17.0) THE VOID, by `void` level (17: 1 ... 20: 4). Drawing and sound only - nothing in it is read by anything
+   * that decides anything. band: tiles of black creeping in from each edge of the map; staticA: how strong its
+   * static is; flick: how much that static flickers; fallEvery: [min, spread] seconds between the distant falls.
+   */
+  const VOID = {
+    1: { band: 1.4, staticA: 0.05, flick: 0.25, fallEvery: [34, 22] },
+    2: { band: 2.0, staticA: 0.08, flick: 0.35, fallEvery: [28, 18] },
+    3: { band: 2.7, staticA: 0.11, flick: 0.45, fallEvery: [22, 16] },
+    4: { band: 3.5, staticA: 0.15, flick: 0.6, fallEvery: [16, 14] },
+  };
+  /** (v17.0) Act 2's levels: hand-drawn like 13-16, each breaking one rule of the maze. */
+  const isAct2 = (n) => !!(LEVELS[n] && LEVELS[n].act2);
 
   const BAR_R = 3.4; // px: an iron bar, seen from above
   const BAR_AT = [7, 20, 33]; // px across its tile: gaps of 6-7 px, and you are 18 px across
@@ -150,6 +261,8 @@ const EchoStory = (() => {
   const RELEASE_WAKE = 3.0;
   // s into level 15's reveal beat: you have the controls back at 1.9 s, and it starts after you at this
   const REVEAL_WAKE = 2.6;
+  // (v17.0) s before level 20's Warden comes out (its `wake`) that the stone behind you splits: the warning
+  const ACT2_WARN = 1.5;
 
   // ------------------------------------------------------------ the maze
   function build(n, cfg) {
@@ -167,12 +280,20 @@ const EchoStory = (() => {
     let key = null;
     let door = null;
     let hunter = null;
+    // (v17.0) Act 2's story-only tiles, and its monsters
+    const ghosts = [];
+    const hidden = [];
+    const slideA = [];
+    const slideB = new Set();
+    const foldTiles = {};
+    const monsters = [];
     const c = (tx) => (tx + 0.5) * TILE;
     for (let y = 0; y < H; y++) {
       if (map[y].length !== W) console.warn(`EchoStory: level ${n} row ${y} is ${map[y].length} tiles, not ${W}`);
       for (let x = 0; x < W; x++) {
         const ch = map[y][x];
-        walls[y * W + x] = ch === '#' || ch === 'P' ? 1 : 0;
+        const i = y * W + x;
+        walls[i] = ch === '#' || ch === 'P' || ch === 'h' || ch === 'A' ? 1 : 0; // (a hidden wall and a sliding wall in A are stone)
         if (ch === 'S') start = { x: c(x), y: c(y) };
         else if (ch === 'X') exit = { x: c(x), y: c(y), r: EXIT_R };
         else if (ch === 'K') key = { x: c(x), y: c(y), r: KEY_R, taken: false };
@@ -181,6 +302,13 @@ const EchoStory = (() => {
         else if (ch === 'P') seals.push({ tx: x, ty: y });
         else if (ch === 'd') drips.push({ x: c(x), y: c(y) });
         else if (ch === 'p') obstacles.push({ x: c(x), y: c(y), r: OBSTACLE_R });
+        else if (ch === 'g') ghosts.push({ i, tx: x, ty: y, gone: false });
+        else if (ch === 'h') hidden.push({ i, tx: x, ty: y, shown: false });
+        else if (ch === 'A') slideA.push(i);
+        else if (ch === 'B') slideB.add(i);
+        else if (ch >= '1' && ch <= '4') (foldTiles[ch] = foldTiles[ch] || []).push(i);
+        else if (ch === 'E') monsters.push({ kind: 'echo', x: c(x), y: c(y), pitch: 52 });
+        else if (ch === 'T') monsters.push({ kind: 'stalker', x: c(x), y: c(y), pitch: 64 });
         else if (ch === 'b') {
           barTiles.push(y * W + x);
           for (const bx of BAR_AT) obstacles.push({ x: x * TILE + bx, y: c(y), r: BAR_R, bar: true });
@@ -203,18 +331,48 @@ const EchoStory = (() => {
     for (const s of seals) opened[s.ty * W + s.tx] = 0;
     const dOpen = bfsDist(opened, W, H, sIdx);
     const dShut = bfsDist(blocked, W, H, sIdx);
-    if (dOpen[eIdx] < 0) console.warn(`EchoStory: level ${n}'s way out cannot be reached even with everything open`);
+    if (!spec.act2 && dOpen[eIdx] < 0) console.warn(`EchoStory: level ${n}'s way out cannot be reached even with everything open`);
     // 14 (the door) and 15 (the sealed passage): the way out must NOT be reachable until the story opens it -
     // on 14 that is the whole of "the key cannot be skipped"
-    if (spec.kind !== 'deep' && dShut[eIdx] >= 0) console.warn(`EchoStory: level ${n}'s way out can be reached without opening anything`);
+    if (!spec.act2 && spec.kind !== 'deep' && dShut[eIdx] >= 0) console.warn(`EchoStory: level ${n}'s way out can be reached without opening anything`);
     // 16: the seal is the Warden's - nothing may reach it, and it may reach nothing, until it breaks out
     if (spec.kind === 'deep' && hunter && dShut[Math.floor(hunter.y / TILE) * W + Math.floor(hunter.x / TILE)] >= 0) console.warn(`EchoStory: level ${n}'s Warden is not sealed in`);
     if (key && dShut[Math.floor(key.y / TILE) * W + Math.floor(key.x / TILE)] < 0) console.warn(`EchoStory: level ${n}'s key cannot be reached`);
 
     const enemies = [];
     if (hunter) enemies.push({ kind: 'warden', x: hunter.x, y: hunter.y, variant: n === 16 ? 'upgraded' : 'regular', pitch: n === 16 ? 41.2 : 46.25 });
+    for (const m of monsters) enemies.push(m); // (v17.0: Act 2's ordinary monsters, where the map puts them)
 
-    return {
+    // (v17.0) ACT 2: what each level's broken rule needs to know (js/game.js reads it; nothing else does)
+    let act2 = null;
+    if (spec.act2) {
+      const slides = slideA.map((a) => {
+        const b = [a - 1, a + 1, a - W, a + W].find((j) => slideB.has(j));
+        if (b === undefined) console.warn(`EchoStory: level ${n}'s sliding wall at ${a % W},${(a / W) | 0} has no B beside it`);
+        return { a, b, on: 0, pending: null, x: (c(a % W) + c(b % W)) / 2, y: (c((a / W) | 0) + c((b / W) | 0)) / 2 };
+      });
+      const folds = [];
+      const foldPair = {};
+      for (const k of Object.keys(foldTiles).sort()) {
+        const t = foldTiles[k];
+        if (t.length !== 2) console.warn(`EchoStory: level ${n}'s fold ${k} has ${t.length} ends, not 2`);
+        else {
+          folds.push({ a: t[0], b: t[1] });
+          foldPair[t[0]] = t[1];
+          foldPair[t[1]] = t[0];
+        }
+      }
+      // what a ripple sees, where it is not what is there: a ghost wall is drawn, a hidden one is not
+      let rayWalls = null;
+      if (ghosts.length || hidden.length) {
+        rayWalls = walls.slice();
+        for (const g of ghosts) rayWalls[g.i] = 1;
+        for (const h of hidden) rayWalls[h.i] = 0;
+      }
+      act2 = { kind: spec.kind, void: spec.void || 1, ghosts, hidden, slides, slideRange: spec.slideRange || 240, folds, foldPair, rayWalls };
+    }
+
+    const built = {
       cfg,
       W,
       H,
@@ -243,7 +401,105 @@ const EchoStory = (() => {
         exitMuted: spec.kind === 'light', // 15: no chime from the real way out while it is sealed off
         spec,
       },
+      act2,
+      rayWalls: act2 ? act2.rayWalls : null, // (17: what a ripple's rays meet instead of level.walls)
+      rippleScale: spec.ripple ? spec.ripple.speed : 0, // (20: the ripple's speed, as a fraction of its usual)
+      rippleLag: spec.ripple ? spec.ripple.lag : 0, // (20: seconds before what it found is shown)
     };
+    if (act2) {
+      // Act 2's levels are puzzles of their broken rules: the way out must be reachable THROUGH them (solve)
+      const sol = solve(built);
+      if (!sol.ok) console.warn(`EchoStory: level ${n} cannot be finished: ${sol.why}`);
+      built.pathTiles = sol.ok ? sol.steps : -1;
+    }
+    return built;
+  }
+
+  /**
+   * (v17.0) Can Act 2's level be finished, through its own broken rule? A search over where you stand AND every
+   * sliding wall's state (18: a ping of yours toggles each one in range, exactly as the game does - and one never
+   * slides onto the tile you are on), stepping through folds (19) and walking through ghost walls but not hidden
+   * ones (17). Monsters are left out: this is about the shape of the level. Returns { ok, steps, pings, route, why }.
+   * Pure: it reads the level and changes nothing. tools/act2-check.js runs it for 17-20 and fails loudly.
+   */
+  function solve(level) {
+    const W = level.W;
+    const H = level.H;
+    const a2 = level.act2;
+    const tileOf = (p) => Math.floor(p.y / TILE) * W + Math.floor(p.x / TILE);
+    const s0 = tileOf(level.start);
+    const goal = tileOf(level.exit);
+    const slides = a2 ? a2.slides : [];
+    if (slides.length > 14) return { ok: false, why: 'too many sliding walls to search' };
+    const slideOf = new Map(); // tile -> [slide index, is it the A tile]
+    slides.forEach((sl, k) => {
+      slideOf.set(sl.a, [k, true]);
+      slideOf.set(sl.b, [k, false]);
+    });
+    const blockedAt = (i, bits) => {
+      const sl = slideOf.get(i);
+      if (sl) return ((bits >> sl[0]) & 1) === 1 ? !sl[1] : sl[1]; // A is stone in state 0, B in state 1
+      return level.blocked[i] === 1;
+    };
+    const fold = a2 ? a2.foldPair : {};
+    const range = a2 ? a2.slideRange : 0;
+    const pingMask = (i) => {
+      const x = ((i % W) + 0.5) * TILE;
+      const y = (((i / W) | 0) + 0.5) * TILE;
+      let m = 0;
+      slides.forEach((sl, k) => {
+        if (Math.hypot(sl.x - x, sl.y - y) <= range && sl.a !== i && sl.b !== i) m |= 1 << k;
+      });
+      return m;
+    };
+    const N = 1 << slides.length;
+    const seen = new Int32Array(W * H * N).fill(-1); // the state it was reached from
+    const how = new Int8Array(W * H * N); // 0 a step, 1 a ping
+    const q = [s0 * N];
+    seen[s0 * N] = s0 * N;
+    let head = 0;
+    let found = -1;
+    while (head < q.length) {
+      const key = q[head++];
+      const i = Math.floor(key / N);
+      const bits = key % N;
+      if (i === goal) {
+        found = key;
+        break;
+      }
+      const x = i % W;
+      const y = (i / W) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) {
+        if (j < 0 || blockedAt(j, bits)) continue;
+        const to = fold[j] !== undefined ? fold[j] : j; // a fold puts you on its pair
+        const k2 = to * N + bits;
+        if (seen[k2] >= 0) continue;
+        seen[k2] = key;
+        how[k2] = 0;
+        q.push(k2);
+      }
+      if (slides.length) {
+        const m = pingMask(i);
+        if (m) {
+          const k2 = i * N + (bits ^ m);
+          if (seen[k2] < 0) {
+            seen[k2] = key;
+            how[k2] = 1;
+            q.push(k2);
+          }
+        }
+      }
+    }
+    if (found < 0) return { ok: false, why: 'no way from the start to the way out', steps: -1 };
+    const route = [];
+    let pings = 0;
+    for (let k = found; k !== seen[k] || k !== s0 * N; k = seen[k]) {
+      route.push({ tile: Math.floor(k / N), ping: how[k] === 1 });
+      if (how[k] === 1) pings++;
+      if (k === s0 * N) break;
+    }
+    route.reverse();
+    return { ok: true, steps: route.length - pings, pings, route, why: '' };
   }
 
   // ------------------------------------------------------------ the beats
@@ -295,6 +551,14 @@ const EchoStory = (() => {
     let chirpCd = 0;
     let chirpRnd = null;
     let readyDone = false;
+    // (v17.0) Act 2
+    let glitchT = 0; // s of the screen's glitch still to run
+    let glitchBig = false;
+    let firstPing = false; // 17: the first ripple stutters
+    let fallIn = 0; // s to the next distant fall
+    let voidRnd = null;
+    let staticCanvas = null; // the void's static: drawn once, moved about
+    let foldFlick = 0;
 
     const P = () => env.player();
     const calm = () => !!env.calm();
@@ -434,6 +698,7 @@ const EchoStory = (() => {
       veilDur = 0.001;
       if (kind === 'gaol') startGaol();
       else if (kind === 'light') startLight();
+      else if (S.spec.act2) startAct2();
       else startDeep();
     }
 
@@ -442,7 +707,10 @@ const EchoStory = (() => {
       if (audio) {
         audio.stopDaylight(true);
         audio.stopCistern();
+        audio.stopVoid(); // (v17.0)
       }
+      glitchT = 0;
+      foldFlick = 0;
       lv = null;
       S = null;
       kind = 'off';
@@ -798,6 +1066,136 @@ const EchoStory = (() => {
       );
     }
 
+    // ===================================================== 17-20: ACT 2, THE BROKEN GAOL
+    // No words, no cutscene: each level opens in the dark the last one ended in, with its hint, and the void around it.
+    function startAct2() {
+      phase = 'calm';
+      setLock(true);
+      firstPing = false;
+      glitchT = 0;
+      foldFlick = 0;
+      voidRnd = rng(0x51ab1e + S.n * 7919);
+      const V = VOID[S.spec.void] || VOID[1];
+      fallIn = V.fallEvery[0] * 0.5 + voidRnd() * V.fallEvery[1];
+      setDrips(S.drips, { period: 3.6, first: 0.8, spread: 1.2 }); // (19: the one drip you can find your way by)
+      if (audio) audio.startVoid(S.spec.void);
+      const ev = [
+        [0, () => fade(0, 1.4)],
+        [0.7, () => env.banner()],
+      ];
+      // 16 -> 17: the same fade as 15 -> 16 - and as 17 begins, a low rumble and the picture glitching, once
+      if (S.n === 17) {
+        ev.push([0.15, () => {
+          if (audio) {
+            audio.stoneGrind(0, 0.35);
+            audio.wardenStep(0, 0.6, false, true);
+          }
+          caption('[a low rumble]');
+          glitch(true);
+        }]);
+      }
+      play(ev, release);
+      // 20: a Warden in the stone, far off. A moment after you can move, the stone splits and it comes - and from
+      // then on it always knows where you are (level 15's, at level 15's speed: you are faster, if you keep going)
+      const h = env.hunter();
+      if (h && S.spec.wake) {
+        // the stone splits first (a warning, as on 16) - and a moment later it is out and coming
+        after(S.spec.wake - ACT2_WARN, () => {
+          if (!lv || phase === 'leaving') return;
+          if (audio) audio.stoneSplit(clamp((h.x - P().x) / 500, -0.9, 0.9), 0.6);
+          caption('[stone splits, behind you]');
+          shakeBy(4);
+          env.music('hunt');
+        });
+        after(S.spec.wake, () => {
+          if (!lv || phase === 'leaving') return;
+          if (audio) audio.stoneGrind(clamp((h.x - P().x) / 500, -0.9, 0.9), 0.4);
+          env.wake(h, 'hunt');
+        });
+      }
+    }
+    function updateAct2(dt) {
+      glitchT = Math.max(0, glitchT - dt);
+      foldFlick = Math.max(0, foldFlick - dt);
+      fallIn -= dt;
+      if (fallIn <= 0) {
+        // far off, something falls - and never lands
+        const V = VOID[S.spec.void] || VOID[1];
+        fallIn = V.fallEvery[0] + voidRnd() * V.fallEvery[1];
+        if (audio) audio.voidFall(voidRnd() * 1.6 - 0.8, 0.55, S.spec.void);
+        caption('[something falls, far away]');
+      }
+    }
+    /** The picture stutters for a moment (a glitch) - and its sound: a burst of static. */
+    function glitch(big) {
+      glitchT = big ? 0.55 : 0.4;
+      glitchBig = !!big;
+      if (audio) audio.loreStatic();
+    }
+    /** (js/game.js) a ripple of yours has gone out. On 17 the first one stutters - the first sign it cannot be trusted. */
+    function onPing() {
+      if (!lv || kind !== 'liar' || firstPing) return;
+      firstPing = true;
+      glitch(false);
+      caption('[the echo stutters]');
+    }
+    /** (js/game.js) a fold has just taken you: a brief flicker. */
+    function flicker() {
+      foldFlick = 0.22;
+    }
+    /**
+     * World space, over everything in the maze: the void eating the edges of the map - bands of black creeping in
+     * from every side, and a slow static in them that flickers. Stronger each level (VOID). Drawing only.
+     */
+    function drawVoid(ctx, artT) {
+      if (!lv || !S.spec.act2) return;
+      const V = VOID[S.spec.void] || VOID[1];
+      const W = lv.pxW;
+      const H = lv.pxH;
+      const b = V.band * TILE;
+      const edge = (x0, y0, x1, y1, rx, ry, rw, rh) => {
+        const g = ctx.createLinearGradient(x0, y0, x1, y1);
+        g.addColorStop(0, 'rgba(0,0,0,0.92)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(rx, ry, rw, rh);
+      };
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      edge(0, 0, b, 0, 0, 0, b, H);
+      edge(W, 0, W - b, 0, W - b, 0, b, H);
+      edge(0, 0, 0, b, 0, 0, W, b);
+      edge(0, H, 0, H - b, 0, H - b, W, b);
+      // the static: one small tile of specks, drawn once, laid along the edges and moved on a few times a second
+      if (!staticCanvas) {
+        staticCanvas = document.createElement('canvas');
+        staticCanvas.width = 96;
+        staticCanvas.height = 96;
+        const g = staticCanvas.getContext('2d');
+        const r = rng(0x5747);
+        for (let i = 0; i < 420; i++) {
+          const v = 120 + Math.floor(r() * 120);
+          g.fillStyle = `rgba(${v},${v + 10},${v + 20},${0.25 + r() * 0.6})`;
+          g.fillRect(Math.floor(r() * 96), Math.floor(r() * 96), 1 + Math.floor(r() * 2), 1);
+        }
+      }
+      const step = Math.floor(artT * (calm() ? 3 : 6)); // a few new arrangements a second - slow, never a strobe
+      const flick = 1 - V.flick * (0.5 + 0.5 * Math.sin(artT * 1.7)) * (calm() ? 0.5 : 1);
+      ctx.globalAlpha = V.staticA * flick * (calm() ? 0.6 : 1);
+      const pat = ctx.createPattern(staticCanvas, 'repeat');
+      if (pat) {
+        const ox = (step * 37) % 96;
+        const oy = (step * 61) % 96;
+        ctx.translate(-ox, -oy);
+        ctx.fillStyle = pat;
+        ctx.fillRect(ox, oy, b * 0.8, H);
+        ctx.fillRect(ox + W - b * 0.8, oy, b * 0.8, H);
+        ctx.fillRect(ox, oy, W, b * 0.8);
+        ctx.fillRect(ox, oy + H - b * 0.8, W, b * 0.8);
+      }
+      ctx.restore();
+    }
+
     // ===================================================== the way out of each
     /** The player has reached this level's way out (js/game.js asks, instead of finishing the level itself). */
     function atExit() {
@@ -862,6 +1260,7 @@ const EchoStory = (() => {
       if (!lv) return; // (the beat may have finished the level)
       if (kind === 'gaol') updateGaol(dt);
       else if (kind === 'light') updateLight(dt);
+      else if (S.spec.act2) updateAct2(dt);
       else updateDeep(dt);
     }
 
@@ -935,6 +1334,33 @@ const EchoStory = (() => {
     /** Screen space, over everything: the fades, and the reveal's flash. */
     function veilDraw(ctx, cw, ch) {
       if (!lv) return;
+      // (v17.0) a glitch: the picture tears into a few bands, offset, for a moment - just once, never a strobe.
+      // Calm mode: only a slight dimming.
+      if (glitchT > 0) {
+        const k = glitchT / (glitchBig ? 0.55 : 0.4);
+        if (calm()) {
+          ctx.fillStyle = `rgba(0,0,0,${0.25 * k})`;
+          ctx.fillRect(0, 0, cw, ch);
+        } else {
+          const r = rng(0x6c17 + Math.floor(glitchT * 30));
+          for (let i = 0; i < (glitchBig ? 7 : 4); i++) {
+            const y = Math.floor(r() * ch);
+            const h = Math.floor(ch * (0.01 + r() * 0.05));
+            const dx = Math.floor((r() - 0.5) * cw * 0.06 * k);
+            try {
+              ctx.drawImage(ctx.canvas, 0, y, cw, h, dx, y, cw, h);
+            } catch (e) {
+              /* a canvas that cannot be read back: no tear, just the tint */
+            }
+            ctx.fillStyle = `rgba(95,212,255,${0.06 * k})`;
+            ctx.fillRect(0, y, cw, h);
+          }
+        }
+      }
+      if (foldFlick > 0) {
+        ctx.fillStyle = `rgba(0,0,0,${(calm() ? 0.35 : 0.7) * (foldFlick / 0.22)})`;
+        ctx.fillRect(0, 0, cw, ch);
+      }
       if (flare > 0.01) {
         const f = flare * flare * (calm() ? 0.3 : 1);
         const grad = ctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.5);
@@ -967,6 +1393,7 @@ const EchoStory = (() => {
       exitMuted: S ? !!S.exitMuted : false,
       drips: drips.map((d) => ({ x: d.x, y: d.y, on: d.on, metal: d.metal })),
       speaking: speech ? speech.text : null,
+      act2: S && S.spec.act2 ? { glitch: +glitchT.toFixed(3), firstPing, fallIn: +fallIn.toFixed(2), flicker: +foldFlick.toFixed(3) } : null, // (v17.0)
     });
 
     return {
@@ -979,6 +1406,9 @@ const EchoStory = (() => {
       camera,
       atExit,
       onKeyLit,
+      onPing, // (v17.0)
+      flicker,
+      drawVoid,
       state,
       get on() {
         return !!lv;
@@ -989,5 +1419,5 @@ const EchoStory = (() => {
     };
   }
 
-  return { LEVELS, BAR_R, DOOR_R, KEY_R, DRIP_R, LIGHT_RGB, build, create };
+  return { LEVELS, BAR_R, DOOR_R, KEY_R, DRIP_R, LIGHT_RGB, build, create, solve, isAct2 };
 })();

@@ -63,6 +63,7 @@ const EchoMusic = (() => {
 
   /** Which mood a level plays in. (Levels 15 and 16 change mood partway through - js/story.js asks for it.) */
   function moodFor(level) {
+    if (level >= 17) return 'gaol'; // (v17.0: Act 2 - the gaol coming apart)
     if (level >= 16) return 'cistern';
     if (level === 15) return 'warden';
     if (level === 14) return 'gaol';

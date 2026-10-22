@@ -2573,6 +2573,99 @@ class SoundEngine {
   // ----------------------------------------------------------------- ambient
 
   /** A quiet, low drone with a little wind. Pitch rises slightly per level. */
+  /**
+   * (v17.0) THE VOID (levels 17-20): a deep wind and a far-off rumble under everything, deeper each level (`depth`
+   * 1-4). On the ambience bus, beside the cave's own drone; started and stopped by js/story.js.
+   */
+  startVoid(depth = 1) {
+    if (!this.ctx) return;
+    this.stopVoid();
+    const c = this.ctx;
+    const t = c.currentTime;
+    const d = Math.max(1, Math.min(4, depth | 0));
+    const out = c.createGain();
+    out.gain.value = 0;
+    out.gain.setTargetAtTime(1, t, 2.5);
+    out.connect(this.amb);
+    // the wind: noise through a low-pass that sinks a little more each level, swelling very slowly
+    const noise = c.createBufferSource();
+    noise.buffer = this.noiseBuf;
+    noise.loop = true;
+    const lp = this._filter('lowpass', 210 - d * 32, 0.9);
+    const wind = c.createGain();
+    wind.gain.value = 0.045 + d * 0.012;
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.045 + d * 0.01;
+    const ld = c.createGain();
+    ld.gain.value = 0.03 + d * 0.006;
+    lfo.connect(ld);
+    ld.connect(wind.gain);
+    noise.connect(lp);
+    lp.connect(wind);
+    wind.connect(out);
+    // the rumble: a low beating pair of sines, lower each level
+    const rg = c.createGain();
+    rg.gain.value = 0.02 + d * 0.008;
+    const r1 = c.createOscillator();
+    r1.type = 'sine';
+    r1.frequency.value = 38 - d * 4;
+    const r2 = c.createOscillator();
+    r2.type = 'sine';
+    r2.frequency.value = 38 - d * 4 + 0.6;
+    r1.connect(rg);
+    r2.connect(rg);
+    rg.connect(out);
+    [noise, lfo, r1, r2].forEach((o) => o.start(t));
+    this.voidAmb = { out, stoppers: [noise, lfo, r1, r2] };
+  }
+
+  stopVoid() {
+    const v = this.voidAmb;
+    if (!v || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.voidAmb = null;
+    v.out.gain.cancelScheduledValues(t);
+    v.out.gain.setTargetAtTime(0, t, 0.4);
+    v.stoppers.forEach((s) => {
+      try {
+        s.stop(t + 2);
+      } catch (e) {
+        /* already stopped */
+      }
+    });
+  }
+
+  /**
+   * (v17.0) Far off in the void, something falls - and never lands: a long whistle of air dropping in pitch,
+   * swelling and then simply thinning away, with no impact at all. Deeper the deeper the level (`depth` 1-4).
+   */
+  voidFall(pan = 0, gain = 0.5, depth = 1) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const k = gain * (this.calm ? 0.6 : 1);
+    const d = Math.max(1, Math.min(4, depth | 0));
+    const len = 3.6 + d * 0.4;
+    const n = this._noise(t, len);
+    const bp = this._filter('bandpass', 1500 - d * 120, 6);
+    bp.frequency.setValueAtTime(1500 - d * 120, t);
+    bp.frequency.exponentialRampToValueAtTime(140, t + len);
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.16 * k, t + len * 0.35);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + len); // it thins away - it never lands
+    n.connect(bp);
+    bp.connect(ng);
+    this._route(ng, pan, 0.8);
+    const o = this._osc('sine', 520 - d * 40, t, len);
+    o.frequency.exponentialRampToValueAtTime(70, t + len);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(0.035 * k, t + len * 0.3);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(og);
+    this._route(og, pan, 0.8);
+  }
+
   startAmbient(level = 1) {
     if (!this.ctx) return;
     this.stopAmbient();

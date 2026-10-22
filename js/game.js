@@ -110,6 +110,11 @@
     14: 'Somewhere in here is the key. The door at the end will not open without it.',
     15: 'Keep going. Somewhere ahead, the dark gives way.',
     16: 'Somewhere below, water drips towards the way out. Follow it, and whatever happens, keep moving.',
+    // (v17.0) Act 2: one short line each - the level does the rest
+    17: 'Trust your ears.',
+    18: 'Listen for the grinding.',
+    19: 'Remember the drip.',
+    20: 'It answers late.',
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -469,6 +474,38 @@
     let t = 0;
     while (t < maxD) {
       if (isWall(tx, ty)) return t;
+      if (tMaxX < tMaxY) {
+        t = tMaxX;
+        tMaxX += tDeltaX;
+        tx += stepX;
+      } else {
+        t = tMaxY;
+        tMaxY += tDeltaY;
+        ty += stepY;
+      }
+    }
+    return maxD;
+  }
+
+  /**
+   * (v17.0) raycastWall over another grid: LEVEL 17's ripple meets what it SEES (level.rayWalls - ghost walls in,
+   * hidden walls out), not what is there. Everything physical - moving, line of sight, a wave reaching a monster -
+   * still asks raycastWall and the real walls.
+   */
+  function raycastGrid(grid, ox, oy, dx, dy, maxD) {
+    const W = level.W;
+    const H = level.H;
+    let tx = Math.floor(ox / TILE);
+    let ty = Math.floor(oy / TILE);
+    const stepX = dx > 0 ? 1 : -1;
+    const stepY = dy > 0 ? 1 : -1;
+    const tDeltaX = dx !== 0 ? Math.abs(TILE / dx) : Infinity;
+    const tDeltaY = dy !== 0 ? Math.abs(TILE / dy) : Infinity;
+    let tMaxX = dx > 0 ? ((tx + 1) * TILE - ox) / dx : dx < 0 ? (ox - tx * TILE) / -dx : Infinity;
+    let tMaxY = dy > 0 ? ((ty + 1) * TILE - oy) / dy : dy < 0 ? (oy - ty * TILE) / -dy : Infinity;
+    let t = 0;
+    while (t < maxD) {
+      if (tx < 0 || ty < 0 || tx >= W || ty >= H || grid[ty * W + tx] === 1) return t;
       if (tMaxX < tMaxY) {
         t = tMaxX;
         tMaxX += tDeltaX;
@@ -1777,6 +1814,8 @@
     glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
     audio.ping();
+    if (level.act2) act2Ping(player.x, player.y); // (v17.0: 18 - the sliding walls in range grind, and move)
+    if (level.story) story.onPing(); // (v17.0: 17 - the first one stutters)
     // (LEVEL 13: a ripple the player sends is an ordinary ripple and nothing more. The capture is not
     //  listening for one - walking into the great room is what sets it off. See wardenGasp below.)
   }
@@ -1807,6 +1846,142 @@
     }
     for (const c of rp.circles) if (c.warden) c.type = T_WARDEN;
     for (let i = rp.ei; i < rp.echoes.length; i++) if (rp.echoes[i].warden) rp.echoes[i].type = T_WARDEN;
+  }
+
+  // ----------------------------------------------- ACT 2 (v17.0): levels 17-20 (js/story.js)
+  /**
+   * THE BROKEN GAOL. Each of these levels breaks ONE rule of the maze, and everything for it is here, behind
+   * `level.act2` (built by js/story.js) - so not one line of it runs on levels 0-16 or a custom level.
+   *   17 THE LIAR    ghost walls (the ripple draws them, they are not there: walk into one and it comes apart) and
+   *                  hidden walls (there, and never drawn - until you bump one: a thunk, and it shows from then on).
+   *                  Footsteps, bumps and monsters still tell the truth. (castRipple reads level.rayWalls.)
+   *   18 THE SHUFFLE every ping of yours sends each sliding wall within range to its other place - it grinds first,
+   *                  then moves (SLIDE_DELAY), and never onto anyone. Nothing random: two pings and it is back.
+   *   19 THE LOOP    folds, in pairs: step onto one and you are on its pair; your waves go through too.
+   *   20 THE ECHO BEHIND  the ripple, slowed and shown late (level.rippleScale / rippleLag, read by castRipple,
+   *                  updateRipples and drawRipple); monsters' own sounds are as instant as ever.
+   */
+  const SLIDE_DELAY = 0.55; // s from the grinding starting to the wall moving: long enough to hear it coming
+  let foldSpawns = []; // waves still to come out of a fold: { at, x, y, R }
+  let a2Flashes = []; // tiles just found out: { i, t, kind: 'hidden' | 'ghost' }
+  let foldArmed = true; // a fold you have just come out of does not take you back until you have stepped off it
+  let foldHome = -1;
+  const tileMid = (i) => ({ x: ((i % level.W) + 0.5) * TILE, y: (Math.floor(i / level.W) + 0.5) * TILE });
+  /** Is a circle overlapping tile i? */
+  function circleOnTile(c, r, i) {
+    const tx = i % level.W;
+    const ty = Math.floor(i / level.W);
+    const nx = clamp(c.x, tx * TILE, tx * TILE + TILE);
+    const ny = clamp(c.y, ty * TILE, ty * TILE + TILE);
+    return (c.x - nx) * (c.x - nx) + (c.y - ny) * (c.y - ny) < r * r;
+  }
+  /** 18: your ping - every sliding wall in range starts to grind, and moves a moment later. */
+  function act2Ping(ox, oy) {
+    const a2 = level.act2;
+    for (const sl of a2.slides) {
+      if (sl.pending !== null || Math.hypot(sl.x - ox, sl.y - oy) > a2.slideRange) continue;
+      sl.pending = levelTime + SLIDE_DELAY;
+      const sp = spatial(sl.x, sl.y, 700);
+      audio.stoneGrind(sp.pan, Math.max(0.25, sp.g) * 0.7);
+      cues.pulse('muffler', sl.x, sl.y, Math.max(0.3, sp.g), { key: 'slide' + sl.a, big: true });
+    }
+  }
+  /** After you have moved: a ghost wall you walked into comes apart; a hidden wall you bumped shows; a fold takes you. */
+  function act2Touch() {
+    const a2 = level.act2;
+    for (const g of a2.ghosts) {
+      if (g.gone || !circleOnTile(player, player.r, g.i)) continue;
+      g.gone = true;
+      level.rayWalls[g.i] = 0; // nothing there now, to the ripple either
+      audio.loreStatic();
+      cues.caption('[a glitch]');
+      a2Flashes.push({ i: g.i, t: 0, kind: 'ghost' });
+    }
+    for (const h of a2.hidden) {
+      if (h.shown || !circleOnTile(player, player.r + 1.5, h.i)) continue;
+      h.shown = true;
+      level.rayWalls[h.i] = 1; // from now on the ripple finds it too
+      const c = tileMid(h.i);
+      const sp = spatial(c.x, c.y, 400);
+      audio.wardenStep(sp.pan, 0.55, false, true); // a dull thunk: stone where there was nothing
+      cues.caption('[a dull thunk]');
+      a2Flashes.push({ i: h.i, t: 0, kind: 'hidden' });
+    }
+    if (a2.folds.length) {
+      const ti = Math.floor(player.y / TILE) * level.W + Math.floor(player.x / TILE);
+      if (!foldArmed && ti !== foldHome) foldArmed = true;
+      const to = a2.foldPair[ti];
+      if (foldArmed && to !== undefined) {
+        const c = tileMid(to);
+        player.x = c.x;
+        player.y = c.y;
+        camX = c.x;
+        camY = c.y;
+        foldArmed = false;
+        foldHome = to;
+        audio.singerWhoosh(0, 0.5);
+        cues.caption('[a rush of air]');
+        story.flicker();
+      }
+    }
+  }
+  function act2Update(dt) {
+    const a2 = level.act2;
+    for (const sl of a2.slides) {
+      if (sl.pending === null || levelTime < sl.pending) continue;
+      sl.pending = null;
+      const from = sl.on ? sl.b : sl.a;
+      const to = sl.on ? sl.a : sl.b;
+      const sp = spatial(sl.x, sl.y, 700);
+      // never onto anyone: a wall that would land on you or a monster stays where it is (and you hear it catch)
+      if (circleOnTile(player, player.r, to) || enemies.some((e) => circleOnTile(e, e.r, to))) {
+        audio.bump(Math.max(0.2, sp.g));
+        continue;
+      }
+      level.walls[from] = 0;
+      level.blocked[from] = 0;
+      level.walls[to] = 1;
+      level.blocked[to] = 1;
+      sl.on ^= 1;
+      audio.wardenStep(sp.pan, Math.max(0.2, sp.g) * 0.6, false, true); // it settles
+      cues.caption('[stone grinds into place]');
+    }
+    for (let k = foldSpawns.length - 1; k >= 0; k--) {
+      const fs_ = foldSpawns[k];
+      if (levelTime < fs_.at) continue;
+      foldSpawns.splice(k, 1);
+      if (fs_.R > TILE) castRipple(fs_.x, fs_.y, fs_.R, { fold: true });
+    }
+    for (const fl of a2Flashes) fl.t += dt;
+    a2Flashes = a2Flashes.filter((fl) => fl.t < 1.6);
+  }
+  /** World space: a hidden wall's outline as it is found, and a ghost wall's coming apart. */
+  function act2Draw() {
+    if (!a2Flashes.length) return;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const fl of a2Flashes) {
+      const tx = (fl.i % level.W) * TILE;
+      const ty = Math.floor(fl.i / level.W) * TILE;
+      const a = 1 - fl.t / 1.6;
+      if (fl.kind === 'hidden') {
+        ctx.strokeStyle = `rgba(${COLORS[T_WALL]},${0.8 * a})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(tx + 2, ty + 2, TILE - 4, TILE - 4);
+      } else {
+        // a ghost wall: a few short shards of its outline, drifting apart
+        ctx.strokeStyle = `rgba(${COLORS[T_WALL]},${0.55 * a})`;
+        ctx.lineWidth = 1.4;
+        const sp = 1 + fl.t * 14;
+        ctx.beginPath();
+        for (let q = 0; q < 4; q++) {
+          const cx = tx + TILE / 2 + (q % 2 ? sp : -sp);
+          const cy = ty + TILE / 2 + (q < 2 ? -sp : sp);
+          ctx.moveTo(cx - 8, cy);
+          ctx.lineTo(cx + 8, cy);
+        }
+        ctx.stroke();
+      }
+    }
   }
 
   // ---------------------------------------------------- levels 14-16 (js/story.js)
@@ -1945,6 +2120,10 @@
     const singerRp = opts && opts.singer ? opts.singer : null;
     // a drop of water's ripple (levels 14 and 16): not yours, so it alerts nothing and makes no echoes of its own
     const ambient = !!(opts && opts.ambient);
+    // (v17.0) LEVEL 20: the ripple travels at a fraction of its speed, and what it finds is shown late. Everywhere
+    // else these are RIPPLE_SPEED and 0, and every number below comes out exactly as it always has.
+    const v = level.rippleScale ? RIPPLE_SPEED * level.rippleScale : RIPPLE_SPEED;
+    const lag = level.rippleLag || 0;
 
     // Round things the wave can bounce off (and the absorbers it cannot get past).
     const circles = [];
@@ -2003,7 +2182,7 @@
     for (let i = 0; i < RAYS; i++) {
       const dx = COS[i];
       const dy = SIN[i];
-      let best = raycastWall(ox, oy, dx, dy, R);
+      let best = level.rayWalls ? raycastGrid(level.rayWalls, ox, oy, dx, dy, R) : raycastWall(ox, oy, dx, dy, R); // (17: what it sees)
       let bt = best < R ? T_WALL : 0;
       let bid = -1;
       for (let c = 0; c < circles.length; c++) {
@@ -2022,6 +2201,18 @@
       dist[i] = best;
       type[i] = bt;
       hitId[i] = bid;
+    }
+
+    // (v17.0) LEVEL 17: which of this wave's wall hits are GHOST walls - drawn, and not there. They shimmer, very slightly:
+    // the one tell, for whoever looks closely (drawRipple)
+    let ghost = null;
+    if (level.act2 && level.act2.ghosts.length) {
+      ghost = new Uint8Array(RAYS);
+      for (let i = 0; i < RAYS; i++) {
+        if (type[i] !== T_WALL) continue;
+        const ti = Math.floor((oy + SIN[i] * (dist[i] + 0.5)) / TILE) * level.W + Math.floor((ox + COS[i] * (dist[i] + 0.5)) / TILE);
+        if (level.act2.ghosts.some((g) => !g.gone && g.i === ti)) ghost[i] = 1;
+      }
     }
 
     // What this wave lit up, one entry per round thing (boulder, monster, exit...): its nearest hit and how many rays
@@ -2065,7 +2256,7 @@
     for (const b of [...wallEvents, ...objBins.values()]) {
       const d = b.sd / b.n;
       echoes.push({
-        t: (2 * d) / RIPPLE_SPEED,
+        t: (2 * d) / v + lag,
         type: b.type,
         d,
         pan: clamp((b.sx / b.n) * 0.9, -1, 1),
@@ -2102,8 +2293,8 @@
     for (const p of flats) {
       const d = Math.hypot(p.x - ox, p.y - oy);
       if (d > R || !hasLOS(ox, oy, p.x, p.y) || (d > 1 && shadowed(p.x, p.y, d))) continue;
-      marks.push({ x: p.x, y: p.y, t: -d / RIPPLE_SPEED, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore, key: !!p.key, note: p.note || null, ambient });
-      echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
+      marks.push({ x: p.x, y: p.y, t: -d / v - lag, life: 2.8, c: COLORS[p.type], r: p.r + 10, puddle: true, art: p.art || (p.type === T_DECOY ? 'decoy' : 'puddle'), ar: p.r, singer: !!singerRp, lore: !!p.lore, key: !!p.key, note: p.note || null, ambient });
+      echoes.push({ t: (2 * d) / v + lag, type: p.type, d, pan: clamp(((p.x - ox) / (d + 1)) * 0.9, -1, 1), w: 1 });
     }
     echoes.sort((a, b) => a.t - b.t);
     if (singerRp) echoes.length = 0; // a singer's wave makes no echo sounds of its own: its sung tone is played from where it stands
@@ -2115,7 +2306,19 @@
     const seen = new Set();
     for (const bin of objBins.keys()) if (circles[bin] && (circles[bin].type === T_ENEMY || circles[bin].type === T_ALARM || circles[bin].type === T_SCREECHO)) seen.add(circles[bin].enemy); // (circles[bin]: the door's bin is named, not numbered)
 
-    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / RIPPLE_SPEED + 2.6, singer: singerRp, hitPlayer: false, ambient, dim: ambient ? 0.62 : 1 });
+    ripples.push({ x: ox, y: oy, t: 0, R, dist, type, hitId, circles, objs, echoes, ei: 0, seen, touched: new Set(), life: (2 * R) / v + 2.6 + lag, singer: singerRp, hitPlayer: false, ambient, dim: ambient ? 0.62 : 1, v, lag, ghost });
+    // (v17.0) LEVEL 19: a wave that reaches a fold goes into it, and comes out of its pair - as far again as it had
+    // left to go. Your waves only (a drop of water's stays where it fell), and one fold deep.
+    if (level.act2 && level.act2.folds.length && !(opts && opts.fold) && !ambient && !singerRp) {
+      for (const key of Object.keys(level.act2.foldPair)) {
+        const a = +key;
+        const b = level.act2.foldPair[key];
+        const fx = ((a % level.W) + 0.5) * TILE;
+        const fy = (Math.floor(a / level.W) + 0.5) * TILE;
+        const d = Math.hypot(fx - ox, fy - oy);
+        if (d < R - TILE && hasLOS(ox, oy, fx, fy)) foldSpawns.push({ at: levelTime + d / v, x: ((b % level.W) + 0.5) * TILE, y: (Math.floor(b / level.W) + 0.5) * TILE, R: R - d });
+      }
+    }
   }
 
   /** Can the wave get from (ox,oy) to this monster? A wall, a boulder or another monster in the way stops it. */
@@ -2188,7 +2391,7 @@
           scream(e);
           if (!rp.seen.has(e)) {
             marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[T_SCREECHO], r: 34, art: 'screecho', ar: e.r, h: Math.atan2(rp.y - e.y, rp.x - e.x) });
-            rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: T_SCREECHO, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
+            rp.echoes.push({ t: (2 * d) / (rp.v || RIPPLE_SPEED) + (rp.lag || 0), type: T_SCREECHO, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
             rp.echoes.sort((a, b) => a.t - b.t);
           }
           continue;
@@ -2204,7 +2407,7 @@
         // it walked into the wave after the ripple was sent, so no echo of it was planned: show and sound it now
         const sc = e.kind === 'screecho'; // (v15.7: a Screecho is shown and heard as itself)
         marks.push({ x: e.x, y: e.y, t: 0, life: 1.3, c: COLORS[sc ? T_SCREECHO : T_ENEMY], r: 34, art: sc ? 'screecho' : 'echo', ar: e.r, h: Math.atan2(rp.y - e.y, rp.x - e.x) });
-        rp.echoes.push({ t: (2 * d) / RIPPLE_SPEED, type: sc ? T_SCREECHO : T_ENEMY, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
+        rp.echoes.push({ t: (2 * d) / (rp.v || RIPPLE_SPEED) + (rp.lag || 0), type: sc ? T_SCREECHO : T_ENEMY, d, pan: clamp(((e.x - rp.x) / (d + 1)) * 0.9, -1, 1), w: 1 });
         rp.echoes.sort((a, b) => a.t - b.t);
       }
       alertEnemy(e, rp.x, rp.y);
@@ -2265,9 +2468,10 @@
 
   function updateRipples(dt) {
     for (const rp of ripples) {
-      const before = Math.min(rp.t * RIPPLE_SPEED, rp.R); // where the wavefront was
+      const v = rp.v || RIPPLE_SPEED; // (v17.0: level 20's wave is slower)
+      const before = Math.min(rp.t * v, rp.R); // where the wavefront was
       rp.t += dt;
-      const after = Math.min(rp.t * RIPPLE_SPEED, rp.R);
+      const after = Math.min(rp.t * v, rp.R);
       if (rp.singer) singerRippleHits(rp, before, after); // a singer's wave alerts no monster; it can only MARK you
       else if (!rp.ambient) touchMonsters(rp, before, after); // (a drop of water's wave alerts nothing at all)
       while (rp.ei < rp.echoes.length && rp.echoes[rp.ei].t <= rp.t) playEcho(rp.echoes[rp.ei++], rp.R);
@@ -2571,6 +2775,7 @@
       marks.push({ x: contact.x, y: contact.y, t: 0, life: 0.9, c: COLORS[T_WALL] });
     }
     player.blocked = !!contact;
+    if (level.act2) act2Touch(); // (v17.0: a ghost wall comes apart, a hidden one thunks, a fold takes you)
     stalkersListen(walked); // a stalker hears your footsteps and your presence - unless you are crouching
     mufflersListen(walked); // a muffler hears them too, from farther - and even a crouched MOVE from up close
     updateSmell(dt, walked);
@@ -2660,6 +2865,7 @@
     // LEVELS 14-16: their scripted beats (js/story.js) - the same kind of thing, and it may take the controls
     // for a beat at a time (scriptLock), with the game still running underneath.
     if (level.story) story.update(dt);
+    if (level.act2) act2Update(dt); // (v17.0: 18's walls sliding, 19's waves through folds, 17's reveals fading)
 
     // NEAR MISSES. Read-only, and last: every monster has already moved and the outcomes below decide the
     // level. All this does is notice that something came within a hair of you and did not get you.
@@ -2816,7 +3022,9 @@
   }
 
   function drawRipple(rp) {
-    const r = rp.t * RIPPLE_SPEED;
+    const v = rp.v || RIPPLE_SPEED;
+    const r = rp.t * v;
+    const rr = rp.lag ? (rp.t - rp.lag) * v : r; // (v17.0: level 20 - what the wave found is shown this much later)
     const { x, y, dist, type, R } = rp;
     if (rp.ambient) ctx.globalAlpha = rp.dim; // a drop of water's ripple is fainter than yours (levels 14 and 16)
     const tint = rp.singer ? singerRgb() : null; // a singer's own wave is magenta all through: front, walls, everything it finds
@@ -2852,16 +3060,17 @@
     }
 
     // reveal marks (fading) and the reflected wave travelling back
-    const retAlpha = 0.5 * (1 - r / (2 * R));
+    const retAlpha = 0.5 * (1 - rr / (2 * R));
     for (let j = 0; j < RAYS; j++) {
       const k = type[j];
       if (!k) continue;
       const d = dist[j];
-      if (r < d) continue;
+      if (rr < d) continue;
       const j2 = (j + 1) % RAYS;
       const connect = type[j2] === k && Math.abs(dist[j2] - d) < 22;
-      const age = (r - d) / RIPPLE_SPEED;
-      const al = Math.exp(-age / 1.3);
+      const age = (rr - d) / v;
+      let al = Math.exp(-age / 1.3);
+      if (rp.ghost && rp.ghost[j]) al *= 0.8 + 0.2 * Math.sin(artT * 11 + j * 0.9); // (17: a ghost wall shimmers, a little)
       if (al > 0.03) {
         const px = x + COS[j] * d;
         const py = y + SIN[j] * d;
@@ -2874,9 +3083,9 @@
           if (k === T_WALL) EchoArt.wallTexture(px, py, qx, qy, COS[j], SIN[j], texBuckets[ai]); // stone joints and the odd crack
         } else b.push(px, py, px, py);
       }
-      if (r < 2 * d && retAlpha > 0.02) {
-        const s = 2 * d - r;
-        const s2 = 2 * dist[j2] - r;
+      if (rr < 2 * d && retAlpha > 0.02) {
+        const s = 2 * d - rr;
+        const s2 = 2 * dist[j2] - rr;
         const px = x + COS[j] * s;
         const py = y + SIN[j] * s;
         const b = retBuckets[k];
@@ -2897,8 +3106,8 @@
 
     // the things the wave found, drawn as themselves (the rays above are their true collision outline)
     for (const ob of rp.objs) {
-      if (r < ob.dmin) continue;
-      const al = Math.exp(-(r - ob.dmin) / RIPPLE_SPEED / 1.3);
+      if (rr < ob.dmin) continue;
+      const al = Math.exp(-(rr - ob.dmin) / v / 1.3);
       if (al > 0.04) drawLit(rp, ob, al * Math.min(1, 0.4 + ob.n / 10) * (tint ? 0.75 : 1));
     }
     if (rp.ambient) ctx.globalAlpha = 1;
@@ -3146,6 +3355,11 @@
       ctx.beginPath();
       ctx.arc(player.x, player.y, 17, -Math.PI / 2, -Math.PI / 2 + TAU * f);
       ctx.stroke();
+    }
+    // (v17.0) Act 2: a hidden wall just found, a ghost one just gone - and the void eating the edges of the map
+    if (level.act2) {
+      act2Draw();
+      story.drawVoid(ctx, artT);
     }
     // Visual cues (accessibility): small glyphs on a ring about 45px (on screen) around you, one per audible sound
     if (visualCues) cues.draw(player.x, player.y, 1 / viewScale);
@@ -3421,6 +3635,10 @@
     glimmerOff = false;
     ripples = [];
     marks = [];
+    foldSpawns = []; // (v17.0: Act 2's own things in flight)
+    a2Flashes = [];
+    foldArmed = true;
+    foldHome = -1;
     cooldown = 0;
     levelTime = 0;
     ripplesUsed = 0;
@@ -3981,7 +4199,7 @@
   }
 
   /**
-   * THE END OF THE GAME SO FAR: level 16's way out. STUB - the area after it has not been built yet, so the game
+   * THE END OF THE GAME SO FAR: level 20's way out (v17.0: it was 16's until Act 2). STUB - the area after it has not been built yet, so the game
    * ends on a short, deliberately temporary screen and goes back to the title. (Until v14.0 this screen came
    * straight after level 13's capture.) Replace this and the `#ending` overlay in index.html together when the
    * next area exists.
@@ -4440,9 +4658,9 @@
    * playCustom - which plays it with the real engine, writes nothing to the save, and comes back to them after.
    *
    * Who can open it: anyone who has pressed "I understand" on its warning (EDITOR_KEY, kept for good) - and,
-   * without ever being asked, anyone who has finished the game on any difficulty. That is the very test the title
-   * screen uses to write "Finished" on a mode: isFinished(getBest(m)) - the best level kept for that mode in
-   * `echomaze.progress` is past the last one (CAMPAIGN_LEVELS), which only clearing level 16 can do.
+   * without ever being asked, anyone who has cleared level 16 on any difficulty (v17.0, ALL_MONSTERS_MET_AFTER below:
+   * until v17.0 that was finishing the game - the test the title uses to write "Finished" - and Act 2 brings no
+   * monster they have not met, so it stays the line now that the game goes on to 20).
    */
   /**
    * (v15.3) The player's creator name: empty unless they set one (the editor's Level settings tab). It is put into
@@ -4459,7 +4677,10 @@
   $('ed-creator').addEventListener('input', () => setCreatorName($('ed-creator').value));
   $('ed-creator').addEventListener('change', () => ($('ed-creator').value = setCreatorName($('ed-creator').value)));
   const anyModeFinished = () => MODE_ORDER.some((m) => isFinished(getBest(m)));
-  const editorUnlocked = () => store.get(EDITOR_KEY) === '1' || anyModeFinished();
+  // (v17.0) Act 2 has no monster Act 1 does not: whoever has cleared level 16 has met them all, so the editor stays
+  // unlocked for them exactly as it was before 17-20 existed (when clearing 16 was finishing the game)
+  const ALL_MONSTERS_MET_AFTER = 16;
+  const editorUnlocked = () => store.get(EDITOR_KEY) === '1' || MODE_ORDER.some((m) => getBest(m) > ALL_MONSTERS_MET_AFTER);
   const customTitle = () => (customRun && customRun.doc ? customRun.doc.title : 'Custom level');
   const customBackLabel = () => (customRun && customRun.from === 'editor' ? 'Back to the editor' : customRun && customRun.from === 'bonus' ? 'Back to Bonus Levels' : 'Back to My Levels');
 
@@ -5691,7 +5912,7 @@
       // ?debug only, for the measured speed test: wake the Warden now, wherever it is
       wakeHunter: () => {
         const e = enemies.find((m) => m.kind === 'warden');
-        if (e) wakeWarden(e, levelNum === STORY_LAST ? 'upgraded' : 'hunt');
+        if (e) wakeWarden(e, e.variant === 'upgraded' ? 'upgraded' : 'hunt'); // (v17.0: by its variant - 16 is not the last level now)
         return !!e;
       },
       // v15.0: the level editor. openEditorScreens() is the title's button; playCustom(doc, from) starts a custom
@@ -5834,7 +6055,7 @@
       musicState: () => music.state(),
       levelDeaths: () => levelDeaths,
       settings: () => ({
-        campaignLevels: CAMPAIGN_LEVELS, // 16 (the tutorial is level 0 and is not one of them)
+        campaignLevels: CAMPAIGN_LEVELS, // 20 since v17.0 (the tutorial is level 0 and is not one of them)
         medalLevels: MEDAL_LEVELS, // 12: levels 13-16 are hand-drawn, have no cleared screen and take no medals
         // level 13 (js/warden.js): the fixed level, the one room that glows, and the capture
         warden: { level: WARDEN_LEVEL, insideX: EchoWarden.INSIDE_PX, waveFallback: EchoWarden.WAVE_FALLBACK, dreadTiles: EchoWarden.DREAD_TILES, at: level && level.warden ? warden.state() : null },

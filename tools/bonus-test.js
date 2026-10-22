@@ -413,7 +413,7 @@ window.BonusTest = (() => {
       return new Set(d.enemies.map((m) => m.kind)).size >= 3 && d.exits.length === 2 && d.objects.some((o) => o.kind === 'key') && d.effects.length > 0 && d.enemies.some((m) => m.variant === 'upgraded') && d.enemies.some((m) => m.kind === 'mimic');
     })());
     T.check('level 5 has a regular Level 15 monster', docOf('bonus-05-the-long-way').enemies.some((m) => m.kind === 'warden' && m.variant === 'regular'));
-    T.check('none of them is in the campaign: 16 levels, no bonus title in the level select', E().settings().campaignLevels === 16 && !list.some((it) => $('replay').textContent.includes(it.title)));
+    T.check(`none of them is in the campaign: ${STORY_LAST} levels, no bonus title in the level select`, E().settings().campaignLevels === STORY_LAST && !list.some((it) => $('replay').textContent.includes(it.title)));
     return T.done();
   }
 

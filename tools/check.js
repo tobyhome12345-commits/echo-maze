@@ -52,6 +52,8 @@ const QUICK = [
   { name: 'monster descriptions (v16.1)', load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'coverage'], ['EditorAboutTest', 'canFail'], ['EditorAboutTest', 'numbers']] },
   // (v16.2) the fragments of levels 13-16: where each one lies, and the CHANCE table
   { name: 'lore fragments on 13-16 (v16.2)', load: ['lore-story-test.js'], runs: [['LoreStoryTest', 'placement']] },
+  // (v17.0) Act 2, levels 17-20: each broken rule, and the way through each level with the real keys
+  { name: 'Act 2 (v17.0)', load: ['act2-test.js'], runs: ['liar', 'shuffle', 'loop', 'behind', 'walkAll'].map((n) => ['Act2Test', n]) },
 ];
 const FULL_EXTRA = [
   { name: 'editor (v15.0)', load: ['editor-test.js'], runs: ['gate', 'tools', 'storage', 'noWrites'].map((n) => ['EditorTest', n]) },
@@ -72,6 +74,8 @@ const FULL_EXTRA = [
   { name: 'monster descriptions at 1280x720', size: { w: 1280, h: 720 }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
   { name: 'monster descriptions on a tablet', size: { w: 1024, h: 768, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
   { name: 'monster descriptions on a phone', size: { w: 844, h: 390, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
+  { name: 'Act 2 with its monsters, and saves', load: ['act2-test.js'], runs: [['Act2Test', 'walkMonsters'], ['Act2Test', 'firstTime'], ['Act2Test', 'perf']] },
+  { name: 'Act 2 on a phone', size: { w: 844, h: 390, mobile: true }, load: ['act2-test.js'], runs: [['Act2Test', 'perf']] },
 ];
 
 const results = [];
@@ -111,6 +115,18 @@ function staticChecks() {
   }
   ok('every .json file (and the web app manifest) is valid JSON', !badJson.length, badJson.join(' / '));
   versionCheck();
+  act2Check();
+}
+
+/** (v17.0) Act 2's hand-built levels can be finished, through each one's broken rule (tools/act2-check.js, in Node). */
+function act2Check() {
+  try {
+    const out = execFileSync(process.execPath, [path.join(__dirname, 'act2-check.js'), '--quiet'], { stdio: 'pipe' }).toString();
+    ok(`Act 2: levels 17-20 can be finished, each through its broken rule (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
+  } catch (e) {
+    const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
+    ok('Act 2: levels 17-20 can be finished, each through its broken rule', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
+  }
 }
 
 /** VERSION.json, and every place that names the current version, must agree (CLAUDE.md, "Cloud sessions"). */
