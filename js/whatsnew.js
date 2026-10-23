@@ -34,6 +34,11 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v18.1',
+      title: 'Visual cues fix',
+      lines: ['With Visual cues on, the game no longer freezes when the floor cracks or the walls move.'],
+    },
+    {
       version: 'v18.0',
       title: 'The crumble',
       lines: [

@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v18.0 - the crumble
+**Current version:** v18.1 - visual cues fix
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 

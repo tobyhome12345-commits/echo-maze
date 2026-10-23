@@ -131,6 +131,21 @@ Linux + Chrome), so a bad `main` is visible on GitHub as a red cross.
 Sound by ear, how it looks and feels to a person in motion, a real phone or touch screen, the owner's PC copies. List
 them in the final message (and the pull request, if there is one).
 
+### THE STANDING TEST RULE: Visual cues ON first (owner's instruction, v18.1 - every update from now on)
+
+**Toby plays with Visual cues ON.** So every test of every new or changed level and feature is run in a real browser
+**with Visual cues ON first** (localStorage `echomaze.visualcues` = `'1'` before the page loads - `tools/headless.js`
+`--save`, or a `save` on a `tools/check.js` group), **and then again with it OFF**. Every new cue (`cues.pulse`,
+`cues.hold`, `cues.caption`) must be exercised by a test and checked for console errors, **with the real game loop
+running** (requestAnimationFrame - not only `__echo.step()`), because an error inside the loop is what freezes the
+game. **A level is not finished until it runs error-free with cues on.** (v18.0 broke this: its new cues passed
+string keys to a WeakMap and froze the game for anyone with Visual cues on; every test had run with cues off.
+`Act2Test.cues` and the "Act 2, Visual cues ON" group of `tools/check.js` are the pattern to copy.)
+
+**Tests must be gentle on the owner's PC** (v18.1): run browsers through `tools/headless.js` only (it ends each browser
+with its whole process tree, sweeps up orphans of earlier runs and runs everything at below-normal priority); one
+browser at a time; never leave a server or a browser running after a session's work.
+
 ### Testing in a cloud session (the same requirements as locally, as far as they go)
 
 Everything runs from the repo with Node (22 or newer; no packages):
@@ -310,7 +325,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v16.4 | bc3a730 | MINOR, text only: **the Caught screen names what caught you** - one table, `CAUGHT_LINES` in js/game.js, keyed by the monster's kind (`'warden:upgraded'` for level 16's), one short first-person line each, `The echo found me.` for anything unknown; the catch hands the monster itself to `onCaught`; two monsters touching on the same frame -> the one furthest inside (it got there first); Hardcore's title notice quotes the line; each catch's delayed screen is numbered so it can only ever show for its own catch. Levels 0-16 unchanged (`9097b344`; capture, wake, story-bot and identity games = v16.3) |
 | v17.0 | 14fa22c | MAJOR: **ACT 2, THE BROKEN GAOL - levels 17-20**, hand-built, each breaking one rule: **17 the liar** (ghost walls a ripple draws that are not there, hidden walls it does not draw that are), **18 the shuffle** (sliding walls every ping in range moves, after a grind), **19 the loop** (folds that move you to their pair; a drip to find your way by), **20 the echo behind** (ripples at 0.42x speed shown 0.45 s late, and a level-15 Warden that breaks out of the stone behind you). The void at the map edges and a falling sound, stronger each level (drawing and sound only); the 16 -> 17 rumble and glitch; one-line hints; no new monsters, words, scenes or fragments; the new tiles story-only. `CAMPAIGN_LEVELS` 20, the ending stub after 20, a finished-16 save continues at 17. `tools/act2-check.js` (in every check run) and `tools/act2-test.js`. Levels 0-16 unchanged (`9097b344`; capture, wake, story-bot and identity games = v16.4) |
 | v17.1 | 66b78c1 | MINOR, text only: **the Caught screen's lines speak to you** - the game talking to the player ("The echo found you.", "It never lost you.") instead of v16.4's first person ("...found me"); the same table (`CAUGHT_LINES`), the same keys, the fallback "The echo found you."; the Warden still never named. Nothing else changed |
-| v18.0 | PENDING | MAJOR: **ACT 2 PART 2, THE VOID - levels 21-24** ("the crumble"): the void is taking the maze - story-only void tiles (a fall that never lands, "The void took you."; a monster over it falls and is gone), **21 the crumble** (crumbling floor that goes after you step off it; a rush can strand you), **22 dead air** (ripples go in and never come back, your steps are lost) **and the Alarm** in the story, with a new scene before it ("Only A Voice"), **23 the creeping edge** (the void eats the map ring by ring on a fixed schedule; Easy slower), **24 the wrong way out** (its way out leads into a smaller half-eaten copy whose way out is back west, a Warden behind you; Try again restarts that part). `CAMPAIGN_LEVELS` 24, the stub after 24, a finished-20 save continues at 21. `tools/act2-check.js` proves 17-24 (crumble states, the creep in time) and `tools/act2-test.js` plays them. Levels 0-20 unchanged (`9097b344`; 13-16 = v16.4; 17-20 walk as in v17.0) (latest) |
+| v18.0 | 572b9c7 | MAJOR: **ACT 2 PART 2, THE VOID - levels 21-24** ("the crumble"): the void is taking the maze - story-only void tiles (a fall that never lands, "The void took you."; a monster over it falls and is gone), **21 the crumble** (crumbling floor that goes after you step off it; a rush can strand you), **22 dead air** (ripples go in and never come back, your steps are lost) **and the Alarm** in the story, with a new scene before it ("Only A Voice"), **23 the creeping edge** (the void eats the map ring by ring on a fixed schedule; Easy slower), **24 the wrong way out** (its way out leads into a smaller half-eaten copy whose way out is back west, a Warden behind you; Try again restarts that part). `CAMPAIGN_LEVELS` 24, the stub after 24, a finished-20 save continues at 21. `tools/act2-check.js` proves 17-24 (crumble states, the creep in time) and `tools/act2-test.js` plays them. Levels 0-20 unchanged (`9097b344`; 13-16 = v16.4; 17-20 walk as in v17.0) |
+| v18.1 | PENDING | MINOR, a fix: **with Visual cues on the game froze** on 21 (a crumbling tile cracking), 18 (a sliding wall) and 23 (a ring going) and stayed frozen everywhere until a reload - js/cues.js kept its rate limit in a WeakMap, and v18.0 passed it string keys, which threw inside the game loop. A second Map for string keys; the game loop now catches an error in its update or its drawing, logs the first few, and always asks for the next frame. Tests: `Act2Test.cues` (the real loop, cues ON and off) and the Act 2 suites again with cues ON in `tools/check.js`; `tools/headless.js` no longer leaves browser processes behind and runs them at below-normal priority. Levels, saves, the editor and share codes unchanged (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2521,6 +2537,33 @@ The test-copy builder rehearsed in a scratch folder: 24 levels, progress 25, 'al
 wake, story-bot, identity games) identical to v16.4; generator `9097b344`; 17-20 walk exactly as in v17.0.
 **Not checked**: sound and look by ear and eye, a real phone, pacing for a real player (the bot never pings on 22,
 so it never meets the Alarm's scream in a run).
+
+## v18.1: the Visual cues freeze (owner's brief, MINOR)
+
+**The bug (v18.0's).** With Visual cues on, level 21 froze about 0.6 s after stepping off a crumbling tile and the
+page stayed frozen on every level until a reload. js/cues.js rate-limits a pulse per source in `lastPulse = new
+WeakMap()`; v18.0 passed three STRING keys (`'crumble' + c.i` on 21, `'slide' + sl.a` on 18, `'creep'` on 23), the
+WeakMap threw "Invalid value used as weak map key" inside `updatePlay`, and `frame()` never re-armed
+requestAnimationFrame. Every v18.0 test had run with Visual cues off (cues.pulse returns at once when they are off).
+
+**The fix.** js/cues.js: `lastPulseByName = new Map()` beside the WeakMap, chosen by `typeof o.key` (object or
+function: the WeakMap; anything else: the Map). `clock` never goes back, so a name's old time can never block a
+pulse; `clear()` never touched the rate limit and still does not. Searched: no other WeakMap / WeakSet in the game,
+every other cue key is an object, and `cues.hold` keeps its keys in an ordinary Map. js/game.js: `frame()` is now a
+guard around `frameUpdate()` and `draw()` - each in its own try; an error is logged (`FRAME_ERRORS_LOGGED` = 5, then
+one line saying the rest are not shown) and the next frame is always asked for; `__echo.frameErrors()` counts them.
+
+**The tests (and the owner's PC).** `Act2Test.cues` runs whatever Visual cues setting the page opened with, with the
+REAL loop: 21's bridge crossed with the keys (every tile cracks and falls), 18's walls slid by a ping, 23's first two
+rings, every level 0-24 started and running, captions seen with cues on, no console error, no exception, nothing
+caught by the loop. Run against v18.0 with cues on it fails with the owner's exact error. `tools/check.js` runs it
+with cues on and off, and the Act 2 suites again with cues on (groups can now open with a `save`). The owner's PC
+struggled while tests ran: `tools/headless.js` used `browser.kill()`, which on Windows ends only the browser's main
+process - its page processes stayed behind, each still running the game, one more per run. It now ends the whole
+tree (taskkill /T), ends every open browser if the process exits for any reason, sweeps orphans of earlier runs
+(anything running from an `echo-headless-` profile) and their old temp profiles, runs at below-normal priority and
+puts every one of the browser's own processes there too, and starts the browser lighter (one renderer, no
+extensions, no background networking). Checked: 14 processes while a page is open, all below-normal; 0 afterwards.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

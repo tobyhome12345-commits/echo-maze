@@ -5705,7 +5705,34 @@
   // -------------------------------------------------------------- main loop
   let last = performance.now();
 
+  /**
+   * (v18.1) ONE BAD FRAME MUST NEVER FREEZE THE GAME. The update and the drawing each run inside their own try, and
+   * the next frame is asked for whatever happened. An error is logged the first FRAME_ERRORS_LOGGED times (an error
+   * that repeats every frame would otherwise flood the console), then once more to say the rest are not shown.
+   * (v18.0 froze for good with Visual cues on: a cue's rate limit threw inside updatePlay and the loop never re-armed.)
+   */
+  const FRAME_ERRORS_LOGGED = 5;
+  let frameErrors = 0;
+  function frameError(where, err) {
+    frameErrors++;
+    if (frameErrors <= FRAME_ERRORS_LOGGED) console.error(`Echo Maze: an error in the frame's ${where} (the game carries on)`, err);
+    else if (frameErrors === FRAME_ERRORS_LOGGED + 1) console.error('Echo Maze: more frame errors - not shown');
+  }
   function frame(now) {
+    try {
+      frameUpdate(now);
+    } catch (err) {
+      frameError('update', err);
+    }
+    try {
+      draw();
+    } catch (err) {
+      frameError('drawing', err);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function frameUpdate(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     // The art's clock. A near miss slows it for a moment - `artLag` is the art time we have chosen not to
@@ -5776,9 +5803,6 @@
 
     // the soundtrack schedules its next notes (it does nothing at all when it is not running)
     music.update(dt);
-
-    draw();
-    requestAnimationFrame(frame);
   }
 
   /**
@@ -5987,6 +6011,7 @@
     window.__echo = {
       info: () => ({ state, levelNum, levelTime, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state, part: levelPart, falling: !!a2Falling }),
       deadSeen: () => [...deadSeen.keys()], // (v18.0, 22: the black patches on the map now)
+      frameErrors: () => frameErrors, // (v18.1: errors the game loop caught and carried on from)
       tp: (x, y) => {
         player.x = x;
         player.y = y;

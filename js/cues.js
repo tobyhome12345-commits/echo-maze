@@ -64,6 +64,9 @@ const EchoCues = (() => {
     let pulses = []; // one-shot cues: { kind, x, y, loud, big, dots, muffled, born }
     const holds = new Map(); // sustained cues (a voice): key -> { kind, x, y, target, a, dim, muffled, dots, frame }
     const lastPulse = new WeakMap(); // source -> { sub: clock time of its last pulse }
+    // (v18.1) a source named by a string ('creep', 'slide12'...): a WeakMap cannot hold those - it throws, and the
+    // game loop died with it (v18.0, Visual cues on). `clock` never goes back, so an old entry can never block a pulse.
+    const lastPulseByName = new Map();
     let beats = []; // heartbeat rings: { strength, born }
     let markLeft = 0; // a singer has marked you: how much of the countdown is left (1 = just marked ... 0 = none / it leaps)
     let lastBeat = -9;
@@ -87,8 +90,9 @@ const EchoCues = (() => {
     function pulse(kind, x, y, loud, o = {}) {
       if (!on()) return;
       if (o.key !== undefined && o.key !== null) {
-        let t = lastPulse.get(o.key);
-        if (!t) lastPulse.set(o.key, (t = {}));
+        const book = typeof o.key === 'object' || typeof o.key === 'function' ? lastPulse : lastPulseByName;
+        let t = book.get(o.key);
+        if (!t) book.set(o.key, (t = {}));
         const sub = o.sub || '';
         if (t[sub] !== undefined && clock - t[sub] < MIN_GAP) return;
         t[sub] = clock;

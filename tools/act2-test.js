@@ -27,6 +27,10 @@
  *                        and sends the monsters; a wave from outside never touches a monster inside it
  *   Act2Test.creep()     23: the rings go on the schedule, the same every time; Easy later; Hardcore = Normal; standing
  *                        still at the start, the void takes you; a hunter on a ring that goes falls with it
+ *   (v18.1) Act2Test.cues()  with whatever Visual cues setting the page was opened with (run it with
+ *                        echomaze.visualcues = '1' AND without): THE REAL GAME LOOP running (not step()) - 21's bridge
+ *                        crossed with the keys, every tile cracking and falling; 18's walls slid by a ping; 23's first
+ *                        rings gone; every level 0-24 started and running - with no console error and the loop alive
  *   Act2Test.wrongway()  24: its first way out leads to the second part (nothing saved); caught there, Try again is the
  *                        second part again; the level from the list or Continue is the first part; the second part's way
  *                        out is the end of the game so far
@@ -412,11 +416,14 @@ window.Act2Test = (() => {
     // a wave from outside never touches a monster inside dead air
     lv = await enter(22, true);
     const m = E().info().enemies.find((x) => x.kind === 'echo');
+    E().tp(px(zx - 3), px(sy));
+    step(1.6); // (the recharge)
+    // placed after the wait, and held still: an idle monster wanders off after its pause (a flaky test in v18.0)
     m.x = px(zx);
     m.y = px(sy);
     m.state = 'idle';
-    E().tp(px(zx - 3), px(sy));
-    step(1.6);
+    m.path = null;
+    m.pause = 99;
     ping();
     for (let i = 0; i < 60; i++) step(1 / 60);
     T.check('a monster standing in dead air: a ripple from outside never reaches it', m.state === 'idle', m.state);
@@ -496,6 +503,107 @@ window.Act2Test = (() => {
     const r = await walk(24, false);
     T.check(`walked through both parts (${r.part1} s + ${(r.seconds - r.part1).toFixed(1)} s): the end`, r.cleared && E().info().state === 'ending', r);
     T.check('...and only now is it saved', prog() >= 25, prog());
+    await toTitle();
+    return T.done();
+  }
+
+  // ------------------------------------------------------------------------------------------ (v18.1) Visual cues
+  async function cues() {
+    const T = suite('cues');
+    const on = !!E().settings().visualCues;
+    const tag = on ? 'cues ON' : 'cues OFF';
+    const errs = [];
+    const oe = console.error;
+    console.error = (...a) => {
+      errs.push(a.map((x) => String((x && x.stack) || x)).join(' ').slice(0, 300));
+      oe.apply(console, a);
+    };
+    const onErr = (e) => errs.push(String(e.message || e));
+    window.addEventListener('error', onErr);
+    const fe = () => (E().frameErrors ? E().frameErrors() : 0); // (an older build has no such hook)
+    const fe0 = fe();
+    // the real loop (requestAnimationFrame) advancing the level while we wait - not step()
+    const live = async (ms) => {
+      const t0 = E().info().levelTime;
+      await sleep(ms);
+      return E().info().levelTime - t0;
+    };
+    const captions = new Set();
+    const watch = async (ms) => {
+      const end = performance.now() + ms;
+      while (performance.now() < end) {
+        const c = E().captionText();
+        if (c) captions.add(c);
+        await sleep(25);
+      }
+    };
+    try {
+      // 21: across the teaching bridge, keys held, the real loop running
+      let lv = await enter(21, true);
+      const W = lv.W;
+      const sy = Math.floor(P().y / TILE);
+      const row = new Set(lv.act2.crumbles.filter((c) => Math.floor(c.i / W) === sy).map((c) => c.i));
+      const bridge = [];
+      let b0 = sy * W + Math.floor(P().x / TILE) + 1;
+      while (!row.has(b0) && b0 % W < W - 1) b0++;
+      for (let i = b0; row.has(i); i++) bridge.push(i); // (the first run of it east of the start: the teaching bridge)
+      const land = px((bridge[bridge.length - 1] % W) + 1);
+      key('ArrowRight', true);
+      const end = performance.now() + 5000;
+      while (performance.now() < end && P().x < land - 3 && E().info().state === 'play') {
+        const c = E().captionText();
+        if (c) captions.add(c);
+        await sleep(25);
+      }
+      key('ArrowRight', false);
+      await watch(1600);
+      const gone = bridge.filter((i) => lv.act2.voidGrid[i] === 1).length;
+      T.check(`${tag} 21: crossed the bridge with the real loop - every tile cracked and fell (${gone}/${bridge.length})`, gone === bridge.length && bridge.length >= 3);
+      T.check(`${tag} 21: ...and the game is still running`, E().info().state === 'play' && (await live(600)) > 0.3);
+      if (on) T.check(`${tag} 21: the crack and the fall were captioned (${[...captions].join(' ')})`, captions.has('[stone cracks]') || captions.has('[it falls away]'));
+      // 18: a ping slides the walls in range
+      lv = await enter(18);
+      const sl = lv.act2.slides[0];
+      E().tp(sl.x, sl.y + TILE * 2);
+      let near = null;
+      for (let i = 0; i < lv.W * lv.H && !near; i++) {
+        const x = (i % lv.W) * TILE + TILE / 2;
+        const y = Math.floor(i / lv.W) * TILE + TILE / 2;
+        if (!lv.blocked[i] && Math.hypot(x - sl.x, y - sl.y) < 120 && Math.hypot(x - sl.x, y - sl.y) > 50) near = [x, y];
+      }
+      E().tp(near[0], near[1]);
+      await sleep(300);
+      const was = sl.on;
+      ping();
+      await watch(1500);
+      T.check(`${tag} 18: a ping slid the wall, the real loop running`, sl.on !== was && E().info().state === 'play' && (await live(500)) > 0.2);
+      // 23: wait in the middle while the first rings go
+      lv = await enter(23);
+      const safe = lv.act2.creep.voidAt.findIndex((t, i) => t === Infinity && !lv.blocked[i] && Math.hypot(px(i % lv.W) - lv.exit.x, px(Math.floor(i / lv.W)) - lv.exit.y) > 100);
+      E().tp(px(safe % lv.W), px(Math.floor(safe / lv.W)));
+      const L0 = lv.act2.creep.layers;
+      while (E().info().levelTime < L0[0].t - 0.6) step(0.25);
+      await watch(1400); // the first ring goes with the real loop running
+      while (E().info().levelTime < L0[1].t - 0.6) step(0.25);
+      await watch(1400); // ...and the second
+      const eaten = L0[0].tiles.concat(L0[1].tiles).every((i) => lv.act2.voidGrid[i] === 1);
+      T.check(`${tag} 23: the first two rings went, the real loop running`, eaten && E().info().state === 'play' && (await live(500)) > 0.2);
+      if (on) T.check(`${tag} 23: ...captioned`, captions.has('[the edge gives way]'));
+      // every level starts and runs
+      const dead = [];
+      for (let n = 0; n <= 24; n++) {
+        await toTitle();
+        E().go(n);
+        const adv = await live(700);
+        if (!(adv > 0.2)) dead.push(`${n}: ${E().info().state} +${adv.toFixed(2)}`);
+      }
+      T.check(`${tag}: every level 0-24 starts and runs`, dead.length === 0, dead);
+    } finally {
+      console.error = oe;
+      window.removeEventListener('error', onErr);
+      for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
+    }
+    T.check(`${tag}: no console error, no exception, and the loop caught nothing`, errs.length === 0 && fe() === fe0, errs.slice(0, 3));
     await toTitle();
     return T.done();
   }
@@ -657,5 +765,5 @@ window.Act2Test = (() => {
     return T.done();
   }
 
-  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway };
+  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues };
 })();

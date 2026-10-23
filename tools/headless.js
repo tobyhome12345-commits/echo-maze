@@ -24,6 +24,93 @@ const os = require('os');
 const path = require('path');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ------------------------------------------------------------------------------------------------ (v18.1) BE GENTLE
+// The tests must never slow down or crash the PC they run on. Before v18.1 `browser.kill()` ended only the
+// browser's main process: on Windows its page processes lived on as orphans, each still running the game at full
+// speed, one more per test run - until the PC choked. Now:
+//   - the tests (and every browser they start, which inherits it) run at BELOW-NORMAL priority: the PC's own work
+//     always comes first;
+//   - a browser is ended with its whole process tree (taskkill /T on Windows), every time;
+//   - every browser still open is ended if this process exits for any reason (finished, Ctrl+C, a crash);
+//   - at the first start, orphans of earlier runs (anything running from an echo-headless- profile) are ended
+//     and their old temp profiles deleted.
+try {
+  os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
+} catch (e) {
+  /* not allowed here: carry on at normal priority */
+}
+const live = new Map(); // browser process -> its temp profile
+const PROFILE_PREFIX = 'echo-headless-';
+function killTree(child) {
+  if (!child || !child.pid) return;
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10000 });
+    } catch (e) {
+      /* already gone */
+    }
+  } else {
+    try {
+      process.kill(-child.pid, 'SIGKILL'); // its process group (it is started detached on its own)
+    } catch (e) {
+      try {
+        child.kill('SIGKILL');
+      } catch (e2) {
+        /* already gone */
+      }
+    }
+  }
+}
+function endAll() {
+  for (const [child, profile] of live) {
+    killTree(child);
+    try {
+      fs.rmSync(profile, { recursive: true, force: true });
+    } catch (e) {
+      /* only a temp profile */
+    }
+  }
+  live.clear();
+}
+process.on('exit', endAll);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) {
+  try {
+    process.on(sig, () => {
+      endAll();
+      process.exit(130);
+    });
+  } catch (e) {
+    /* not on this platform */
+  }
+}
+process.on('uncaughtException', (err) => {
+  endAll();
+  console.error(err);
+  process.exit(1);
+});
+let swept = false;
+/** Once per run: end orphaned test browsers from earlier runs, and delete their temp profiles. */
+function sweepOrphans() {
+  if (swept) return;
+  swept = true;
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('powershell', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${PROFILE_PREFIX}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`], { stdio: 'ignore', timeout: 30000 });
+    } catch (e) {
+      /* nothing to sweep, or not allowed */
+    }
+  }
+  try {
+    for (const n of fs.readdirSync(os.tmpdir())) {
+      if (!n.startsWith(PROFILE_PREFIX)) continue;
+      const p = path.join(os.tmpdir(), n);
+      if (Date.now() - fs.statSync(p).mtimeMs > 10 * 60 * 1000) fs.rmSync(p, { recursive: true, force: true }); // (not one a run started just now)
+    }
+  } catch (e) {
+    /* a profile still in use: next time */
+  }
+}
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36';
 
 function findBrowser() {
@@ -61,12 +148,21 @@ function findBrowser() {
 async function withPage(fn, opts = {}) {
   const exe = findBrowser();
   if (!exe) throw new Error('No Chrome / Chromium / Edge found. Set ECHO_BROWSER to one, or run: npx -y playwright install chromium');
+  sweepOrphans();
   const port = 9300 + Math.floor(Math.random() * 600);
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'echo-headless-'));
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
   const args = ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--mute-audio', '--autoplay-policy=no-user-gesture-required', '--disable-gpu', '--hide-scrollbars'];
+  // (v18.1) as light as it can be: one page process, nothing in the background
+  args.push('--renderer-process-limit=1', '--disable-extensions', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps', '--no-pings');
   if (process.platform === 'linux') args.push('--no-sandbox', '--disable-dev-shm-usage'); // (containers run as root, with a tiny /dev/shm)
   args.push('about:blank');
-  const browser = spawn(exe, args, { stdio: 'ignore' });
+  const browser = spawn(exe, args, { stdio: 'ignore', detached: process.platform !== 'win32' });
+  live.set(browser, profile);
+  try {
+    os.setPriority(browser.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); // (and its page processes inherit it)
+  } catch (e) {
+    /* not allowed: it already inherited this process's */
+  }
   let target = null;
   for (let i = 0; i < 80 && !target; i++) {
     await sleep(250);
@@ -77,8 +173,18 @@ async function withPage(fn, opts = {}) {
     }
   }
   if (!target) {
-    browser.kill();
+    killTree(browser);
+    live.delete(browser);
     throw new Error(`${exe} did not start (no DevTools on port ${port})`);
+  }
+  // (v18.1) the browser raises some of its own helper processes back to Normal or above: put every process of THIS
+  // test browser (found by its own temp profile) down to below-normal, now that they have all started
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('powershell', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process -Filter "Name='${path.basename(exe)}'" | Where-Object { $_.CommandLine -like '*${path.basename(profile)}*' } | ForEach-Object { try { (Get-Process -Id $_.ProcessId).PriorityClass = 'BelowNormal' } catch {} }`], { stdio: 'ignore', timeout: 20000 });
+    } catch (e) {
+      /* not allowed: carry on */
+    }
   }
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r, j) => {
@@ -161,7 +267,8 @@ async function withPage(fn, opts = {}) {
     } catch (e) {
       /* closed */
     }
-    browser.kill();
+    killTree(browser); // (v18.1: the whole tree - its page processes too, which browser.kill() left running)
+    live.delete(browser);
     await sleep(300);
     try {
       fs.rmSync(profile, { recursive: true, force: true });

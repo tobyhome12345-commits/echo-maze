@@ -54,6 +54,11 @@ const QUICK = [
   { name: 'lore fragments on 13-16 (v16.2)', load: ['lore-story-test.js'], runs: [['LoreStoryTest', 'placement']] },
   // (v17.0) Act 2, levels 17-20: each broken rule, and the way through each level with the real keys
   { name: 'Act 2 (v17.0)', load: ['act2-test.js'], runs: ['liar', 'shuffle', 'loop', 'behind', 'walkAll'].map((n) => ['Act2Test', n]) },
+  // (v18.1) THE STANDING TEST RULE: the owner plays with Visual cues ON - every Act 2 level and its broken rule again with
+  // them on (echomaze.visualcues = '1'), the real game loop included (Act2Test.cues), and once with them off. (A returning
+  // player's save: without the What's new key its dialog opens over the game and takes the keys.)
+  { name: 'Act 2, Visual cues ON', save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: ['cues', 'liar', 'shuffle', 'loop', 'behind', 'crumble', 'deadair', 'creep', 'wrongway', 'walkAll'].map((n) => ['Act2Test', n]) },
+  { name: 'Act 2, Visual cues off: the real loop', load: ['act2-test.js'], runs: [['Act2Test', 'cues']] },
 ];
 const FULL_EXTRA = [
   { name: 'editor (v15.0)', load: ['editor-test.js'], runs: ['gate', 'tools', 'storage', 'noWrites'].map((n) => ['EditorTest', n]) },
@@ -283,14 +288,14 @@ async function main() {
     });
     for (const group of FULL ? QUICK.concat(FULL_EXTRA) : QUICK) {
       await withPage(async (page) => {
-        await page.goto(base + '?debug', {});
+        await page.goto(base + '?debug', group.save || {}); // (v18.1: a group may open with a save - Visual cues ON)
         await new Promise((r) => setTimeout(r, 1200));
         await page.eval('__echo.audio.setMuted(true), true');
         await page.eval(loadScripts(group.load));
         for (const [obj, name] of group.runs) {
           try {
             const r = await page.eval(runSuite(obj, name), 600);
-            ok(`${obj}.${name} ${r.pass}/${r.pass + r.fail}${group.size ? ` (${group.size.w}x${group.size.h}${group.size.mobile ? ' touch' : ''})` : ''}`, r.fail === 0, r.fail ? r.failed : '');
+            ok(`${obj}.${name} ${r.pass}/${r.pass + r.fail}${group.size ? ` (${group.size.w}x${group.size.h}${group.size.mobile ? ' touch' : ''})` : ''}${group.save && group.save['echomaze.visualcues'] === '1' ? ' (Visual cues ON)' : ''}`, r.fail === 0, r.fail ? r.failed : '');
           } catch (e) {
             ok(`${obj}.${name}`, false, `threw: ${String(e.message || e).slice(0, 300)}`);
           }
