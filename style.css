@@ -4544,3 +4544,11 @@ body.touch.on-title #rotate {
 }
 #talk .key.hidden { display: none; }
 body.touch #talk { bottom: auto; top: 58%; min-height: 52px; padding: 10px 26px; font-size: 17px; }
+
+/* (v20.0) Endless: its button's best depth, and the game-over screen */
+.endless-best { font-size: 0.78em; opacity: 0.75; margin-left: 0.35em; letter-spacing: 0.04em; }
+.endless-best.hidden { display: none; }
+#endless-over .eo-depth { font-size: 2.1em; font-weight: 700; letter-spacing: 0.06em; margin: 0.2em 0 0.1em; }
+#endless-over .eo-new { color: rgb(var(--exit-rgb)); font-weight: 700; letter-spacing: 0.08em; margin: 0 0 0.3em; }
+#endless-over .eo-new.hidden { display: none; }
+#endless-over .eo-best { opacity: 0.8; margin: 0 0 0.6em; }

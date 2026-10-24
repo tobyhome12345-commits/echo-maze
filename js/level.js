@@ -557,6 +557,147 @@ function levelConfig(n, modeId = 'normal', raw = false) {
   };
 }
 
+// ------------------------------------------------------------ (v20.0) ENDLESS MODE
+/**
+ * ENDLESS: generated mazes one after another, a little harder each depth, until you are caught. Each depth is the
+ * campaign's own generator (generateLevel) on a config of its own (endlessConfig), from a seed worked out from the
+ * run's seed and the depth (endlessSeed) - so any depth of any run can be built again exactly. Nothing here is read by
+ * the campaign, and the campaign's configs are untouched (levelConfig is only asked for its curve).
+ *
+ *   - the monsters come in the order the campaign brings them, one new kind every ENDLESS_STEP depths
+ *     (ENDLESS_INTRO); the Alarm only for a player who has met it in the story (opts.alarm); nothing else ever (no
+ *     Screecho, no Warden, no story tiles). A kind's first stretch always has one of it.
+ *   - the mazes grow until ENDLESS_SIZE_DEPTH, then stay that size; past it the number of monsters and their speed
+ *     go up slowly to caps (ENDLESS_MAX_MONSTERS, ENDLESS_SPEED_TOP) - every monster still slower than you (170).
+ *   - every depth is checked (endlessCheck) and built again from the next seed if it fails: the way out reachable and
+ *     a real walk away, every monster a safe distance from the start, and nothing that stands still (a mimic, an
+ *     Alarm, a Muffler, a Singer) on the only way through.
+ */
+const ENDLESS_STEP = 3;
+const ENDLESS_INTRO = { echo: 1, scent: 4, mimic: 7, decoy: 10, stalker: 13, muffler: 16, singer: 19, alarm: 22 };
+const ENDLESS_SIZE_DEPTH = 30; // the mazes stop growing here
+const ENDLESS_CAP = { echo: 4, scent: 2, mimic: 1, stalker: 2, muffler: 1, singer: 1, alarm: 1 }; // at most this many of each in one maze
+const ENDLESS_MAX_MONSTERS = 6;
+const ENDLESS_SPEED_TOP = 1.12; // past ENDLESS_SIZE_DEPTH the monsters' speed creeps up to this (x), never past 169 px/s
+const ENDLESS_TRIES = 24; // seeds tried for one depth before the fairest of them is kept
+const ENDLESS_MILESTONES = [5, 10, 25, 50]; // a soft chime when you reach these (js/game.js)
+
+/** The seed for one depth of a run (and its n-th try, if an earlier one failed the checks). */
+function endlessSeed(runSeed, depth, attempt = 0) {
+  let h = (runSeed >>> 0) ^ Math.imul(depth, 0x9e3779b1) ^ Math.imul(attempt + 1, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+/** How many monsters a depth has (before Easy takes one off). */
+function endlessMonsters(depth) {
+  if (depth <= 3) return 1;
+  if (depth <= 9) return 2;
+  if (depth <= 18) return 3;
+  if (depth <= ENDLESS_SIZE_DEPTH) return 4;
+  return Math.min(ENDLESS_MAX_MONSTERS, 5 + Math.floor((depth - ENDLESS_SIZE_DEPTH - 1) / 15));
+}
+/** The kinds a depth may have: those the campaign has brought in by then (opts.alarm: the Alarm has been met). */
+function endlessKinds(depth, opts = {}) {
+  return ['echo', 'scent', 'mimic', 'stalker', 'muffler', 'singer', 'alarm'].filter((k) => depth >= ENDLESS_INTRO[k] && (k !== 'alarm' || opts.alarm));
+}
+/**
+ * One depth's config: the campaign's curve for the level it is most like (min(depth, 12) - the ripple, the recharge,
+ * the monsters' hearing and speed), with Endless's own size, monsters and speed laid over it. `rand` picks the mix.
+ */
+function endlessConfig(depth, modeId, opts, rand) {
+  const L = Math.max(1, Math.min(depth, 12));
+  const m = MODES[modeId] || MODES.normal;
+  const base = levelConfig(L, modeId);
+  const grow = Math.min(depth, ENDLESS_SIZE_DEPTH) - 1;
+  const counts = { echo: 0, scent: 0, mimic: 0, stalker: 0, muffler: 0, singer: 0, alarm: 0 };
+  const kinds = endlessKinds(depth, opts);
+  let total = endlessMonsters(depth);
+  if (modeId === 'easy' && total > 2) total--; // (Easy: one fewer, as in the campaign from level 9)
+  // the newest kind, in its first stretch: always one of it
+  const newest = kinds.filter((k) => depth < ENDLESS_INTRO[k] + ENDLESS_STEP);
+  for (const k of newest) if (total > 0) (counts[k]++, total--);
+  // the rest: any kind met so far, never past its cap; always at least one echo monster once there is room
+  if (!counts.echo && total > 0 && depth > 3) (counts.echo++, total--);
+  for (let guard = 0; total > 0 && guard < 100; guard++) {
+    const k = kinds[Math.floor(rand() * kinds.length)];
+    if (counts[k] >= ENDLESS_CAP[k]) continue;
+    counts[k]++;
+    total--;
+  }
+  // past the size cap: the monsters a little faster, slowly, to a cap - and never as fast as you
+  const speedK = depth > ENDLESS_SIZE_DEPTH ? Math.min(ENDLESS_SPEED_TOP, 1 + (depth - ENDLESS_SIZE_DEPTH) * 0.004) : 1;
+  const enemySpeed = Math.min(base.enemySpeed * speedK, 165);
+  const puddles = counts.scent ? Math.max(2, Math.round(Math.min(3 + Math.floor(depth / 5), 10) * m.puddles)) : 0;
+  return Object.assign({}, base, {
+    endless: depth,
+    cw: Math.min(7 + Math.round(grow * 0.55), 23),
+    ch: Math.min(5 + Math.round(grow * 0.45), 18),
+    loopFrac: Math.min(0.08 + Math.min(depth, ENDLESS_SIZE_DEPTH) * 0.0075, 0.22),
+    rooms: Math.min(1 + Math.floor(Math.min(depth, ENDLESS_SIZE_DEPTH) / 2), 9),
+    obstacles: Math.min(2 + Math.min(depth, ENDLESS_SIZE_DEPTH), 24),
+    enemies: counts.echo,
+    scentMonsters: counts.scent,
+    mimics: counts.mimic,
+    stalkers: counts.stalker,
+    mufflers: counts.muffler,
+    singers: counts.singer,
+    alarms: counts.alarm,
+    decoy: depth >= ENDLESS_INTRO.decoy,
+    puddles,
+    puddlesDrawn: puddles,
+    enemySpeed,
+    scentSpeed: enemySpeed * 0.9,
+    stalkerSpeed: Math.min(enemySpeed * STALKER_SPEED_FACTOR, STALKER_TOP_SPEED),
+    mufflerSpeed: Math.min(base.mufflerSpeed * speedK, MUFFLER_TOP_SPEED),
+    singerSpeed: enemySpeed * SINGER_SPEED_FACTOR,
+  });
+}
+/** The fairness rules for one built depth. { ok, why, pathTiles } */
+function endlessCheck(lv, depth) {
+  const W = lv.W;
+  const tile = (o) => Math.floor(o.y / TILE) * W + Math.floor(o.x / TILE);
+  const s = tile(lv.start);
+  const e = tile(lv.exit);
+  const dS = bfsDist(lv.blocked, W, lv.H, s);
+  if (dS[e] < 0) return { ok: false, why: 'the way out cannot be reached' };
+  const minPath = Math.min(10 + depth, 30);
+  if (dS[e] < minPath) return { ok: false, why: `the way out is only ${dS[e]} tiles away (at least ${minPath})` };
+  const c = lv.cfg;
+  const wanted = c.enemies + c.scentMonsters + c.mimics + c.stalkers + c.mufflers + c.singers + (c.alarms || 0);
+  if (lv.enemies.length !== wanted) return { ok: false, why: `${lv.enemies.length} of ${wanted} monsters placed` };
+  const safe = Math.min(6 + Math.floor(depth / 4), 10);
+  for (const m of lv.enemies) {
+    const i = m.ty * W + m.tx;
+    if (dS[i] < safe || Math.hypot(m.x - lv.start.x, m.y - lv.start.y) < 4 * TILE) return { ok: false, why: `a ${m.kind} starts too close (${dS[i]} tiles)` };
+    if (i === e) return { ok: false, why: `a ${m.kind} on the way out` };
+    if (['mimic', 'alarm', 'muffler', 'singer'].includes(m.kind)) {
+      const b = lv.blocked.slice();
+      b[i] = 1;
+      if (bfsDist(b, W, lv.H, s)[e] < 0) return { ok: false, why: `a ${m.kind} stands on the only way through` };
+    }
+  }
+  return { ok: true, why: '', pathTiles: dS[e] };
+}
+/**
+ * Build one depth of a run: the first seed whose maze passes endlessCheck (or, if none of ENDLESS_TRIES do, the last -
+ * the tests check that it never comes to that up to depth 60). `opts.alarm`: the player has met the Alarm.
+ */
+function generateEndless(runSeed, depth, modeId = 'normal', opts = {}) {
+  let lv = null;
+  let check = null;
+  let attempt = 0;
+  for (; attempt < ENDLESS_TRIES; attempt++) {
+    const seed = endlessSeed(runSeed, depth, attempt);
+    const cfg = endlessConfig(depth, modeId, opts, mulberry32((seed ^ 0x51ed27) >>> 0));
+    lv = generateLevel(cfg.n, seed, modeId, 1, cfg);
+    check = endlessCheck(lv, depth);
+    if (check.ok) break;
+  }
+  lv.endless = { depth, runSeed: runSeed >>> 0, attempt: Math.min(attempt, ENDLESS_TRIES - 1), ok: check.ok, why: check.why, kinds: lv.enemies.map((m) => m.kind) };
+  return lv;
+}
+
 /** Breadth-first distances over unblocked tiles. -1 = unreachable. */
 function bfsDist(blocked, W, H, start) {
   const dist = new Int32Array(W * H).fill(-1);
@@ -593,15 +734,19 @@ function shuffle(arr, rand) {
  * retrying a level after being caught gives you the same maze.
  * (v18.0) `part`: level 24 is played in two parts - 2 builds its second (js/story.js). Nothing else reads it.
  */
-function generateLevel(n, runSeed, modeId = 'normal', part = 1) {
-  const cfg = levelConfig(n, modeId);
-  // Level 0 is the tutorial: hand-drawn, the same every time, and it never reaches the generator below - so it
-  // draws no random numbers at all and cannot move anything on levels 1-12.
-  if (n === 0) return EchoTutorial.build(cfg);
-  // Level 13 is the capture, hand-drawn in the same way and for the same reason (js/warden.js).
-  if (n === WARDEN_LEVEL) return EchoWarden.build(cfg);
-  // ...and so are 14-16, which follow it (js/story.js).
-  if (isStoryLevel(n)) return EchoStory.build(n, cfg, part);
+function generateLevel(n, runSeed, modeId = 'normal', part = 1, given = null) {
+  // (v20.0) `given`: a config made by endlessConfig (Endless mode) - the same generator, from the same seed rules, on a
+  // config of its own. Every campaign call leaves it out, so levels 1-12 are built exactly as they always were.
+  const cfg = given || levelConfig(n, modeId);
+  if (!given) {
+    // Level 0 is the tutorial: hand-drawn, the same every time, and it never reaches the generator below - so it
+    // draws no random numbers at all and cannot move anything on levels 1-12.
+    if (n === 0) return EchoTutorial.build(cfg);
+    // Level 13 is the capture, hand-drawn in the same way and for the same reason (js/warden.js).
+    if (n === WARDEN_LEVEL) return EchoWarden.build(cfg);
+    // ...and so are 14-16, which follow it (js/story.js).
+    if (isStoryLevel(n)) return EchoStory.build(n, cfg, part);
+  }
   const rand = mulberry32((runSeed ^ Math.imul(n, 0x9e3779b1)) >>> 0);
   const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
 
@@ -955,6 +1100,9 @@ function generateLevel(n, runSeed, modeId = 'normal', part = 1) {
   };
   for (let k = 0; k < cfg.mufflers; k++) placeNewMonster('muffler', 46 + rand() * 8); // its deep hum
   for (let k = 0; k < cfg.singers; k++) placeNewMonster('singer', 200 + rand() * 40); // its sung note
+  // 14. (v20.0, Endless only) Alarms: placed like the two above, last of all - no campaign config has `alarms`, so
+  //     nothing here draws a number there
+  for (let k = 0; k < (cfg.alarms || 0); k++) placeNewMonster('alarm', 1320 + rand() * 120); // its hum (MONSTER_TYPES)
 
   const puddles = cfg.puddles < puddlesAll.length ? puddlesAll.slice(0, cfg.puddles) : puddlesAll;
   return {

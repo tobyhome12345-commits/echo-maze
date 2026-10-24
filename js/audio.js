@@ -1524,6 +1524,18 @@ class SoundEngine {
     });
   }
 
+  /** (v20.0) Endless: a milestone depth (5, 10, 25, 50) - one soft, high bell and its shimmer. No words go with it. */
+  milestone() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [[1046.5, 0, 0.11], [1568, 0.07, 0.07], [2093, 0.15, 0.045]].forEach(([f, dt, v]) => {
+      const o = this._osc('sine', f, t + dt, 2.2);
+      const g = this._env(t + dt, 0.006, v * (this.calm ? 0.6 : 1), 1.6);
+      o.connect(g);
+      this._route(g, 0, 0.55);
+    });
+  }
+
   levelComplete() {
     this._arpeggio([523.25, 659.25, 783.99, 1046.5, 1318.5], 0.11);
   }

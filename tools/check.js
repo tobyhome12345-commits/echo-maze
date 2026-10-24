@@ -95,6 +95,11 @@ const FULL_EXTRA = [
   { name: 'A save past Dusk (v19.3)', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":29}', 'echomaze.mode': 'normal' }, load: ['act2-test.js'], runs: [['Act2Test', 'firstTime']] },
   { name: '"Nothing Listens" on a phone held sideways and on a laptop', size: { w: 740, h: 360, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1' }, load: ['act2-test.js'], runs: [['Act2Test', 'duskScreen']] },
   { name: 'Act 2 on a phone', size: { w: 844, h: 390, mobile: true }, load: ['act2-test.js'], runs: [['Act2Test', 'perf']] },
+  // (v20.0) Endless mode: Visual cues ON first (the owner plays with them on), then off; locked on a fresh save; on a phone with Calm mode
+  { name: 'Endless, Visual cues ON', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"normal":25}' }, load: ['endless-test.js'], runs: ['unlock', 'run', 'caught', 'modes', 'noWrites', 'fair', 'bot', 'live'].map((n) => ['EndlessTest', n]) },
+  { name: 'Endless, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":13}' }, load: ['endless-test.js'], runs: ['unlock', 'run', 'caught', 'bot', 'live'].map((n) => ['EndlessTest', n]) },
+  { name: 'Endless on a fresh save: not there', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":12}' }, load: ['endless-test.js'], runs: [['EndlessTest', 'unlock']] },
+  { name: 'Endless on a phone, Calm mode and Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.calm': '1', 'echomaze.progress': '{"normal":25}' }, load: ['endless-test.js'], runs: [['EndlessTest', 'screen']] },
 ];
 
 const results = [];
@@ -135,6 +140,18 @@ function staticChecks() {
   ok('every .json file (and the web app manifest) is valid JSON', !badJson.length, badJson.join(' / '));
   versionCheck();
   act2Check();
+  endlessNodeCheck();
+}
+
+/** (v20.0) Endless mode's mazes: depths 1-60 of several runs in every mode, built and checked in Node (tools/endless-check.js). */
+function endlessNodeCheck() {
+  try {
+    const out = execFileSync(process.execPath, [path.join(__dirname, 'endless-check.js'), '--quiet'], { stdio: 'pipe' }).toString();
+    ok(`Endless: every depth 1-60 fair, only met monsters, deterministic (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
+  } catch (e) {
+    const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
+    ok('Endless: every depth 1-60 fair, only met monsters, deterministic', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
+  }
 }
 
 /** (v17.0) Act 2's hand-built levels can be finished, through each one's broken rule (tools/act2-check.js, in Node). */

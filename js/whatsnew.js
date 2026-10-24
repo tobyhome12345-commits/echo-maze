@@ -34,6 +34,14 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v20.0',
+      title: 'Endless mode',
+      lines: [
+        { text: 'A new Endless mode on the title screen: maze after maze, harder the deeper you go, until you are caught. How deep can you get?', minLevel: 13 },
+        { text: 'Each difficulty keeps its own best depth. Endless never touches your story progress.', minLevel: 13 },
+      ],
+    },
+    {
       version: 'v19.3',
       title: 'Dusk',
       lines: [

@@ -29,6 +29,7 @@
   // levelNum is this - below the tutorial's 0, so `scored()` is false and it writes nothing at all: no progress,
   // no medals, no stats, no fragments, no "levels cleared". Test-playing in the editor is exactly this.
   const CUSTOM_LEVEL = -1;
+  const ENDLESS_LEVEL = -2; // (v20.0) Endless mode: a depth of a run is played as this "level" - below 0, so scored() is false and nothing of the campaign is written
   // Story cutscenes: the one that plays on the way INTO a level (after clearing the one before), and the level each leads to.
   // (v16.0: 'keeper' plays between level 13's capture and level 14 - see onCaptured. Level 13 never leaves through
   // advanceLevel, so its entry here is for the Continue / level-select catch-up in newRun, the rule every scene follows.)
@@ -46,6 +47,7 @@
   const LIGHTUI_KEY = 'echomaze.lightui'; // (v19.1) '1' = the daylight interface (a light look for the menus), once First Breath is reached
   const TOUCH_KEY = 'echomaze.touch'; // '1' = touch controls forced on, '0' = forced off, unset = automatic (touch devices)
   const TUTORIAL_KEY = 'echomaze.tutorial'; // '1' = the tutorial has been finished or skipped (a save without it is simply "not yet")
+  const ENDLESS_KEY = 'echomaze.endless'; // (v20.0) Endless mode's own save: { best: { easy: 7, ... }, last: { mode, depth, line, at } }
   const EDITOR_KEY = 'echomaze.editor'; // '1' = the level editor's spoiler warning was read and accepted (v15.0); the levels themselves are js/levelstore.js's
   // Doppler (audio only): a monster's voice is shifted by how fast it is closing on you or moving away, at most about +/-6%
   const DOPPLER_MAX = 0.06; // fractional pitch shift at the largest closing speed
@@ -139,7 +141,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
-  const overlays = ['title', 'howto', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'complete', 'ending', 'editor-gate', 'editor-unreleased', 'editor-touch', 'mylevels', 'editor'];
+  const overlays = ['title', 'howto', 'replay', 'archive', 'settings', 'pause', 'tutorial', 'caught', 'endless-over', 'complete', 'ending', 'editor-gate', 'editor-unreleased', 'editor-touch', 'mylevels', 'editor'];
   // states: title | cutscene | play | paused | caught | complete | tutdone (the end of level 0) |
   //         capture (level 13: the warden has you and the controls are gone) | ending (the placeholder screen after
   //         level 16) | editor (v15.0: the level editor's screens - its warning, My Levels, the editor itself; no
@@ -383,6 +385,7 @@
   let storyDone = false; // the level's way out has been walked through and its last beat played
   let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
   // ---- the level editor and custom levels (v15.0)
+  let endlessRun = null; // (v20.0) { seed, depth, mode, startBest, passedBest } while an Endless run is being played (levelNum is ENDLESS_LEVEL)
   let customRun = null; // { doc, from: 'editor' | 'mylevels' | 'bonus', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
   let editorScreen = null; // 'gate' | 'unreleased' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
   // ---- custom levels, v15.1
@@ -4172,7 +4175,7 @@
 
   function updateHud() {
     // the tutorial is not a level and is the same in every mode, so it says neither; a custom level says its name
-    hudNumber('hud-level', inTutorial() ? 'Tutorial' : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `${levelName(levelNum)} · ${MODES[mode].label}`);
+    hudNumber('hud-level', inTutorial() ? 'Tutorial' : endlessRun ? `Depth ${endlessRun.depth} · ${MODES[mode].label}` : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `${levelName(levelNum)} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
     hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : player && player.hasKey ? 'Key' : '';
@@ -4257,6 +4260,13 @@
       // their eyes (colour-blind, high contrast) keeps it everywhere, custom levels included
       borrowPalette(level.custom.palette);
       fxZones = EchoEffects.prepare(level.effects, level.walls, level.W, level.H, TILE);
+    } else if (n === ENDLESS_LEVEL) {
+      // (v20.0) a depth of an Endless run: the campaign's generator on Endless's own config, from (run seed, depth) -
+      // re-rolled until it passes the fairness rules (generateEndless, js/level.js). No lore, no hints, no story.
+      fxZones = [];
+      returnPalette();
+      level = generateEndless(endlessRun.seed, endlessRun.depth, mode, { alarm: alarmMet() });
+      level.fragment = null;
     } else {
       fxZones = [];
       returnPalette();
@@ -4325,8 +4335,9 @@
       audio.stopAmbient();
       music.stop();
     } else {
-      audio.startAmbient(level.custom ? CUSTOM_CURVE_LEVEL : n);
-      music.start(level.custom ? CUSTOM_CURVE_LEVEL : n); // the level's own mood (js/music.js); silent until the AudioContext exists
+      const soundOf = level.custom ? CUSTOM_CURVE_LEVEL : level.endless ? level.cfg.n : n; // (v20.0: a depth sounds like the level its curve is)
+      audio.startAmbient(soundOf);
+      music.start(soundOf); // the level's own mood (js/music.js); silent until the AudioContext exists
     }
     showOverlay(null);
     $('hud').classList.remove('hidden');
@@ -4340,6 +4351,10 @@
       clearTimeout(bannerTimer);
       $('banner').classList.remove('show'); // never leave a level's banner hanging over a tutorial prompt
       if (inTutorial()) tutorial.start();
+    } else if (level.endless) {
+      // (v20.0) Endless: no banner, no hint - the HUD says the depth
+      clearTimeout(bannerTimer);
+      $('banner').classList.remove('show');
     } else showBanner(n);
     // Level 13: the dread starts with the level, and the capture plays IN FULL every time it is finished.
     // It is the one cutscene in the game that is not once-only (owner's instruction): the other seven are
@@ -4663,8 +4678,14 @@
         /* vibration is optional */
       }
     }
+    if (endlessRun) endlessOver(line);
     setTimeout(() => {
       if (state !== 'caught' || thisCatch !== catchCount) return;
+      if (endlessRun) {
+        $('endless-over').classList.toggle('danger', !calm);
+        showOverlay('endless-over'); // (v20.0) one life in every mode: the run is over
+        return;
+      }
       // (a custom level is not a run: even on Hardcore it simply offers Try again - v15.0)
       if (MODES[mode].oneLife && !customRun) {
         // One life: the run is over. Back to the title screen - there is nothing to resume.
@@ -4798,6 +4819,10 @@
     music.stop();
     destroyVoices();
     cues.clear();
+    if (endlessRun) {
+      onEndlessCleared();
+      return;
+    }
     if (customRun) {
       // A custom level (v15.0): nothing is written - no progress, no medals, no stats - and the way on is back to
       // the editor (or My Levels), or the same level again.
@@ -4896,6 +4921,88 @@
     if (saved) showSaved();
   }
 
+  // ================================================================ (v20.0) ENDLESS MODE
+  /**
+   * ENDLESS: one generated maze after another, harder the deeper you go (js/level.js generateEndless), until you are
+   * caught - one life in every mode. The score is the depth. It opens once level 12 has been cleared in any mode (every
+   * monster the generated levels have has been met by then); before that its button is not there at all. Each mode
+   * keeps its own best depth, in Endless's own save (ENDLESS_KEY - the campaign's are never written: levelNum is
+   * ENDLESS_LEVEL, so scored() is false). Calm mode, Visual cues, the palettes and touch work as on any level.
+   */
+  const ENDLESS_FROM = 13; // the best level reached in some mode must be past 12
+  const ENDLESS_ALARM_FROM = 22; // the Alarm comes in once it has been met in the story (level 22)
+  const endlessUnlocked = () => furthestReached() >= ENDLESS_FROM;
+  const alarmMet = () => furthestReached() >= ENDLESS_ALARM_FROM;
+  function endlessSave() {
+    let v = null;
+    try {
+      v = JSON.parse(store.get(ENDLESS_KEY));
+    } catch (e) {
+      v = null; // (damaged: as if nothing were kept)
+    }
+    const best = {};
+    if (v && v.best && typeof v.best === 'object') for (const m of MODE_ORDER) if (Number.isFinite(v.best[m]) && v.best[m] > 0) best[m] = Math.min(Math.floor(v.best[m]), 99999);
+    const last = v && v.last && typeof v.last === 'object' && MODE_ORDER.includes(v.last.mode) && Number.isFinite(v.last.depth) ? { mode: v.last.mode, depth: Math.floor(v.last.depth), line: String(v.last.line || '').slice(0, 120), at: String(v.last.at || '').slice(0, 40) } : null;
+    return { best, last };
+  }
+  const endlessBest = (m = mode) => endlessSave().best[m] || 0;
+  function endlessWrite(patch) {
+    const s = endlessSave();
+    if (patch.depth && patch.depth > (s.best[mode] || 0)) s.best[mode] = patch.depth;
+    if (patch.last) s.last = patch.last;
+    return store.set(ENDLESS_KEY, JSON.stringify(s)); // (storage off: the mode still works, it just forgets)
+  }
+  function refreshEndlessButton() {
+    const b = $('btn-endless');
+    if (!b) return;
+    const on = endlessUnlocked();
+    b.classList.toggle('hidden', !on);
+    const best = on ? endlessBest() : 0;
+    $('endless-best').textContent = best ? `Best ${best}` : '';
+    $('endless-best').classList.toggle('hidden', !best);
+    b.setAttribute('aria-label', best ? `Endless - best depth on ${MODES[mode].label}: ${best}` : 'Endless');
+  }
+  /** A new run: a new random seed, depth 1, at once. */
+  function startEndless() {
+    if (!endlessUnlocked()) return;
+    audio.init();
+    $('title-notice').classList.add('hidden');
+    const startBest = endlessBest();
+    endlessRun = { seed: (Math.random() * 0xffffffff) >>> 0, depth: 1, mode, startBest, passedBest: false };
+    customRun = null;
+    startLevel(ENDLESS_LEVEL);
+  }
+  /** A depth cleared: the next one, behind the usual quick fade - and a soft chime at a milestone, a mark past your best. */
+  function onEndlessCleared() {
+    audio.levelComplete();
+    endlessRun.depth++;
+    const d = endlessRun.depth;
+    endlessWrite({ depth: d }); // (the best is how deep you got: kept the moment you get there)
+    if (ENDLESS_MILESTONES.includes(d)) setTimeout(() => audio.milestone(), 420);
+    if (endlessRun.startBest > 0 && d > endlessRun.startBest && !endlessRun.passedBest) {
+      endlessRun.passedBest = true;
+      showSaved('New best!', 2200);
+    }
+    go(() => endlessRun && startLevel(ENDLESS_LEVEL));
+  }
+  /** Caught: the run is over. The screen says how deep, the best, and what caught you (the Caught screen's own line). */
+  function endlessOver(line) {
+    const d = endlessRun.depth;
+    const prev = endlessRun.startBest;
+    endlessWrite({ depth: d, last: { mode, depth: d, line, at: new Date().toISOString() } });
+    const best = Math.max(prev, d, endlessBest());
+    $('eo-depth').textContent = `Depth ${d}`;
+    $('eo-best').textContent = `Best on ${MODES[mode].label}: ${best}`;
+    $('eo-new').classList.toggle('hidden', !(d > prev));
+    $('eo-line').textContent = line;
+  }
+  /** Try again: a new run, instantly - no fade, no screens between. */
+  function endlessAgain() {
+    if (!endlessRun || state !== 'caught') return;
+    showOverlay(null);
+    startEndless();
+  }
+
   /**
    * (v19.3) DUSK: talking to the Warden in the dark (the interact key, or the Talk button) - its scene, "Nothing
    * Listens", and after it (onTalkDone) Dusk counts as cleared and the end screen comes up.
@@ -4933,7 +5040,7 @@
     state = 'paused';
     touch.releaseAll(); // never carry a held finger across a screen change
     EchoProfile.flush(); // write the stats out now: the page may never come back
-    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : customRun ? `${modeLabel()} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · ${levelName(levelNum)}`;
+    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : endlessRun ? `Endless · ${MODES[mode].label} · Depth ${endlessRun.depth}` : customRun ? `${modeLabel()} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · ${levelName(levelNum)}`;
     $('btn-quit').textContent = customRun ? customBackLabel() : 'Quit to title'; // (v15.0: a custom level goes back where it came from)
     $('btn-pause-skip-tut').classList.toggle('hidden', !inTutorial()); // the way out of the tutorial, for anyone who is done with it
     refreshOptionUi();
@@ -4961,6 +5068,7 @@
     scriptLock = false;
     savedPending = false;
     customRun = null; // (v15.0) no custom level is being played any more,
+    endlessRun = null; // (v20.0) ...nor an Endless run
     editorScreen = null; // ...and none of the editor's screens is up
     hideCard(); // (v15.1: nor its title card, its zones or its colours)
     fxZones = [];
@@ -5023,6 +5131,7 @@
       c.checked = calm;
     });
     $('btn-replay').classList.toggle('hidden', !replayAvailable());
+    refreshEndlessButton(); // (v20.0)
     $('btn-archive').classList.toggle('hidden', !archiveAvailable()); // only once something has been found
     // a small medal line for the mode that is picked (Settings -> Stats & Medals has the whole board)
     const sum = EchoProfile.medalSummary(mode, MEDAL_LEVELS); // (level 13 has no medals - see MEDAL_LEVELS)
@@ -5948,6 +6057,20 @@
         }
         break;
       case 'caught':
+        if (endlessRun) {
+          // (v20.0) the run is over: Enter (or R) is a new one, at once; Esc the title
+          if (!$('endless-over').classList.contains('hidden') && !transitioning) {
+            if (e.code === 'Enter' || e.code === 'KeyR') {
+              e.preventDefault();
+              audio.uiClick();
+              endlessAgain();
+            } else if (e.code === 'Escape') {
+              audio.uiClick();
+              go(() => toTitle());
+            }
+          }
+          break;
+        }
         if (e.code === 'Enter' || e.code === 'KeyR') {
           e.preventDefault();
           if (!$('caught').classList.contains('hidden')) {
@@ -5957,7 +6080,7 @@
         }
         break;
       case 'complete':
-        if (e.code === 'Enter') {
+        if (e.code === 'Enter' && !endlessRun) {
           e.preventDefault();
           if (!$('complete').classList.contains('hidden')) {
             audio.uiClick();
@@ -6154,6 +6277,20 @@
     go(() => newRun(getBest()));
   });
   $('btn-replay').addEventListener('click', openReplay);
+  // (v20.0) Endless
+  $('btn-endless').addEventListener('click', () => {
+    if (state !== 'title' || transitioning || !endlessUnlocked()) return;
+    click();
+    go(() => startEndless());
+  });
+  $('btn-endless-again').addEventListener('click', () => {
+    click();
+    endlessAgain();
+  });
+  $('btn-endless-title').addEventListener('click', () => {
+    click();
+    go(() => toTitle());
+  });
   $('btn-replay-back').addEventListener('click', closeReplay);
   $('btn-archive').addEventListener('click', openArchive);
   $('btn-archive-back').addEventListener('click', closeArchive);
@@ -6735,6 +6872,29 @@
       // v14.0: levels 14-16 (js/story.js). go(14..16) plays them; step() drives them (the beats run inside play).
       story,
       storyState: () => story.state(),
+      // (v20.0) Endless: the run, its save, and any depth of any run built again
+      endless: {
+        state: () => (endlessRun ? { seed: endlessRun.seed, depth: endlessRun.depth, mode: endlessRun.mode, startBest: endlessRun.startBest, passedBest: endlessRun.passedBest, levelOk: !!(level && level.endless && level.endless.ok), attempt: level && level.endless ? level.endless.attempt : null } : null),
+        unlocked: () => endlessUnlocked(),
+        alarmMet: () => alarmMet(),
+        save: () => endlessSave(),
+        start: (seed) => {
+          startEndless();
+          if (seed !== undefined && endlessRun) {
+            endlessRun.seed = seed >>> 0;
+            startLevel(ENDLESS_LEVEL);
+          }
+          return endlessRun && endlessRun.seed;
+        },
+        goDepth: (d) => {
+          if (!endlessRun) return false;
+          endlessRun.depth = Math.max(1, d | 0);
+          startLevel(ENDLESS_LEVEL);
+          return true;
+        },
+        build: (seed, depth, m = mode, opts) => generateEndless(seed >>> 0, depth, m, opts || { alarm: alarmMet() }),
+        again: () => endlessAgain(),
+      },
       dusk: () => story.dusk(), // (v19.3)
       talk: () => story.talk(),
       scriptLock: () => ({ locked: scriptLock, walk: { ...scriptWalk } }),

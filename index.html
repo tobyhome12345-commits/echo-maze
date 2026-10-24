@@ -158,6 +158,8 @@
       <div class="buttons dock">
         <button id="btn-continue" class="hidden">Continue</button>
         <button id="btn-start" class="primary">Begin</button>
+        <!-- (v20.0) Endless: only there once level 12 has been cleared in some mode -->
+        <button id="btn-endless" class="hidden">Endless <span id="endless-best" class="endless-best hidden"></span></button>
       </div>
       <p id="title-first" class="title-first hidden">First time? Begin starts with a short tutorial.</p>
       <p class="sound-note"><span aria-hidden="true">&#127911;</span> Headphones recommended &mdash; the sound starts with the game.</p>
@@ -536,6 +538,21 @@
       <div class="buttons">
         <button id="btn-retry" class="primary"><span id="retry-label">Try again</span> <span class="key">Enter</span></button>
         <button id="btn-caught-title">Title</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- (v20.0) Endless: the run is over -->
+  <section id="endless-over" class="overlay hidden danger">
+    <div class="panel small">
+      <h2>Caught</h2>
+      <p id="eo-depth" class="eo-depth">Depth 1</p>
+      <p id="eo-new" class="eo-new hidden">New best!</p>
+      <p id="eo-best" class="eo-best"></p>
+      <p id="eo-line"></p>
+      <div class="buttons">
+        <button id="btn-endless-again" class="primary">Try again <span class="key">Enter</span></button>
+        <button id="btn-endless-title">Back to title</button>
       </div>
     </div>
   </section>

@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v19.3 - dusk
+**Current version:** v20.0 - endless mode
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -134,6 +134,17 @@ for each update, newest first, and **See all updates** for the rest. **Got it**,
 it. A brand-new player never sees it (everything is new). Anything about the story is kept back until you have reached
 that far: until then it just says there is new story content to discover. **What's new** in the bottom corner of the
 title screen (on a phone held upright, in **Settings**) shows the whole history at any time.
+
+## Endless
+
+Once you have cleared level 12 in any mode, an **Endless** button appears on the title screen (before that it is not there at all). Endless is one generated maze after another, each a little harder than the last, until you are caught - and your score is how deep you got. There is one life in every mode: caught, and the run is over. The screen says the depth you reached, your best for that difficulty (and **New best!** if you beat it), and what caught you; **Try again** starts a new run straight away (Enter does too), and **Back to title** goes back.
+
+- Depths 1-3 are small mazes with a single echo monster. From there the other monsters come in one at a time, in the order the story brings them - the scent monster, the mimic, the sonar decoy, the stalker, the Muffler, the Singer - about one new kind every three depths, and the Alarm too once you have met it in the story. Nothing else: no new monsters, nothing from the story levels.
+- The mazes grow until about depth 30. After that they stay that size, and the monsters slowly get more numerous and a little faster, up to a limit - they are always slower than you.
+- Every maze is checked before you get it: the way out can be reached and is a real walk away, no monster starts near you, and nothing that stands still blocks the only way through.
+- A soft chime at depths 5, 10, 25 and 50, and "New best!" in the corner when you pass your best mid-run. No hints, banners, lore or cutscenes - the HUD shows the depth.
+- Each difficulty keeps its own best depth (shown on the button). Calm mode, Visual cues, the palettes and touch controls all work as usual.
+- Endless never touches the campaign: no progress, medals, stats or fragments. It keeps its own small save, and if storage is unavailable it still works - it just won't remember your best.
 
 ## Replaying levels and cutscenes
 

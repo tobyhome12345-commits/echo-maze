@@ -331,7 +331,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v19.0 | 842ed9b | MAJOR: **ACT 3 BEGINS - OUTSIDE 1** (internal level 26), in full daylight: 25's white flood runs into it (the outside sound carried on, the colour fading in), a big open field (84x56, walls only at its edge) of grass, a worn path, flowers and trees you walk under, the player seen for the first time; wind, birds, grass footsteps; no monsters, music or drone; the way on through a gap in the trees ends in the "More to come soon." screen (moved here from 25). **Per-level flags** (`daylight`, `noRipple`, `noCrouch`, `noHud`, `movementOnly`): only movement and pause work, nothing on screen while you play, the joystick only on touch, a tap shows the pause button for 3 s. **Shown as "Outside 1"** everywhere (`levelName`). `CAMPAIGN_LEVELS` 26. Levels 0-25 unchanged (`9097b344`) |
 | v19.1 | b943eaf | MINOR: **"First Breath"** - level 26 renamed (from `OUTSIDE_NAMES`, js/game.js: the next outside levels are just the next names - Fresh Air, Open Ground, Same Sky, The Wall); its **level-list tile** a word to a line, centred, its font fitted to the same tile as the numbers at every width (`fitLevelNames`); and the **daylight interface** (Settings -> Display, only once level 26 is reached, off by default, `echomaze.lightui`): every menu and screen in a light look by ONE filter and the theme variables (`html[data-ui='light']`), the game and the HUD untouched. Levels, saves, the editor and share codes unchanged (`9097b344`) |
 | v19.2 | e09b26d | MINOR: **"Fresh Air"** (internal level 27, `kind: 'village'`, the flags of 26): a daylight village after First Breath - cottages, fences, gardens, a washing line, a square with a well, stalls and a bench (solid: the cottages, fences, stalls, the well); twelve villagers drawn like the player, not solid, keeping 34 px off, never looking at you, each on a fixed day of keyframes; every `VILLAGE_LOOP` 40 s all of them start again at once (a soft fade, a half-second hush in the wind); every village sound echoed once, 0.45 s later, at 0.4, at most 14 waiting - never the player's; the gate at the end -> "More to come soon." (moved from 26). `CAMPAIGN_LEVELS` 27; a finished-26 save continues at 27. Levels 0-26 unchanged (`9097b344`) |
-| v19.3 | PENDING | MINOR (the owner's "next minor version"): **"Dusk"** (internal level 28, `kind: 'dusk'`, the flags of 26-27 plus a new `interact`): a long meadow on from the village in which the light drains with how far you have walked (never with time, never back) - dusk, night, then black with the ground gone (drawing only; an invisible edge) - the sound with it (wind and birds fade, the village's last murmurs and echoes die, the steps turn the gaol's dry ones); far along, a still, harmless Warden in a faint pale glow (its hum fades in, it turns to you close to); within about two tiles a **Talk** prompt, the only thing on screen (the new rebindable **Interact** action, E by default, sharing E with the item key; a Talk button on touch) -> the new scene **"Nothing Listens"** (the Warden speaks eleven lines as subtitles in a low slow voice, the knocks, one more knock, a cut to black; unskippable the first time, seen only at its end, pausable; in the replay list once seen) -> "More to come soon." (moved from 27). `CAMPAIGN_LEVELS` 28; a finished-27 save continues at 28. Levels 0-27 unchanged (`9097b344`) (latest) |
+| v19.3 | 3d2d3c3 | MINOR (the owner's "next minor version"): **"Dusk"** (internal level 28, `kind: 'dusk'`, the flags of 26-27 plus a new `interact`): a long meadow on from the village in which the light drains with how far you have walked (never with time, never back) - dusk, night, then black with the ground gone (drawing only; an invisible edge) - the sound with it (wind and birds fade, the village's last murmurs and echoes die, the steps turn the gaol's dry ones); far along, a still, harmless Warden in a faint pale glow (its hum fades in, it turns to you close to); within about two tiles a **Talk** prompt, the only thing on screen (the new rebindable **Interact** action, E by default, sharing E with the item key; a Talk button on touch) -> the new scene **"Nothing Listens"** (the Warden speaks eleven lines as subtitles in a low slow voice, the knocks, one more knock, a cut to black; unskippable the first time, seen only at its end, pausable; in the replay list once seen) -> "More to come soon." (moved from 27). `CAMPAIGN_LEVELS` 28; a finished-27 save continues at 28. Levels 0-27 unchanged (`9097b344`) |
+| v20.0 | PENDING | MAJOR: **ENDLESS MODE** - a title-screen **Endless** button (only once level 12 has been cleared in some mode; not shown before) for generated mazes one after another, harder each depth, until caught (one life in every mode); the score is the depth. Each depth is the campaign's own generator on its own config (`endlessConfig`, js/level.js) from (run seed, depth) - `generateLevel` takes a ready config as a new last argument, and campaign calls never pass one (`9097b344` unchanged); re-rolled until it passes `endlessCheck` (the way out reachable and a real walk away, monsters a safe distance off, nothing still on the only way through). Monsters in the campaign's order, one new kind every 3 depths (`ENDLESS_INTRO`), the Alarm only once met (level 22); sizes grow to depth 30, then monsters and speed rise slowly to caps (all < 170). The usual quick fade between depths; no hints, banners, lore or cutscenes; a soft chime at 5/10/25/50 (`audio.milestone`); "New best!" past your best. Game over: Depth N, the best for the mode, New best!, the Caught line, **Try again** (a new run at once) / **Back to title**. Its own save `echomaze.endless` (best per mode, the last run); `levelNum` = `ENDLESS_LEVEL` (-2), so nothing of the campaign is written. `tools/endless-check.js` (Node, every check run) and `tools/endless-test.js` (a 60-depth bot, the real loop at every depth, cues ON and off, a phone) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2758,6 +2759,48 @@ The owner called it Act 2 in the brief; they had asked earlier not to use the "a
   `Act2Test.duskScreen`: the longest line on screen and at 14 px or more, at 1366x768, 844x390 and 740x360 touch.
   `village` now ends in 28; `firstTime` (28 -> "Continue (Dusk)", 29 Finished, campaign 28), `cues` 0-28, `perf` (28
   in the dark by the Warden) and the tiles ("Dusk" one line) include it. Visual cues ON and off, desktop and phone.
+
+## v20.0: Endless mode (owner's brief, MAJOR)
+
+- **js/level.js**: `generateLevel(n, runSeed, modeId, part, given)` - `given` is a ready config (Endless): the hand-built
+  levels are skipped and the generator runs on it exactly as on a campaign config; a new last placement step adds
+  `cfg.alarms` Alarms (placed like the Muffler and the Singer, and only drawing a random number when there are any, so no
+  campaign config - none has `alarms` - is touched). The fingerprint is `9097b344` as before. **Endless**:
+  `ENDLESS_INTRO` (echo 1, scent 4, mimic 7, decoy 10, stalker 13, muffler 16, singer 19, alarm 22 - every 3 depths, the
+  campaign's order), `ENDLESS_CAP` per kind, `ENDLESS_MAX_MONSTERS` 6, `ENDLESS_SIZE_DEPTH` 30, `ENDLESS_SPEED_TOP` 1.12,
+  `ENDLESS_TRIES` 24, `ENDLESS_MILESTONES`. `endlessSeed(runSeed, depth, attempt)` (a hash); `endlessMonsters(depth)` (1 to
+  depth 3, 2 to 9, 3 to 18, 4 to 30, then up by one every 15 depths to 6; Easy one fewer from 3); `endlessKinds(depth,
+  {alarm})`; `endlessConfig(depth, mode, opts, rand)` = `levelConfig(min(depth, 12), mode)` (ripple, recharge, hearing,
+  speeds) with Endless's size (7x5 cells growing to 23x18 at depth 30), loops, rooms, obstacles, counts (the newest kind
+  always once in its first stretch, at least one echo monster from depth 4, the rest picked from the kinds met, never past
+  a cap - the mix from its own stream, never the generator's), the decoy from depth 10, puddles with a scent monster, and
+  past depth 30 every speed x up to 1.12 (all below 170: echo <= 165, stalker 169, muffler 160); `endlessCheck(level,
+  depth)`; `generateEndless(runSeed, depth, mode, opts)` -> the level with `level.endless` { depth, runSeed, attempt, ok,
+  why, kinds }.
+- **js/game.js**: `ENDLESS_LEVEL` -2 (so `scored()` is false: no progress, medals, stats, deaths, fragments), `ENDLESS_KEY`
+  `echomaze.endless` ({ best: { mode: depth }, last: { mode, depth, line, at } }, read as untrusted, writes that fail are
+  simply not kept), `endlessRun` { seed, depth, mode, startBest, passedBest }, `endlessUnlocked()` (`furthestReached() >= 13`),
+  `alarmMet()` (`>= 22`). `startEndless` (a new random seed, depth 1), `startLevel(ENDLESS_LEVEL)` builds it with
+  `generateEndless` (no fragment, no banner; the music and drone of `cfg.n`), `onEndlessCleared` (from `onLevelComplete`:
+  the clear sound, depth + 1, the best written as soon as it is reached, the milestone chime, "New best!" in the corner
+  toast once past the run's starting best, then `go(startLevel)`), `endlessOver` (from `onCaught`: the last run and the
+  best written, the screen filled) and `#endless-over` after the usual 900 ms (Hardcore too - not the title),
+  `endlessAgain` (Try again / Enter / R: a new run at once, no fade), Esc / Back to title. HUD "Depth N · Mode", the pause
+  line "Endless · Mode · Depth N". The Enter key on the Level cleared screen does nothing during a run. `toTitle` ends the
+  run. The title's `#btn-endless` (in the dock, after Begin) with the picked mode's best. Debug `endless` { state, unlocked,
+  alarmMet, save, start(seed), goDepth(d), build(seed, depth, mode, opts), again }. **js/audio.js** `milestone`.
+- **Test copy**: its save is past every level, so Endless is open there; its key becomes `echomaze.test.endless` like
+  every other.
+- **Tests**: `tools/endless-check.js` (Node, in every `tools/check.js` run): 1,440 depths (1-60, 6 runs x 4 modes, half
+  with the Alarm met) all fair (17 needed a second seed, none a third), only met kinds in order, the newest in its first
+  stretch, no Screecho or Warden, all speeds < 170, at most 6 monsters, depths 1-3 small with one echo monster, sizes
+  stop at 30, speed rising slowly to its cap, deterministic, a campaign level built the same around it.
+  `tools/endless-test.js`: unlock (fresh save: no button, no run; best 13: there), run 15, caught 19 (Normal and Hardcore:
+  Depth N, the best, New best!, the line; Try again in ~2 ms with a new seed; Enter; Back to title), modes 4 (bests per
+  mode; storage that throws), noWrites 4 (only `echomaze.endless` changes; stats and Continue as they were), fair, bot (60
+  depths with the real keys in ~24 s), live (the real loop at every depth 1-60 with its monsters, a ripple at each),
+  screen (the button and the game-over screen on a phone, 0.15 ms a frame at depths 30 and 60). Visual cues ON and off,
+  a phone with Calm mode. The title tests with the button showing at 1366x768, 1280x720 and 844x390.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

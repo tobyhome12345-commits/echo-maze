@@ -901,7 +901,10 @@ window.EditorTest2 = (() => {
     for (const s of v1) localStorage.setItem(`echomaze.level.${s.id}`, JSON.stringify(s));
     const list = e.levelStore.list();
     S.check('stored as v15.0 left them: listed, with a rating', v1.every((s) => list.some((l) => l.id === s.id && l.rating === 'normal')));
-    const b = EditorTest.bot(e.levelStore.get(fs.id).doc, { mode: 'normal' });
+    // (v20.0) the blind bot walks into its wandering echo monster about one run in twelve, in every version since this
+    // test was written - so up to three tries: one clear is what shows the old level still plays through
+    let b = null;
+    for (let t = 0; t < 3 && !(b && b.cleared); t++) b = EditorTest.bot(e.levelStore.get(fs.id).doc, { mode: 'normal' });
     S.check('First Steps (v15.0) plays through and is cleared', b.cleared, b);
     await openFresh();
     e.openEditor(e.levelStore.get(fs.id).doc);
