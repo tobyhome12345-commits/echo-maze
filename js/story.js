@@ -136,6 +136,167 @@ const EchoStory = (() => {
     return { W, H, map, path, shade, flower, trees };
   })();
 
+  // ------------------------------------------------------------ (v19.2) FRESH AIR: the village
+  /**
+   * Level 27, "Fresh Air": a small, warm, ordinary village in daylight - and an echo. Built once, the same every time
+   * (its own xorshift): cottages, two fenced gardens, a square with a well and two stalls, a bench, a washing line,
+   * paths and trees; the cottages, fences, stalls and the well are solid (`map`), everything else is drawing. And its
+   * people: each one's day is a fixed list of keyframes over VILLAGE_LOOP seconds - and then, every one of them at the
+   * same instant, it starts again (create(): updateVillage).
+   */
+  const VILLAGE_LOOP = 40; // s: one day of the village, before it starts again
+  const VILLAGE = (() => {
+    const W = 64;
+    const H = 42;
+    let q = 0x7111a9e;
+    const r = () => {
+      q ^= q << 13;
+      q >>>= 0;
+      q ^= q >>> 17;
+      q ^= q << 5;
+      q >>>= 0;
+      return q / 4294967296;
+    };
+    const solid = new Uint8Array(W * H);
+    const built = new Uint8Array(W * H); // solid, but a made thing (drawn as itself, not as the hedge at the edge)
+    const set = (x, y) => {
+      solid[y * W + x] = 1;
+      built[y * W + x] = 1;
+    };
+    for (let x = 0; x < W; x++) solid[x] = solid[(H - 1) * W + x] = 1;
+    for (let y = 0; y < H; y++) solid[y * W] = solid[y * W + W - 1] = 1;
+    // cottages: [x, y, w, h, the tile in front of the door, roof tone]
+    const houses = [
+      [7, 9, 6, 5, [9, 14], 0], [17, 9, 6, 5, [20, 14], 1], [41, 9, 6, 5, [44, 14], 2], [51, 9, 6, 5, [53, 14], 0],
+      [9, 28, 6, 5, [11, 27], 1], [41, 28, 6, 5, [43, 27], 2], [51, 28, 6, 5, [54, 27], 1],
+    ].map(([x, y, w, h, door, roof]) => ({ x, y, w, h, door, roof }));
+    for (const h of houses) for (let y = h.y; y < h.y + h.h; y++) for (let x = h.x; x < h.x + h.w; x++) set(x, y);
+    // fenced gardens: [x0, y0, x1, y1, the gap in the fence]
+    const gardens = [[21, 28, 28, 34, [24, 28]], [33, 6, 38, 11, [35, 11]]].map(([x0, y0, x1, y1, gap]) => ({ x0, y0, x1, y1, gap }));
+    const fences = [];
+    for (const g of gardens) {
+      for (let x = g.x0; x <= g.x1; x++) for (const y of [g.y0, g.y1]) if (!(x === g.gap[0] && y === g.gap[1])) fences.push([x, y]);
+      for (let y = g.y0 + 1; y < g.y1; y++) for (const x of [g.x0, g.x1]) if (!(x === g.gap[0] && y === g.gap[1])) fences.push([x, y]);
+    }
+    for (const [x, y] of fences) set(x, y);
+    // the square: the well (solid), two stalls, a bench
+    const well = { x: 32, y: 18 };
+    const stalls = [{ x: 28, y: 23, w: 2, tone: 0 }, { x: 36, y: 23, w: 2, tone: 1 }];
+    for (const st of stalls) for (let x = st.x; x < st.x + st.w; x++) set(x, st.y);
+    const bench = { x: 35.5, y: 15.1 };
+    const line = { x0: 18.4, x1: 23.6, y: 6.6 }; // the washing line, behind the second cottage
+    const S = [2, 20];
+    const X = [W - 2, 20];
+    // paths: the street end to end, the square, and one to every door and garden gate
+    const path = new Float32Array(W * H);
+    const wear = (x, y, w) => {
+      if (x < 1 || y < 1 || x > W - 2 || y > H - 2) return;
+      path[y * W + x] = Math.max(path[y * W + x], w);
+    };
+    for (let x = 1; x < W - 1; x++) {
+      wear(x, 20, 1);
+      wear(x, 19, 0.6);
+      wear(x, 21, 0.6);
+    }
+    for (let y = 16; y <= 25; y++) for (let x = 26; x <= 38; x++) wear(x, y, 0.85);
+    for (const h of houses) {
+      const [dx, dy] = h.door;
+      for (let y = Math.min(dy, 20); y <= Math.max(dy, 20); y++) wear(dx, y, 0.8);
+    }
+    for (const g of gardens) for (let y = Math.min(g.gap[1], 20); y <= Math.max(g.gap[1], 20); y++) wear(g.gap[0], y, 0.7);
+    // the ground: patches, and flowers in the gardens and the verges
+    const G = 7;
+    const gw = Math.ceil(W / G) + 2;
+    const gv = Array.from({ length: gw * (Math.ceil(H / G) + 2) }, r);
+    const shade = new Uint8Array(W * H);
+    const flower = new Uint8Array(W * H);
+    const inGarden = (x, y) => gardens.some((g) => x > g.x0 && x < g.x1 && y > g.y0 && y < g.y1);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const fx = x / G;
+        const fy = y / G;
+        const ix = Math.floor(fx);
+        const iy = Math.floor(fy);
+        const sx = (fx - ix) * (fx - ix) * (3 - 2 * (fx - ix));
+        const sy = (fy - iy) * (fy - iy) * (3 - 2 * (fy - iy));
+        const a = gv[iy * gw + ix] + (gv[iy * gw + ix + 1] - gv[iy * gw + ix]) * sx;
+        const b = gv[(iy + 1) * gw + ix] + (gv[(iy + 1) * gw + ix + 1] - gv[(iy + 1) * gw + ix]) * sx;
+        shade[y * W + x] = Math.min(4, Math.floor((a + (b - a) * sy) * 4.6 + r() * 0.5));
+        if (!solid[y * W + x] && path[y * W + x] < 0.15 && r() < (inGarden(x, y) ? 0.3 : 0.03)) flower[y * W + x] = 1 + Math.floor(r() * 3);
+      }
+    }
+    // trees: round the outside of the village, never on a path, a building or in the square
+    const trees = [];
+    const c = (t) => (t + 0.5) * TILE;
+    const near = (x, y, d) => {
+      for (let yy = Math.floor(y - d); yy <= Math.ceil(y + d); yy++) for (let xx = Math.floor(x - d); xx <= Math.ceil(x + d); xx++) {
+        if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        if (built[yy * W + xx] || path[yy * W + xx] > 0.3) return true;
+      }
+      return false;
+    };
+    for (let k = 0; k < 600 && trees.length < 70; k++) {
+      const x = 1.5 + r() * (W - 3);
+      const y = 1.5 + r() * (H - 3);
+      if (near(x, y, 2.2) || Math.hypot(x - well.x, y - well.y) < 8 || (x > 25 && x < 39 && y > 15 && y < 26)) continue;
+      const tx = c(x);
+      const ty = c(y);
+      if (trees.some((t) => Math.hypot(t.x - tx, t.y - ty) < 90)) continue;
+      trees.push({ x: tx, y: ty, r: 34 + r() * 26, tone: r() });
+    }
+    // THE PEOPLE. Each: clothes, and a day - a route of [x, y] (tiles) walked at `speed` tiles/s, and stops
+    // { wait, snd } - repeated to fill VILLAGE_LOOP. `every`: a sound it makes over and over while it is there.
+    const people = [];
+    const person = (o) => {
+      const kf = [];
+      const ev = [];
+      let t = 0;
+      let [x, y] = o.route[0];
+      const once = [];
+      once.push({ t: 0, x, y });
+      for (const st of o.route.slice(1)) {
+        if (Array.isArray(st)) {
+          t += Math.hypot(st[0] - x, st[1] - y) / (o.speed || 1.4);
+          x = st[0];
+          y = st[1];
+          once.push({ t, x, y });
+        } else {
+          if (st.snd) ev.push({ t: t + (st.at || 0.3), snd: st.snd });
+          t += st.wait;
+          once.push({ t, x, y, face: st.face });
+        }
+      }
+      const T = Math.max(t, 1);
+      // the same day, again and again, until the village starts over
+      for (let k = 0; k * T < VILLAGE_LOOP; k++) {
+        for (const p of once) if (k * T + p.t <= VILLAGE_LOOP && !(k > 0 && p.t === 0)) kf.push({ ...p, t: k * T + p.t });
+      }
+      const evs = [];
+      for (let k = 0; k * T < VILLAGE_LOOP; k++) for (const e of ev) if (k * T + e.t < VILLAGE_LOOP) evs.push({ t: k * T + e.t, snd: e.snd });
+      people.push({ kf, ev: evs, every: o.every || null, clothes: o.clothes, hair: o.hair, pitch: o.pitch || 1, small: !!o.small, what: o.what, face: o.face });
+    };
+    const C = (body, edge) => ({ body, edge });
+    person({ what: 'water', clothes: C('#9b5b3a', '#6d3f28'), hair: '#3a2a1e', speed: 1.5, route: [[20, 15], [20, 19.2], [31, 19.2], { wait: 2.6, snd: 'bucket', at: 0.8, face: -Math.PI / 4 }, [20, 19.2], [20, 15], { wait: 2.2 }] });
+    person({ what: 'ball', small: true, clothes: C('#d8a23a', '#a5781f'), hair: '#6b4a2b', pitch: 1.4, route: [[44, 25.7], { wait: 1.7, snd: 'ball', at: 0.2, face: Math.PI / 2 }] });
+    person({ what: 'washing', clothes: C('#7f9fbf', '#56738f'), hair: '#c9b27a', speed: 0.9, route: [[18.9, 7.3], { wait: 3.2, snd: 'cloth', at: 1.2, face: -Math.PI / 2 }, [20.5, 7.3], { wait: 3.2, snd: 'cloth', at: 1.2 }, [22.1, 7.3], { wait: 3.2, snd: 'cloth', at: 1.2 }, [23.3, 7.3], { wait: 3.2, snd: 'cloth', at: 1.2 }, { wait: 22 }] });
+    person({ what: 'broom', clothes: C('#6f8f5a', '#4d6a3c'), hair: '#8a8a8a', speed: 0.55, every: { snd: 'sweep', dt: 1.1 }, route: [[29.5, 24.5], [34.5, 24.5], [29.5, 24.5]] });
+    person({ what: 'bench', clothes: C('#8c6fa3', '#634b78'), hair: '#ddd6c8', pitch: 0.8, route: [[35.5, 15.4], { wait: 5.5, face: Math.PI / 2 }, [35.5, 15.9], { wait: 2.8, snd: 'murmur', at: 0.6 }, [35.5, 15.4], { wait: 0.1 }] });
+    person({ what: 'talk', clothes: C('#b95f6a', '#86414a'), hair: '#2e2018', route: [[27.6, 21.6], { wait: 2.8, snd: 'murmur', at: 0.4, face: 0 }, { wait: 2.8, face: 0 }] });
+    person({ what: 'talk', clothes: C('#4f7d8c', '#365864'), hair: '#5d4a33', pitch: 0.85, route: [[29.0, 21.6], { wait: 2.8, face: Math.PI }, { wait: 2.8, snd: 'murmur', at: 0.4, face: Math.PI }] });
+    person({ what: 'walk', clothes: C('#c7b28f', '#97835f'), hair: '#4a3626', speed: 1.3, route: [[26.5, 16.8], [38.4, 16.8], [38.4, 25.6], [26.5, 25.6], [26.5, 16.8]] });
+    person({ what: 'garden', clothes: C('#a3824f', '#765c33'), hair: '#2f2a24', every: { snd: 'cloth', dt: 2.4 }, route: [[24.5, 31.2], { wait: 6, face: Math.PI / 2 }, [26, 31.6], { wait: 6, face: Math.PI / 2 }, [24.5, 31.2]] });
+    person({ what: 'walk', clothes: C('#5c6f99', '#3f4f70'), hair: '#c8c8c8', pitch: 0.75, speed: 0.7, route: [[46, 21.1], [57, 21.1], { wait: 2.2, snd: 'murmur', at: 1 }, [46, 21.1], { wait: 2.2 }] });
+    person({ what: 'stall', clothes: C('#d07a3c', '#9c5726'), hair: '#3b2b20', route: [[36.6, 22.2], { wait: 4.6, snd: 'murmur', at: 2.2, face: -Math.PI / 2 }] });
+    person({ what: 'walk', clothes: C('#9a4f8f', '#6e3767'), hair: '#1f1a17', speed: 1.4, route: [[9, 15], [9, 20.2], [11, 20.2], [11, 26.6], { wait: 3 }, [11, 20.2], [9, 20.2], [9, 15], { wait: 3 }] });
+    const map = [];
+    for (let y = 0; y < H; y++) {
+      let row = '';
+      for (let x = 0; x < W; x++) row += x === S[0] && y === S[1] ? 'S' : x === X[0] && y === X[1] ? 'X' : x === well.x && y === well.y ? 'p' : solid[y * W + x] ? '#' : '.';
+      map.push(row);
+    }
+    return { W, H, map, path, shade, flower, trees, built, props: { houses, gardens, fences, well, stalls, bench, line, gate: { x: X[0], y: X[1] } }, people };
+  })();
+
   const LEVELS = {
     14: {
       kind: 'gaol',
@@ -493,6 +654,17 @@ const EchoStory = (() => {
       movementOnly: true,
       map: FIELD.map,
     },
+    // (v19.2) 27, "Fresh Air": the village. The same flags as the field; its people are drawing and sound only - not
+    // solid, never in your way, never looking at you.
+    27: {
+      kind: 'village',
+      daylight: true,
+      noRipple: true,
+      noCrouch: true,
+      noHud: true,
+      movementOnly: true,
+      map: VILLAGE.map,
+    },
   };
   /**
    * (v17.0) THE VOID, by `void` level (17: 1 ... 20: 4). Drawing and sound only - nothing in it is read by anything
@@ -697,7 +869,7 @@ const EchoStory = (() => {
       act2,
       // (v19.0) per-level flags (js/game.js): every story level has them, all false but where a level says
       flags: { daylight: !!spec.daylight, noRipple: !!spec.noRipple, noCrouch: !!spec.noCrouch, noHud: !!spec.noHud, movementOnly: !!spec.movementOnly },
-      field: spec.kind === 'field' ? FIELD : null, // (v19.0) what the field looks like (drawing only)
+      field: spec.kind === 'field' ? FIELD : spec.kind === 'village' ? VILLAGE : null, // (v19.0) what the field looks like (drawing only; v19.2: and the village)
       rayWalls: act2 ? act2.rayWalls : null, // (17: what a ripple's rays meet instead of level.walls)
       rippleScale: spec.ripple ? spec.ripple.speed : 0, // (20: the ripple's speed, as a fraction of its usual)
       rippleLag: spec.ripple ? spec.ripple.lag : 0, // (20: seconds before what it found is shown)
@@ -1156,7 +1328,7 @@ const EchoStory = (() => {
       if (kind === 'gaol') startGaol();
       else if (kind === 'light') startLight();
       else if (kind === 'outside') startOutside(); // (v18.2)
-      else if (kind === 'field') startField(); // (v19.0)
+      else if (kind === 'field' || kind === 'village') startField(); // (v19.0; v19.2 the village too)
       else if (S.spec.act2) startAct2();
       else startDeep();
     }
@@ -1532,6 +1704,12 @@ const EchoStory = (() => {
     // (25's sound of outside, carried on and swelling), louder towards the way on.
     function startField() {
       phase = 'calm';
+      vPhase = 0;
+      vCycle = 0;
+      vHush = 0;
+      vEchoes = [];
+      vSeen = [];
+      vResets = 0;
       setLock(true);
       veil = 0; // (not the dark every other story level opens in: the light it ended in)
       veilFrom = 0;
@@ -1558,6 +1736,117 @@ const EchoStory = (() => {
         birdCd = 1.6 + 3.6 * chirpRnd();
         if (audio) audio.birdChirp(chirpRnd() * 1.6 - 0.8, 0.25 + 0.4 * chirpRnd());
       }
+      if (kind === 'village') updateVillage(dt, near);
+    }
+
+    // ===================================================== (v19.2) 27: FRESH AIR, THE VILLAGE
+    // Its people go about their day - and every VILLAGE_LOOP seconds, all at once, it starts again: they fade a little,
+    // for a moment, and are back where they began, under a half-second hush. Every sound the village makes comes again
+    // a beat later, quieter (ECHO_*) - never the player's, and never an echo of an echo.
+    const ECHO_DELAY = 0.45; // s
+    const ECHO_GAIN = 0.4; // of the sound it echoes
+    const ECHO_MAX = 14; // echoes waiting at once, at most
+    const RESET_FADE = 0.35; // s either side of the moment it starts again
+    const HUSH = 0.5; // s of the hush
+    const KEEP_AWAY = 34; // px: how close a villager comes to you (they make room, without looking)
+    let vPhase = 0;
+    let vCycle = 0;
+    let vHush = 0;
+    let vEchoes = [];
+    let vSeen = [];
+    let vResets = 0;
+    function villagePlay(snd, x, y, gain, who, echo) {
+      const p = P();
+      const d = Math.hypot(x - p.x, y - p.y);
+      const g = gain * Math.pow(clamp(1 - d / 760, 0, 1), 1.5);
+      if (g < 0.015 || !audio) return;
+      const pan = clamp((x - p.x) / 520, -0.9, 0.9);
+      if (snd === 'step') audio.grassStep(g * 0.55, pan);
+      else if (snd === 'bucket') audio.dripMetal(pan, g * 0.7);
+      else if (snd === 'ball') audio.ballKick(pan, g);
+      else if (snd === 'sweep') audio.sweep(pan, g);
+      else if (snd === 'cloth') audio.sweep(pan, g * 0.45);
+      else if (snd === 'murmur') audio.murmur(pan, g, who ? who.pitch : 1);
+      // ...and again, a beat later, quieter - once
+      if (!echo && vEchoes.length < ECHO_MAX) vEchoes.push({ at: clock + ECHO_DELAY, snd, x, y, gain: gain * ECHO_GAIN, who });
+    }
+    /** Where a villager is at this moment of the day (tiles -> px), which way it faces, and whether it is walking. */
+    function villagerAt(v, t) {
+      const kf = v.kf;
+      let k = 0;
+      while (k < kf.length - 1 && kf[k + 1].t <= t) k++;
+      const a = kf[k];
+      const b = kf[Math.min(k + 1, kf.length - 1)];
+      const u = b.t > a.t ? clamp((t - a.t) / (b.t - a.t), 0, 1) : 0;
+      const x = a.x + (b.x - a.x) * u;
+      const y = a.y + (b.y - a.y) * u;
+      const moving = (b.x !== a.x || b.y !== a.y) && u > 0 && u < 1;
+      const face = moving ? Math.atan2(b.y - a.y, b.x - a.x) : b.face !== undefined ? b.face : a.face !== undefined ? a.face : v.face || 0;
+      return { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, face, moving };
+    }
+    function updateVillage(dt, near) {
+      const people = lv.field.people;
+      const T = clock;
+      const cycle = Math.floor(T / VILLAGE_LOOP);
+      const prev = vPhase;
+      vPhase = T - cycle * VILLAGE_LOOP;
+      const restarted = cycle !== vCycle;
+      if (restarted) {
+        vCycle = cycle;
+        vHush = HUSH; // every one of them, at the same instant - and the wind holds its breath
+        vResets++;
+        if (vSeen.length) for (const s0 of vSeen) s0.acc = 0;
+      }
+      vHush = Math.max(0, vHush - dt);
+      if (audio && phase !== 'leaving') audio.setDaylight((0.5 + 0.5 * near) * (1 - 0.65 * Math.sin(Math.PI * (vHush / HUSH)))); // (a hush: down and back up, softly)
+      if (vSeen.length !== people.length) vSeen = people.map(() => ({ acc: 0, every: 0, x: 0, y: 0 }));
+      const p = P();
+      people.forEach((v, i) => {
+        const at = villagerAt(v, vPhase);
+        const me = vSeen[i];
+        // the day's own sounds, as they come round (from where it is)
+        for (const e of v.ev) if ((restarted ? e.t <= vPhase : e.t > prev && e.t <= vPhase)) villagePlay(e.snd, at.x, at.y, 0.9, v, false);
+        if (v.every) {
+          me.every -= dt;
+          if (me.every <= 0) {
+            me.every = v.every.dt;
+            villagePlay(v.every.snd, at.x, at.y, 0.8, v, false);
+          }
+        }
+        // making room: never on you, never in your way - and not a look your way
+        let x = at.x;
+        let y = at.y;
+        const d = Math.hypot(x - p.x, y - p.y);
+        if (d < KEEP_AWAY && d > 0.01) {
+          x = p.x + ((x - p.x) / d) * KEEP_AWAY;
+          y = p.y + ((y - p.y) / d) * KEEP_AWAY;
+        }
+        if (!restarted && me.x) me.acc += Math.hypot(x - me.x, y - me.y);
+        if (me.acc >= 26) {
+          me.acc = 0;
+          villagePlay('step', x, y, 0.55, v, false);
+        }
+        // fading a little, for a moment, either side of the moment it all starts again (never a flash)
+        const edge = Math.min(vPhase, VILLAGE_LOOP - vPhase);
+        me.alpha = 0.12 + 0.88 * smooth(clamp(edge / RESET_FADE, 0, 1));
+        me.x = x;
+        me.y = y;
+        me.face = at.face;
+        me.moving = at.moving;
+        me.stride = at.moving ? Math.sin(clock * 9 + i) : 0;
+      });
+      for (let k = vEchoes.length - 1; k >= 0; k--) {
+        const e = vEchoes[k];
+        if (clock < e.at) continue;
+        vEchoes.splice(k, 1);
+        villagePlay(e.snd, e.x, e.y, e.gain, e.who, true);
+      }
+    }
+    /** (js/game.js drawDaylight) the villagers as they are now: where, facing, walking, how faded, what they wear. */
+    function villagers() {
+      if (!lv || kind !== 'village') return [];
+      const people = lv.field.people;
+      return vSeen.map((m, i) => ({ x: m.x, y: m.y, face: m.face, stride: m.stride || 0, alpha: m.alpha === undefined ? 1 : m.alpha, clothes: people[i].clothes, hair: people[i].hair, small: people[i].small, what: people[i].what, ev: people[i].ev, moving: !!m.moving, phase: vPhase }));
     }
 
     // ===================================================== (v18.2) 25: THE LIGHT
@@ -1859,11 +2148,14 @@ const EchoStory = (() => {
           ],
           null
         );
-      } else if (kind === 'field') {
-        // (v19.0) the way on: the light again, softly, and the end of the story so far
+      } else if (kind === 'field' || kind === 'village') {
+        // (v19.0) the way on: the light again, softly - into the next level outside (v19.2), or the end of the story so far
         env.walk(0, 0);
         whiteTo = 1;
-        play([[2.6, () => env.finish()]], null);
+        play([[2.6, () => {
+          carryDaylight = !!LEVELS[S.n + 1]; // (the wind and the birds go on into the next one - not past the last)
+          env.finish();
+        }]], null);
       } else if (kind === 'outside') {
         // (v18.2) THE REAL WAY OUT. Behind you it stops at the edge and comes no further: its steps stop, then its hum
         // fades, a few seconds of nothing - and then the light floods in, the sound of outside rises, and it is over.
@@ -1927,7 +2219,7 @@ const EchoStory = (() => {
       if (kind === 'gaol') updateGaol(dt);
       else if (kind === 'light') updateLight(dt);
       else if (kind === 'outside') updateOutside(dt); // (v18.2)
-      else if (kind === 'field') updateField(dt); // (v19.0)
+      else if (kind === 'field' || kind === 'village') updateField(dt); // (v19.0; v19.2 the village too)
       else if (S.spec.act2) updateAct2(dt);
       else updateDeep(dt);
     }
@@ -2068,7 +2360,8 @@ const EchoStory = (() => {
       drips: drips.map((d) => ({ x: d.x, y: d.y, on: d.on, metal: d.metal })),
       speaking: speech ? speech.text : null,
       act2: S && S.spec.act2 ? { glitch: +glitchT.toFixed(3), firstPing, fallIn: +fallIn.toFixed(2), flicker: +foldFlick.toFixed(3) } : null, // (v17.0)
-      outside: kind === 'outside' || kind === 'field' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2; v19.0 the field too)
+      outside: kind === 'outside' || kind === 'field' || kind === 'village' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2; v19.0 the field too; v19.2 the village)
+      village: kind === 'village' ? { phase: +vPhase.toFixed(3), cycle: vCycle, resets: vResets, echoes: vEchoes.length, hush: +vHush.toFixed(3), loop: VILLAGE_LOOP, echoDelay: ECHO_DELAY, echoGain: ECHO_GAIN, echoMax: ECHO_MAX, people: villagers(), queue: vEchoes.map((e) => ({ snd: e.snd, x: e.x, y: e.y, at: +e.at.toFixed(3), gain: +e.gain.toFixed(4), from: e.who ? lv.field.people.indexOf(e.who) : -1 })) } : null, // (v19.2)
     });
 
     return {
@@ -2084,6 +2377,7 @@ const EchoStory = (() => {
       onPing, // (v17.0)
       flicker,
       drawVoid,
+      villagers, // (v19.2)
       state,
       get on() {
         return !!lv;

@@ -236,6 +236,51 @@ for (const [n, part] of levels) {
     console.log('');
   }
 }
+// (v19.2) 27, Fresh Air: the village - a way through, solid houses, and people whose day stays off the stone
+if (!only.length || only.includes(27)) {
+  warnings.length = 0;
+  const L = vm.runInContext(`generateLevel(27, 12345, 'normal')`, ctx);
+  const W = L.W;
+  const f = L.field;
+  ok('level 27 (village): built with no warnings', !warnings.length, warnings.join(' / '));
+  ok('27: daylight, nothing on screen, movement only (the flags of 26)', ['daylight', 'noRipple', 'noCrouch', 'noHud', 'movementOnly'].every((k) => L.flags[k]));
+  ok('27: hand-built (two seeds and two modes give the same map)', JSON.stringify(Array.from(L.walls)) === JSON.stringify(Array.from(vm.runInContext(`generateLevel(27, 999, 'hard').walls`, ctx))));
+  const s = Math.floor(L.start.y / 40) * W + Math.floor(L.start.x / 40);
+  const e = Math.floor(L.exit.y / 40) * W + Math.floor(L.exit.x / 40);
+  const d = vm.runInContext(`bfsDist(generateLevel(27, 12345, 'normal').blocked, ${W}, ${L.H}, ${s})`, ctx)[e];
+  ok(`27: the way through is open (${d} tiles), with no puzzle in it`, d > 40 && d < 120 && !L.enemies.length);
+  const inHouse = (x, y) => f.props.houses.some((h) => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h);
+  let solidHouses = true;
+  for (const h of f.props.houses) for (let y = h.y; y < h.y + h.h; y++) for (let x = h.x; x < h.x + h.w; x++) if (!L.walls[y * W + x]) solidHouses = false;
+  ok(`27: the cottages (${f.props.houses.length}), fences (${f.props.fences.length}) and stalls are solid`, solidHouses && f.props.fences.every(([x, y]) => L.walls[y * W + x]) && f.props.stalls.every((st) => L.walls[st.y * W + st.x]));
+  ok(`27: every door and garden gate can be walked to`, f.props.houses.every((h) => { const [x, y] = h.door; return !L.walls[y * W + x]; }));
+  const P = f.people;
+  ok(`27: ${P.length} villagers (8-12)`, P.length >= 8 && P.length <= 12);
+  const at = (v, t) => {
+    let k = 0;
+    while (k < v.kf.length - 1 && v.kf[k + 1].t <= t) k++;
+    const a = v.kf[k];
+    const b = v.kf[Math.min(k + 1, v.kf.length - 1)];
+    const u = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
+    return [a.x + (b.x - a.x) * u + 0.5, a.y + (b.y - a.y) * u + 0.5];
+  };
+  const bad = [];
+  for (const [i, v] of P.entries()) {
+    for (let t = 0; t <= 40; t += 0.1) {
+      const [x, y] = at(v, t);
+      for (const [ox, oy] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]) if (L.walls[Math.floor(y + oy) * W + Math.floor(x + ox)]) { bad.push(`${i} (${v.what}) at ${t.toFixed(1)} s`); t = 99; break; }
+    }
+  }
+  ok('27: no villager\'s day ever takes it into a wall, a house, a fence, a stall or the well', !bad.length, bad.slice(0, 4).join(', '));
+  ok('27: every day fits the loop exactly (keyframes and sounds within 0-40 s)', P.every((v) => v.kf.every((k) => k.t >= 0 && k.t <= 40) && v.ev.every((ev) => ev.t >= 0 && ev.t < 40)));
+  const kinds = new Set(P.map((v) => v.what));
+  ok(`27: each villager has a task (${[...kinds].join(', ')})`, ['water', 'ball', 'washing', 'broom', 'bench'].every((k) => kinds.has(k)));
+  const sounds = new Set(P.flatMap((v) => v.ev.map((ev) => ev.snd)).concat(P.filter((v) => v.every).map((v) => v.every.snd)));
+  ok(`27: the village makes its sounds (${[...sounds].join(', ')})`, ['bucket', 'ball', 'sweep', 'murmur'].every((k) => sounds.has(k)));
+  const near = P.filter((v) => { const [x, y] = at(v, 0); return Math.hypot(x - L.start.x / 40, y - L.start.y / 40) < 3; });
+  ok('27: nobody stands where you come in', !near.length);
+}
+
 const failed = results.filter((r) => !r).length;
 console.log(`\n${results.length - failed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -3730,7 +3730,7 @@
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
         const i = ty * W + tx;
-        ctx.fillStyle = level.walls[i] ? D.hedge : D.grass[f ? f.shade[i] : 2];
+        ctx.fillStyle = level.walls[i] && !(f && f.built && f.built[i]) ? D.hedge : D.grass[f ? f.shade[i] : 2]; // (v19.2: a house or a fence stands on grass)
         ctx.fillRect(tx * TILE, ty * TILE, TILE + 0.5, TILE + 0.5);
       }
     }
@@ -3756,6 +3756,7 @@
         }
       }
     }
+    if (f && f.props) drawVillage(D, f, x0, x1, y0, y1); // (v19.2) the village: its houses, fences, well and stalls
     // the way on: sunlight beyond the gap in the trees
     const ex = level.exit;
     const glow = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, 150);
@@ -3777,6 +3778,7 @@
       ctx.ellipse(t.x + t.r * 0.22, t.y + t.r * 0.28, t.r * 0.95, t.r * 0.8, 0, 0, TAU);
       ctx.fill();
     }
+    if (f && f.people) drawVillagers(D, vx0, vx1, vy0, vy1); // (v19.2) its people
     drawWalker(D);
     for (const t of seen) {
       const under = Math.hypot(player.x - t.x, player.y - t.y) < t.r * 0.95;
@@ -3800,26 +3802,29 @@
   }
   /** You, from above: shoulders, a head, walking - the first time you are really seen. */
   function drawWalker(D) {
-    const x = player.x;
-    const y = player.y;
-    const a = player.face === undefined ? 0 : player.face;
     const stride = Math.sin(player.stepDist / 30 * Math.PI * 2) * (keysMoving() ? 3.2 : 0);
+    drawFigure(D, player.x, player.y, player.face === undefined ? 0 : player.face, stride, D.body, D.bodyEdge, D.hair, 1, 1);
+  }
+  /** (v19.2) Anyone, from above, drawn as you are: you (drawWalker) and the villagers. `k` is their size (a child is smaller). */
+  function drawFigure(D, x, y, a, stride, body, edge, hair, alpha, k) {
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.translate(x, y);
+    ctx.scale(k, k);
     ctx.fillStyle = D.shadow;
     ctx.beginPath();
     ctx.ellipse(2, 3, 11, 8, 0, 0, TAU);
     ctx.fill();
     ctx.rotate(a);
     // feet, stepping
-    ctx.fillStyle = D.bodyEdge;
+    ctx.fillStyle = edge;
     ctx.beginPath();
     ctx.ellipse(stride, -4.5, 3.4, 2.4, 0, 0, TAU);
     ctx.ellipse(-stride, 4.5, 3.4, 2.4, 0, 0, TAU);
     ctx.fill();
     // shoulders
-    ctx.fillStyle = D.body;
-    ctx.strokeStyle = D.bodyEdge;
+    ctx.fillStyle = body;
+    ctx.strokeStyle = edge;
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.ellipse(0, 0, 5.6, 9, 0, 0, TAU);
@@ -3830,11 +3835,199 @@
     ctx.beginPath();
     ctx.arc(1.2, 0, 4.4, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = D.hair;
+    ctx.fillStyle = hair;
     ctx.beginPath();
     ctx.arc(0.2, 0, 4.4, Math.PI * 0.55, Math.PI * 1.45);
     ctx.fill();
     ctx.restore();
+  }
+
+  // -------------------------------------------------------------- (v19.2) FRESH AIR: the village
+  /** The village's made things, drawn over the grass where they stand (js/story.js VILLAGE): cottages, fences, the square. */
+  function drawVillage(D, f, x0, x1, y0, y1) {
+    const V = D.village;
+    const P = f.props;
+    const T = TILE;
+    const inView = (ax, ay, bx, by) => bx >= x0 - 1 && ax <= x1 + 1 && by >= y0 - 1 && ay <= y1 + 1;
+    // the vegetable garden: rows of soil
+    for (const g of P.gardens) {
+      if (!inView(g.x0, g.y0, g.x1, g.y1) || g !== P.gardens[0]) continue;
+      ctx.fillStyle = V.soil;
+      for (let y = g.y0 + 1; y < g.y1; y++) ctx.fillRect((g.x0 + 1) * T + 4, y * T + 13, (g.x1 - g.x0 - 1) * T - 8, 14);
+    }
+    // fences: a post on every tile, rails to the next one
+    const fence = new Set(P.fences.map(([x, y]) => y * f.W + x));
+    ctx.strokeStyle = V.fence;
+    ctx.fillStyle = V.fence;
+    ctx.lineWidth = 3;
+    for (const [x, y] of P.fences) {
+      if (x < x0 - 1 || x > x1 + 1 || y < y0 - 1 || y > y1 + 1) continue;
+      const cx = (x + 0.5) * T;
+      const cy = (y + 0.5) * T;
+      ctx.beginPath();
+      if (fence.has(y * f.W + x + 1)) {
+        ctx.moveTo(cx, cy - 3);
+        ctx.lineTo(cx + T, cy - 3);
+        ctx.moveTo(cx, cy + 3);
+        ctx.lineTo(cx + T, cy + 3);
+      }
+      if (fence.has((y + 1) * f.W + x)) {
+        ctx.moveTo(cx - 3, cy);
+        ctx.lineTo(cx - 3, cy + T);
+        ctx.moveTo(cx + 3, cy);
+        ctx.lineTo(cx + 3, cy + T);
+      }
+      ctx.stroke();
+      ctx.fillRect(cx - 4, cy - 4, 8, 8);
+    }
+    // the cottages: a shadow, the roof seen from above (two slopes and a ridge), a chimney, the door
+    for (const h of P.houses) {
+      if (!inView(h.x, h.y, h.x + h.w, h.y + h.h)) continue;
+      const X = h.x * T;
+      const Y = h.y * T;
+      const W = h.w * T;
+      const H = h.h * T;
+      const [lit, dark] = V.roof[h.roof];
+      ctx.fillStyle = D.shadow;
+      ctx.fillRect(X + 8, Y + 10, W, H);
+      ctx.fillStyle = lit;
+      ctx.fillRect(X - 3, Y - 3, W + 6, H / 2 + 3);
+      ctx.fillStyle = dark;
+      ctx.fillRect(X - 3, Y + H / 2, W + 6, H / 2 + 3);
+      ctx.strokeStyle = 'rgba(40,24,16,0.18)'; // the tiles' courses
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let yy = Y + 9; yy < Y + H; yy += 12) {
+        ctx.moveTo(X - 3, yy);
+        ctx.lineTo(X + W + 3, yy);
+      }
+      ctx.stroke();
+      ctx.fillStyle = V.ridge;
+      ctx.fillRect(X - 3, Y + H / 2 - 2.5, W + 6, 5);
+      ctx.fillStyle = V.chimney;
+      ctx.fillRect(X + W * 0.72, Y + H * 0.16, 16, 16);
+      ctx.fillStyle = V.door;
+      const [dx, dy] = h.door;
+      const below = dy >= h.y + h.h;
+      ctx.fillRect(dx * T + 9, below ? Y + H - 2 : Y - 5, 22, 7);
+    }
+    // the stalls: a table under a striped awning
+    for (const st of P.stalls) {
+      if (!inView(st.x, st.y, st.x + st.w, st.y + 1)) continue;
+      const X = st.x * T;
+      const Y = st.y * T;
+      const [a, b] = V.awning[st.tone];
+      ctx.fillStyle = D.shadow;
+      ctx.fillRect(X + 6, Y + 8, st.w * T, T);
+      for (let k = 0; k < st.w * 4; k++) {
+        ctx.fillStyle = k % 2 ? b : a;
+        ctx.fillRect(X - 2 + k * (T / 4), Y - 2, T / 4 + 0.5, T + 4);
+      }
+    }
+    // the well
+    const w = P.well;
+    if (inView(w.x, w.y, w.x + 1, w.y + 1)) {
+      const cx = (w.x + 0.5) * T;
+      const cy = (w.y + 0.5) * T;
+      ctx.fillStyle = D.shadow;
+      ctx.beginPath();
+      ctx.arc(cx + 4, cy + 5, 19, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = V.stone;
+      ctx.strokeStyle = V.stoneEdge;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 18, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = V.water;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10.5, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = V.wood;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx - 21, cy);
+      ctx.lineTo(cx + 21, cy);
+      ctx.stroke();
+    }
+    // the bench
+    const bn = P.bench;
+    ctx.fillStyle = V.wood;
+    ctx.fillRect((bn.x - 0.5) * T, (bn.y + 0.5) * T - 5, T * 1.4, 10);
+    // the washing line, and what has been hung on it so far today
+    const ln = P.line;
+    ctx.strokeStyle = V.wood;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo((ln.x0 + 0.5) * T, (ln.y + 0.5) * T);
+    ctx.lineTo((ln.x1 + 0.5) * T, (ln.y + 0.5) * T);
+    ctx.stroke();
+    ctx.fillStyle = V.wood;
+    ctx.fillRect((ln.x0 + 0.5) * T - 3, (ln.y + 0.5) * T - 3, 6, 6);
+    ctx.fillRect((ln.x1 + 0.5) * T - 3, (ln.y + 0.5) * T - 3, 6, 6);
+    const washer = (story.villagers() || []).find((v) => v.what === 'washing');
+    const hung = washer ? washer.ev.filter((e) => e.snd === 'cloth' && e.t <= washer.phase).length : 0;
+    for (let k = 0; k < hung; k++) {
+      const cx = (ln.x0 + 0.5 + 0.5 + k * 1.6 * (ln.x1 - ln.x0 - 1) / 4.8) * T;
+      const sway = Math.sin(artT * 1.3 + k * 1.7) * 1.5;
+      ctx.globalAlpha = washer.alpha;
+      ctx.fillStyle = V.cloth[k % V.cloth.length];
+      ctx.fillRect(cx - 9 + sway, (ln.y + 0.5) * T - 1, 18, 11);
+      ctx.globalAlpha = 1;
+    }
+    // the gate, open, at the far end of the street
+    const gt = P.gate;
+    if (inView(gt.x, gt.y, gt.x + 2, gt.y + 1)) {
+      const gx = (gt.x + 1) * T;
+      ctx.fillStyle = 'rgba(' + D.path + ',0.6)';
+      ctx.fillRect(gx, gt.y * T, T, T);
+      ctx.fillStyle = V.fence;
+      ctx.fillRect(gx - 4, gt.y * T - 6, 8, 10);
+      ctx.fillRect(gx - 4, (gt.y + 1) * T - 4, 8, 10);
+      ctx.strokeStyle = V.fence;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(gx, gt.y * T);
+      ctx.lineTo(gx + T * 0.7, gt.y * T - T * 0.55);
+      ctx.stroke();
+    }
+  }
+  /** The villagers, where they are in their day (js/story.js updateVillage), and what each is busy with. */
+  function drawVillagers(D, vx0, vx1, vy0, vy1) {
+    const V = D.village;
+    for (const v of story.villagers()) {
+      if (!(v.x > vx0 && v.x < vx1 && v.y > vy0 && v.y < vy1)) continue;
+      const k = v.small ? 0.72 : 1;
+      if (v.what === 'ball') {
+        // the ball: off the foot, to the wall and back, once a kick
+        const u = ((v.phase - 0.2) / 1.7 % 1 + 1) % 1;
+        const d = 10 + 56 * Math.sin(Math.PI * u);
+        ctx.globalAlpha = v.alpha;
+        ctx.fillStyle = V.ball;
+        ctx.beginPath();
+        ctx.arc(v.x + Math.cos(v.face) * d, v.y + Math.sin(v.face) * d, 4, 0, TAU);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      drawFigure(D, v.x, v.y, v.face, v.stride * 3.2, v.clothes.body, v.clothes.edge, v.hair, v.alpha, k);
+      ctx.globalAlpha = v.alpha;
+      if (v.what === 'water') {
+        ctx.fillStyle = V.stoneEdge; // the bucket, at their side
+        ctx.beginPath();
+        ctx.arc(v.x - Math.sin(v.face) * 11, v.y + Math.cos(v.face) * 11, 3.6, 0, TAU);
+        ctx.fill();
+      } else if (v.what === 'broom') {
+        ctx.strokeStyle = V.wood; // the broom, out in front, swept side to side
+        ctx.lineWidth = 2;
+        const s = Math.sin(artT * 5.7) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(v.x, v.y);
+        ctx.lineTo(v.x + Math.cos(v.face + s) * 18, v.y + Math.sin(v.face + s) * 18);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
   const keysMoving = () => MOVE_ACTIONS.some((k) => act(k)) || (touch.vec().x !== 0 || touch.vec().y !== 0);
 

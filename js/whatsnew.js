@@ -34,6 +34,14 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v19.2',
+      title: 'Fresh Air',
+      lines: [
+        { text: 'A new level after First Breath: Fresh Air.', minLevel: 27 },
+        { text: 'Already reached the end? Continue takes you on - nothing you had is lost.', minLevel: 27 },
+      ],
+    },
+    {
       version: 'v19.1',
       title: 'First Breath',
       lines: [

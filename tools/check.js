@@ -57,7 +57,7 @@ const QUICK = [
   // (v18.1) THE STANDING TEST RULE: the owner plays with Visual cues ON - every Act 2 level and its broken rule again with
   // them on (echomaze.visualcues = '1'), the real game loop included (Act2Test.cues), and once with them off. (A returning
   // player's save: without the What's new key its dialog opens over the game and takes the keys.)
-  { name: 'Act 2, Visual cues ON', save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: ['cues', 'liar', 'shuffle', 'loop', 'behind', 'crumble', 'deadair', 'creep', 'wrongway', 'light', 'outside', 'walkAll'].map((n) => ['Act2Test', n]) },
+  { name: 'Act 2, Visual cues ON', save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: ['cues', 'liar', 'shuffle', 'loop', 'behind', 'crumble', 'deadair', 'creep', 'wrongway', 'light', 'outside', 'village', 'walkAll'].map((n) => ['Act2Test', n]) },
   // (v19.1) the daylight interface and First Breath's tile: Visual cues ON then off, a finished save; the tile at phone sizes
   { name: 'Daylight interface, Visual cues ON', save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"easy":27,"normal":27,"hard":27,"hardcore":27}' }, load: ['lightui-test.js'], runs: ['gate', 'screens', 'tiles', 'play'].map((n) => ['LightUiTest', n]) },
   { name: 'Daylight interface, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}' }, load: ['lightui-test.js'], runs: ['gate', 'screens', 'play'].map((n) => ['LightUiTest', n]) },
@@ -65,7 +65,7 @@ const QUICK = [
   { name: "First Breath's tile on a phone", size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}' }, load: ['lightui-test.js'], runs: [['LightUiTest', 'tiles']] },
   { name: "First Breath's tile on a phone held upright", size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}' }, load: ['lightui-test.js'], runs: [['LightUiTest', 'tiles']] },
   // (v19.0) Outside 1 on a phone held sideways, with touch controls: the joystick, the tap-to-pause, the frame time
-  { name: 'Outside 1 on a phone, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: [['Act2Test', 'outside'], ['Act2Test', 'perf']] },
+  { name: 'Outside (First Breath, Fresh Air) on a phone, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: [['Act2Test', 'outside'], ['Act2Test', 'village'], ['Act2Test', 'perf']] },
   { name: 'Act 2, Visual cues off: the real loop', load: ['act2-test.js'], runs: [['Act2Test', 'cues']] },
 ];
 const FULL_EXTRA = [
@@ -89,7 +89,9 @@ const FULL_EXTRA = [
   { name: 'monster descriptions on a phone', size: { w: 844, h: 390, mobile: true }, load: ['editor-about-test.js'], runs: [['EditorAboutTest', 'layout']] },
   { name: 'Act 2 with its monsters, and saves', load: ['act2-test.js'], runs: [['Act2Test', 'walkMonsters'], ['Act2Test', 'firstTime'], ['Act2Test', 'perf']] },
   // (v18.0) Act 2 part 2, levels 21-24: the void, the crumbling floor, dead air and the Alarm, the creep, the wrong way out
-  { name: 'Act 2 part 2 (v18.0)', load: ['act2-test.js'], runs: ['crumble', 'deadair', 'creep', 'wrongway', 'light', 'outside'].map((n) => ['Act2Test', n]) },
+  { name: 'Act 2 part 2 (v18.0)', load: ['act2-test.js'], runs: ['crumble', 'deadair', 'creep', 'wrongway', 'light', 'outside', 'village'].map((n) => ['Act2Test', n]) },
+  { name: 'A save that finished First Breath (v19.2)', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}', 'echomaze.mode': 'normal' }, load: ['act2-test.js'], runs: [['Act2Test', 'firstTime']] },
+  { name: 'A save past Fresh Air (v19.2)', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":28}', 'echomaze.mode': 'normal' }, load: ['act2-test.js'], runs: [['Act2Test', 'firstTime']] },
   { name: 'Act 2 on a phone', size: { w: 844, h: 390, mobile: true }, load: ['act2-test.js'], runs: [['Act2Test', 'perf']] },
 ];
 

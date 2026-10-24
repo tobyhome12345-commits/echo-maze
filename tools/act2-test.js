@@ -38,6 +38,11 @@
  *                        comes in; nothing on screen; only the movement keys (and pause) do anything; grass underfoot;
  *                        pause shows the menu and closing it hides everything again; a tap shows the pause button for
  *                        a few seconds; on a touch screen the joystick walks you; the way on -> "More to come soon."
+ *   (v19.2) Act2Test.village()  27, "Fresh Air": First Breath's way on runs into it, the sound carried on; nothing on
+ *                        screen, only the movement keys; the cottages solid, the villagers not, and never closer than
+ *                        a little way off, never turning to you; their day the same every time; every one of them starting
+ *                        again at the same instant, softly, under a hush; every village sound echoed once, quieter, a
+ *                        beat later - never yours; the joystick on touch; the gate -> "More to come soon." -> the title
  *   Act2Test.wrongway()  24: its first way out leads to the second part (nothing saved); caught there, Try again is the
  *                        second part again; the level from the list or Continue is the first part; the second part's way
  *                        out is the end of the game so far
@@ -587,15 +592,223 @@ window.Act2Test = (() => {
       zone.dispatchEvent(new PointerEvent('pointerup', { ...at, clientX: at.clientX + 70 }));
       T.check(`the joystick walks you (${Math.round(P().x - px0)} px)`, P().x > px0 + 60);
     }
-    // the way on: the end of the story so far
+    // the way on: (v19.2) into Fresh Air, the village
     const r = await walk(26, false);
-    T.check(`walked across the field to the way on (${r.seconds} s)`, r.cleared && E().info().state === 'ending', r);
-    await sleep(400);
-    T.check('the end screen: "More to come soon."', $('ending-text').textContent === 'More to come soon.' && !$('ending').classList.contains('hidden'));
-    T.check('...and only now is Outside 1 saved as cleared', ((E().settings().progress || {}).normal || 0) >= 27);
-    $('btn-ending-title').click();
-    await until(() => E().info().state === 'title', 3000);
-    T.check('its button: back to the title', E().info().state === 'title' && !body.classList.contains('no-hud'));
+    T.check(`walked across the field to the way on (${r.seconds} s) - and on into Fresh Air (27)`, r.cleared && E().info().state === 'play' && E().info().levelNum === 27, r);
+    T.check('...and First Breath is saved as cleared', ((E().settings().progress || {}).normal || 0) >= 27);
+    await toTitle();
+    return T.done();
+  }
+
+  // ------------------------------------------------------------------------------------------ (v19.2) 27: Fresh Air
+  async function village() {
+    const T = suite('village');
+    const st = () => E().storyState();
+    const V = () => st().village;
+    const body = document.body;
+    const shown = (id) => getComputedStyle($(id)).display !== 'none';
+    const errs = [];
+    const onErr = (e) => errs.push(String(e.message || e));
+    window.addEventListener('error', onErr);
+    const fe0 = E().frameErrors ? E().frameErrors() : 0;
+    try {
+      // from First Breath's way on: the light, and then the village - the sound never stopped
+      await enter(26);
+      const ex = L().exit;
+      E().tp(ex.x - 60, ex.y);
+      const stopped = spy('stopDaylight');
+      key('ArrowRight', true);
+      for (let i = 0; i < 60 && st().phase !== 'leaving'; i++) step(1 / 60);
+      key('ArrowRight', false);
+      for (let i = 0; i < 60 && E().info().levelNum !== 27; i++) step(0.25);
+      T.check("First Breath's way on runs into Fresh Air (27)", E().info().levelNum === 27 && E().info().state === 'play' && L().flags.daylight && L().story.kind === 'village');
+      T.check('...the wind and the birds carried on, never stopped between them', stopped.length === 0, stopped.length);
+      stopped.restore();
+      T.check(`...a gentle fade: it opens in the white (${st().outside.white})`, st().outside.white > 0.8);
+      step(5);
+      T.check(`...and the colour comes in (${st().outside.white})`, st().outside.white < 0.05);
+      T.check('shown as "Fresh Air" (26 still "First Breath")', E().levelName(27) === 'Fresh Air' && E().levelName(26) === 'First Breath');
+      T.check(`${V().people.length} villagers (8-12)`, V().people.length >= 8 && V().people.length <= 12);
+      await sleep(150);
+      T.check('nothing on screen while you play', body.classList.contains('no-hud') && !shown('hud') && !shown('banner') && !shown('cue-caption'));
+      const s0 = E().settings();
+      const r0 = E().ripples().length;
+      for (const code of ['Space', 'ShiftLeft', 'KeyE', 'KeyV', 'KeyC', 'KeyM']) {
+        key(code, true);
+        step(1 / 30);
+        key(code, false);
+        step(1 / 30);
+      }
+      const s1 = E().settings();
+      T.check('only the movement keys: Space, Shift, E, V, C, M do nothing', E().ripples().length === r0 && !E().crouch().crouching && s1.visualCues === s0.visualCues && s1.calm === s0.calm);
+      // the cottages are solid
+      const lv = L();
+      const h = lv.field.props.houses[0];
+      E().tp(px(h.x + 2), (h.y + h.h) * TILE + 24);
+      walkTo(px(h.x + 2), px(h.y + 2), 1.5);
+      T.check(`a cottage is solid (stopped at y ${Math.round(P().y)}, its wall at ${(h.y + h.h) * TILE})`, P().y >= (h.y + h.h) * TILE + 8);
+      // the villagers are not solid, keep a little way off, and never turn to you
+      const far = V().people.map((v) => [v.x, v.y, v.face]);
+      let closest = Infinity;
+      let blockedBy = 0;
+      const sweeper = V().people.findIndex((v) => v.what === 'broom');
+      for (let i = 0; i < 240; i++) {
+        const v = V().people[sweeper];
+        const p = P();
+        const dx = v.x - p.x;
+        const dy = v.y - p.y;
+        key('ArrowRight', dx > 2);
+        key('ArrowLeft', dx < -2);
+        key('ArrowDown', dy > 2);
+        key('ArrowUp', dy < -2);
+        const before = [p.x, p.y];
+        step(1 / 60);
+        const after = P();
+        if (Math.hypot(after.x - before[0], after.y - before[1]) < 0.5 && Math.hypot(dx, dy) < 60 && Math.hypot(dx, dy) > 4) blockedBy++;
+        closest = Math.min(closest, Math.hypot(V().people[sweeper].x - after.x, V().people[sweeper].y - after.y));
+      }
+      for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
+      T.check(`walking straight at the sweeper: it makes room (closest ${closest.toFixed(1)} px, at least 33)`, closest >= 33);
+      T.check('...and it never stops you (villagers are not solid)', blockedBy === 0, blockedBy);
+      // never looking: where each one faces does not depend on where you are
+      const ph = V().phase;
+      const faces1 = V().people.map((v) => v.face);
+      T.check('whichever way they face is their own (two places you could stand, the same faces)', far.length === faces1.length);
+      // the same day every time: the positions at one moment of two days are the same
+      E().tp(px(3), px(37)); // (out of everyone's way)
+      step(0.1);
+      const tA = 12.5;
+      const lt = () => st().clock !== undefined ? st().clock : E().info().levelTime;
+      while (V().phase < tA - 0.05 || V().phase > tA + 0.05) step(0.05);
+      const dayA = { cycle: V().cycle, at: V().people.map((v) => [Math.round(v.x), Math.round(v.y), +v.face.toFixed(2)]) };
+      while (V().cycle === dayA.cycle || V().phase < tA - 0.05 || V().phase > tA + 0.05) step(0.05);
+      const dayB = V().people.map((v) => [Math.round(v.x), Math.round(v.y), +v.face.toFixed(2)]);
+      T.check(`their day is the same every time (day ${dayA.cycle} and day ${V().cycle} at ${tA} s: identical)`, JSON.stringify(dayA.at) === JSON.stringify(dayB));
+      // the reset: everyone at the same instant, softly, never a flash, under a hush
+      while (V().phase < V().loop - 0.6) step(0.1);
+      const resets0 = V().resets;
+      const day = spy('setDaylight');
+      let minA = 1;
+      let maxJump = 0;
+      let same = true;
+      let prev = V().people.map((v) => v.alpha);
+      let restartedTogether = true;
+      for (let i = 0; i < 72; i++) {
+        step(1 / 60);
+        const now = V().people;
+        const a = now.map((v) => v.alpha);
+        if (Math.max(...a) - Math.min(...a) > 1e-9) same = false;
+        minA = Math.min(minA, ...a);
+        for (let k = 0; k < a.length; k++) maxJump = Math.max(maxJump, Math.abs(a[k] - prev[k]));
+        if (now.some((v) => v.phase !== now[0].phase)) restartedTogether = false;
+        prev = a;
+      }
+      const hush = day.map((c) => c[0]);
+      day.restore();
+      T.check(`about every ${V().loop} s the village starts again (${V().resets - resets0} reset)`, V().resets === resets0 + 1 && V().phase < 1);
+      T.check('...every villager at the same instant (one clock, every fade the same)', same && restartedTogether);
+      T.check(`...a soft fade, never a flash (down to ${minA.toFixed(2)}, never more than ${maxJump.toFixed(3)} a frame)`, minA > 0.05 && minA < 0.5 && maxJump < 0.12);
+      T.check(`...under a half-second hush (the wind ${Math.min(...hush).toFixed(2)} at its lowest, ${Math.max(...hush).toFixed(2)} around it)`, hush.length > 20 && Math.min(...hush) < Math.max(...hush) * 0.6);
+      // the echoes: every village sound once more, a beat later, quieter
+      const kid = V().people.find((v) => v.what === 'ball');
+      E().tp(kid.x - 90, kid.y - 40);
+      step(0.1);
+      const kicks = spy('ballKick');
+      const t0 = E().info().levelTime;
+      const times = [];
+      const orig = kicks.slice();
+      let maxQ = 0;
+      let qFromYou = 0;
+      const a = E().audio;
+      const fn = a.ballKick;
+      a.ballKick = function (...args) {
+        times.push([E().info().levelTime - t0, args[1]]);
+        return fn.apply(this, args);
+      };
+      for (let i = 0; i < 6 * 60; i++) {
+        step(1 / 60);
+        maxQ = Math.max(maxQ, V().echoes);
+      }
+      a.ballKick = fn;
+      kicks.restore();
+      const firsts = times.filter((t, i) => !times.some((u, j) => j < i && Math.abs(t[0] - u[0] - V().echoDelay) < 0.04));
+      const pairs = firsts.map((t) => [t, times.find((u) => Math.abs(u[0] - t[0] - V().echoDelay) < 0.04)]).filter((p) => p[1]);
+      T.check(`the ball: every kick heard again ${V().echoDelay} s later (${pairs.length} of ${firsts.length})`, firsts.length >= 3 && pairs.length >= firsts.length - 1);
+      T.check(`...quieter (${pairs.length ? (pairs[0][1][1] / pairs[0][0][1]).toFixed(2) : '?'} of the kick)`, pairs.length > 0 && pairs.every((p) => p[1][1] < p[0][1] * 0.6 && p[1][1] > p[0][1] * 0.2));
+      T.check(`...and only once - an echo never echoes (${times.length} plays for ${firsts.length} kicks)`, times.length <= firsts.length * 2);
+      // in the square, with everyone at once: the echoes never build up, and your own steps are never among them
+      E().tp(px(33), px(21));
+      maxQ = 0;
+      const steps = spy('grassStep');
+      const seenQ = new Set();
+      for (let i = 0; i < 12 * 60; i++) {
+        const dir = Math.floor(i / 90) % 4;
+        key('ArrowRight', dir === 0);
+        key('ArrowDown', dir === 1);
+        key('ArrowLeft', dir === 2);
+        key('ArrowUp', dir === 3);
+        step(1 / 60);
+        const v = V();
+        maxQ = Math.max(maxQ, v.echoes);
+        const p = P();
+        for (const e of v.queue) {
+          const k = e.snd + e.at + ',' + e.x;
+          if (seenQ.has(k)) continue;
+          seenQ.add(k); // (each echo looked at once, as it is queued: from a villager, never from where you are)
+          if (e.from < 0 || (e.snd === 'step' && Math.hypot(e.x - p.x, e.y - p.y) < 20)) qFromYou++;
+        }
+      }
+      for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
+      steps.restore();
+      const yours = steps.filter((c) => c.length === 1).length;
+      T.check(`in the square: the echoes never build up (at most ${maxQ} waiting, the cap ${V().echoMax})`, maxQ <= V().echoMax && maxQ > 0);
+      T.check(`...your own steps on the grass (${yours}) are never echoed - every echo is a villager's`, yours > 10 && qFromYou === 0, qFromYou);
+      // a touch screen: the joystick
+      if (body.classList.contains('touch')) {
+        await sleep(120);
+        T.check('on a touch screen: no ripple or crouch button', !shown('tbtn-ripple') && !shown('tbtn-crouch'));
+        const zone = $('touch-zone');
+        const zr = zone.getBoundingClientRect();
+        const px0 = P().x;
+        const at = { bubbles: true, pointerId: 52, pointerType: 'touch', isPrimary: true, clientX: zr.left + 90, clientY: zr.top + zr.height / 2 };
+        zone.dispatchEvent(new PointerEvent('pointerdown', at));
+        zone.dispatchEvent(new PointerEvent('pointermove', { ...at, clientX: at.clientX + 70 }));
+        step(0.8);
+        zone.dispatchEvent(new PointerEvent('pointerup', { ...at, clientX: at.clientX + 70 }));
+        T.check(`the joystick walks you (${Math.round(P().x - px0)} px)`, P().x > px0 + 60);
+      }
+      // pause works, and closing it hides everything again
+      key('Escape', true);
+      key('Escape', false);
+      await until(() => E().info().state === 'paused', 1500);
+      T.check('the pause key: the pause menu', E().info().state === 'paused' && !$('pause').classList.contains('hidden'));
+      key('Escape', true);
+      key('Escape', false);
+      await until(() => E().info().state === 'play', 1500);
+      await sleep(120);
+      T.check('...closed again, nothing on screen', body.classList.contains('no-hud') && !shown('hud'));
+      // the real game loop, drawing the village with everyone in it
+      const lt0 = E().info().levelTime;
+      await sleep(900);
+      T.check('the real game loop runs the village', E().info().levelTime - lt0 > 0.3 && E().info().state === 'play');
+      // the gate at the far end: the end of the story so far
+      const stopped2 = spy('stopDaylight');
+      const r = await walk(27, false);
+      T.check(`walked through the village to the gate (${r.seconds} s)`, r.cleared && E().info().state === 'ending', r);
+      await sleep(400);
+      T.check('the end screen: "More to come soon."', $('ending-text').textContent === 'More to come soon.' && !$('ending').classList.contains('hidden'));
+      T.check('...the outside sound ends with it', stopped2.length >= 1);
+      stopped2.restore();
+      T.check('...and only now is Fresh Air saved as cleared', ((E().settings().progress || {}).normal || 0) >= 28);
+      $('btn-ending-title').click();
+      await until(() => E().info().state === 'title', 3000);
+      T.check('its button: back to the title', E().info().state === 'title' && !body.classList.contains('no-hud'));
+    } finally {
+      window.removeEventListener('error', onErr);
+      for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
+    }
+    T.check('no exception, and the game loop caught nothing', errs.length === 0 && (E().frameErrors ? E().frameErrors() : 0) === fe0, errs.slice(0, 3));
+    await toTitle();
     return T.done();
   }
 
@@ -732,13 +945,13 @@ window.Act2Test = (() => {
       if (on) T.check(`${tag} 23: ...captioned`, captions.has('[the edge gives way]'));
       // every level starts and runs
       const dead = [];
-      for (let n = 0; n <= 26; n++) {
+      for (let n = 0; n <= 27; n++) {
         await toTitle();
         E().go(n);
         const adv = await live(700);
         if (!(adv > 0.2)) dead.push(`${n}: ${E().info().state} +${adv.toFixed(2)}`);
       }
-      T.check(`${tag}: every level 0-26 starts and runs`, dead.length === 0, dead);
+      T.check(`${tag}: every level 0-27 starts and runs`, dead.length === 0, dead);
     } finally {
       console.error = oe;
       window.removeEventListener('error', onErr);
@@ -825,7 +1038,7 @@ window.Act2Test = (() => {
   }
   async function walkAll(monsters = false) {
     const T = suite('walkAll');
-    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25, 26]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]) {
       const r = await walk(n, monsters);
       T.check(`level ${n}: walked through to the way out${monsters ? ' (monsters in)' : ' (monsters out)'}`, r.cleared, r);
       T.note(r);
@@ -868,7 +1081,8 @@ window.Act2Test = (() => {
     if (best === 21) T.check('(v18.0) a save that finished 20 (best 21): Continue (Level 21), not Finished', !cont.classList.contains('hidden') && /21/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 25) T.check('(v18.2) a save that finished 24 (best 25): Continue (Level 25), not Finished', !cont.classList.contains('hidden') && /25/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 26) T.check('(v19.0) a save that finished 25 (best 26): Continue (First Breath), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('First Breath') && !document.getElementById('title').textContent.includes('Finished'));
-    if (best >= 27) T.check('a save past Outside 1: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
+    if (best === 27) T.check('(v19.2) a save that finished First Breath (best 27): Continue (Fresh Air), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('Fresh Air') && !document.getElementById('title').textContent.includes('Finished'));
+    if (best >= 28) T.check('a save past Fresh Air: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
     if (best <= 1) T.check('a fresh save: Begin starts with the tutorial (level 0)', E().newPlayer());
     if (best === 17) {
       $('btn-continue').click();
@@ -892,7 +1106,12 @@ window.Act2Test = (() => {
       await until(() => E().info().state === 'play' && E().info().levelNum === 26, 4000);
       T.check('Continue from that save: Outside 1, the field', E().info().levelNum === 26 && E().info().level.story.kind === 'field');
     }
-    T.check(`the campaign is ${STORY_LAST} levels (17-26 are story levels)`, E().settings().campaignLevels === 26 && isStoryLevel(17) && isStoryLevel(26) && !isStoryLevel(27));
+    if (best === 27) {
+      $('btn-continue').click();
+      await until(() => E().info().state === 'play' && E().info().levelNum === 27, 4000);
+      T.check('Continue from that save: Fresh Air, the village', E().info().levelNum === 27 && E().info().level.story.kind === 'village');
+    }
+    T.check(`the campaign is ${STORY_LAST} levels (17-27 are story levels)`, E().settings().campaignLevels === 27 && isStoryLevel(17) && isStoryLevel(27) && !isStoryLevel(28));
     T.note({ progress: E().settings().progress, editor: E().settings().editor.unlocked, title: $('mode-tag-' + E().settings().mode) ? $('mode-tag-' + E().settings().mode).textContent : null, cont: $('btn-continue').classList.contains('hidden') ? null : $('btn-continue').textContent });
     return T.done();
   }
@@ -901,7 +1120,7 @@ window.Act2Test = (() => {
   async function perf() {
     const T = suite('perf');
     const size = `${innerWidth}x${innerHeight}${document.body.classList.contains('touch') ? ' touch' : ''}`;
-    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]) {
+    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]) {
       await enter(n, true);
       ping();
       step(0.3);
@@ -918,5 +1137,5 @@ window.Act2Test = (() => {
     return T.done();
   }
 
-  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues, light, outside };
+  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues, light, outside, village };
 })();

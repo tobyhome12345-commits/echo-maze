@@ -1613,8 +1613,49 @@ class SoundEngine {
       bp.connect(bg);
       bg.connect(g);
     });
-    this._route(g, 0, 0.3);
+    this._route(g, o && o.pan ? o.pan : 0, 0.3); // (v19.2: a villager's murmur comes from where they are)
     return src;
+  }
+
+  /**
+   * (v19.2) THE VILLAGE (Fresh Air): its own small sounds, each placed where it happens. A murmur is two or three
+   * syllables of the same formant voice the explorers speak in, very soft and wordless. Not counted against the
+   * polyphony limit any more than a footstep is (_busy guards each).
+   */
+  murmur(pan = 0, gain = 0.4, pitch = 1) {
+    if (!this.ctx || this._busy(110) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) this._syllable(97 + Math.floor(Math.random() * 20), 0.16 * gain, t + i * 0.13, { pitch, pan });
+  }
+  /** (v19.2) A ball against a wall: a soft rubbery thump. */
+  ballKick(pan = 0, gain = 0.5) {
+    if (!this.ctx || this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 150, t, 0.16);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.12);
+    const g = this._env(t, 0.003, 0.34 * gain, 0.1);
+    o.connect(g);
+    this._route(g, pan, 0.15);
+    const n = this._noise(t, 0.05);
+    const lp = this._filter('lowpass', 900, 0.7);
+    const ng = this._env(t, 0.002, 0.12 * gain, 0.04);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(ng, pan, 0.1);
+  }
+  /** (v19.2) A broom across the stones: a short brush of noise. */
+  sweep(pan = 0, gain = 0.4) {
+    if (!this.ctx || this._busy(90) || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.3);
+    const bp = this._filter('bandpass', 3200, 0.9);
+    bp.frequency.setValueAtTime(4200, t);
+    bp.frequency.exponentialRampToValueAtTime(1800, t + 0.26);
+    const g = this._env(t, 0.06, 0.11 * gain, 0.18);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, pan, 0.1);
   }
 
   /**

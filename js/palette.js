@@ -263,6 +263,22 @@ const EchoPalette = (() => {
       bodyEdge: '#2b4c66',
       head: '#e9c9a4', // ...a head, from above
       hair: '#5a3d2a',
+      // (v19.2) the village (Fresh Air): what it is built of
+      village: {
+        roof: [['#a65a3c', '#8d4a31'], ['#8b6b4c', '#74583d'], ['#6f7d8c', '#5c6876']], // each roof: sunlit slope, shaded slope
+        ridge: '#5b3a28',
+        chimney: '#8f7f70',
+        door: '#5e3f27',
+        fence: '#8b6a45',
+        wood: '#7b5737',
+        stone: '#a39f95',
+        stoneEdge: '#7b776e',
+        water: '#4f7fa6',
+        soil: '#7a5b3c',
+        cloth: ['#f4f2ea', '#cfe0ef', '#efc6c4', '#e9e0a6'],
+        awning: [['#c4493f', '#f3ece0'], ['#3f7db0', '#f3ece0']],
+        ball: '#d94f3a',
+      },
     },
   };
 })();
