@@ -34,6 +34,14 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v19.1',
+      title: 'First Breath',
+      lines: [
+        { text: 'The first level outside has a name now: First Breath.', minLevel: 26 },
+        { text: 'Settings, Display: a new Daylight interface - light, bright menus and screens.', minLevel: 26 },
+      ],
+    },
+    {
       version: 'v19.0',
       title: 'The outside',
       lines: [

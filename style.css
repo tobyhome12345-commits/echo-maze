@@ -2268,10 +2268,56 @@ body.no-hud #tbtn-pause {
 body.no-hud.show-pause #tbtn-pause {
   display: flex !important;
 }
-/* (v19.0) the level list: "Outside 1" is a name, not a number */
-#level-grid button.named span:first-child {
-  font-size: 11px;
-  letter-spacing: 0.02em;
+/* (v19.0, v19.1) the level list: a name (First Breath), not a number - a word to a line, centred, sized to fit the
+   same tile as the numbers (js/game.js fitLevelNames) */
+#level-grid button.named {
+  padding: 4px 3px;
+  overflow: hidden;
+  justify-content: center;
+}
+#level-grid .lvl-name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   (v19.1) THE DAYLIGHT INTERFACE - html[data-ui='light'] (Settings -> Display, once the outside is reached)
+
+   ONE switch for every menu and screen, built on the theme variables: each screen is drawn exactly as ever and then
+   turned to its daylight version by one filter - its lightness inverted and its hue kept (invert, then rotate the
+   hue half way round) - so every text, border, chip, focus ring and button keeps its contrast by construction. The
+   accents are chosen INSIDE those screens by setting the theme variables there (they win over the palette's, set on
+   <html>), as the colours that come out of the filter as: dark green (--ui-rgb), warm amber (--exit-rgb), a deep red
+   (--danger-rgb), soft slate text (--ink, --dim). The game, the HUD and everything drawn over play (hints, captions,
+   banners) are not inside them, so they never change. The title's own backdrop goes light with it (draw()).
+   ========================================================================== */
+html[data-ui='light'] .overlay,
+html[data-ui='light'] #dialog,
+html[data-ui='light'] #whatsnew {
+  filter: invert(1) hue-rotate(180deg);
+  --ui-rgb: 121, 185, 153; /* -> 38, 102, 70: dark green */
+  --exit-rgb: 255, 141, 87; /* -> 187, 73, 19: warm amber */
+  --danger-rgb: 255, 135, 138; /* -> 188, 68, 71: deep red */
+  --ink: #c0d6ce; /* -> soft slate */
+  --dim: #96a8a0;
+  --accent: rgb(var(--ui-rgb));
+  --danger: rgb(var(--danger-rgb));
+}
+/* the end screen keeps its own designed look: white fading down to the dark, right after the light */
+html[data-ui='light'] #ending {
+  filter: none;
+}
+/* the touch buttons sit over the game itself: a light plate that reads on the dark and on the daylight alike */
+html[data-ui='light'] .tbtn {
+  background: rgba(246, 242, 230, 0.78);
+  border-color: rgba(38, 102, 70, 0.6);
+  color: #1e342c;
 }
 
 /* (v18.2) after the light: white fading softly down to the dark, and nothing on it but the one line */

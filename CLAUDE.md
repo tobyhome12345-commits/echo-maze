@@ -328,7 +328,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v18.0 | 572b9c7 | MAJOR: **ACT 2 PART 2, THE VOID - levels 21-24** ("the crumble"): the void is taking the maze - story-only void tiles (a fall that never lands, "The void took you."; a monster over it falls and is gone), **21 the crumble** (crumbling floor that goes after you step off it; a rush can strand you), **22 dead air** (ripples go in and never come back, your steps are lost) **and the Alarm** in the story, with a new scene before it ("Only A Voice"), **23 the creeping edge** (the void eats the map ring by ring on a fixed schedule; Easy slower), **24 the wrong way out** (its way out leads into a smaller half-eaten copy whose way out is back west, a Warden behind you; Try again restarts that part). `CAMPAIGN_LEVELS` 24, the stub after 24, a finished-20 save continues at 21. `tools/act2-check.js` proves 17-24 (crumble states, the creep in time) and `tools/act2-test.js` plays them. Levels 0-20 unchanged (`9097b344`; 13-16 = v16.4; 17-20 walk as in v17.0) |
 | v18.1 | 0cd61f0 | MINOR, a fix: **with Visual cues on the game froze** on 21 (a crumbling tile cracking), 18 (a sliding wall) and 23 (a ring going) and stayed frozen everywhere until a reload - js/cues.js kept its rate limit in a WeakMap, and v18.0 passed it string keys, which threw inside the game loop. A second Map for string keys; the game loop now catches an error in its update or its drawing, logs the first few, and always asks for the next frame. Tests: `Act2Test.cues` (the real loop, cues ON and off) and the Act 2 suites again with cues ON in `tools/check.js`; `tools/headless.js` no longer leaves browser processes behind and runs them at below-normal priority. Levels, saves, the editor and share codes unchanged |
 | v18.2 | 34b57de | MINOR (the owner's number): **LEVEL 25, THE LIGHT** - the end of Act 2. Level 15's mirror: a long quiet hall, a faint warm light far off down a line of bars (seen through, never walked), growing and warming as you come with the sound of outside; past `tripX` the stone behind splits and level 16's upgraded Warden is let out, and the floor behind falls into the void on a schedule from that moment; a winding way to the light, which is REAL - it stops at the edge, its hum fades, the white floods in. The old stub ending replaced by a calm end screen, "More to come soon." (`showEndScreen`, its words in constants). `CAMPAIGN_LEVELS` 25; a finished-24 save continues at 25. No new tiles, no new monsters, no words. Also `tools/headless.js` really ends its browsers now (by profile; v18.1's tree kill missed them). Levels 0-24 unchanged (`9097b344`) |
-| v19.0 | PENDING | MAJOR: **ACT 3 BEGINS - OUTSIDE 1** (internal level 26), in full daylight: 25's white flood runs into it (the outside sound carried on, the colour fading in), a big open field (84x56, walls only at its edge) of grass, a worn path, flowers and trees you walk under, the player seen for the first time; wind, birds, grass footsteps; no monsters, music or drone; the way on through a gap in the trees ends in the "More to come soon." screen (moved here from 25). **Per-level flags** (`daylight`, `noRipple`, `noCrouch`, `noHud`, `movementOnly`): only movement and pause work, nothing on screen while you play, the joystick only on touch, a tap shows the pause button for 3 s. **Shown as "Outside 1"** everywhere (`levelName`). `CAMPAIGN_LEVELS` 26. Levels 0-25 unchanged (`9097b344`) (latest) |
+| v19.0 | 842ed9b | MAJOR: **ACT 3 BEGINS - OUTSIDE 1** (internal level 26), in full daylight: 25's white flood runs into it (the outside sound carried on, the colour fading in), a big open field (84x56, walls only at its edge) of grass, a worn path, flowers and trees you walk under, the player seen for the first time; wind, birds, grass footsteps; no monsters, music or drone; the way on through a gap in the trees ends in the "More to come soon." screen (moved here from 25). **Per-level flags** (`daylight`, `noRipple`, `noCrouch`, `noHud`, `movementOnly`): only movement and pause work, nothing on screen while you play, the joystick only on touch, a tap shows the pause button for 3 s. **Shown as "Outside 1"** everywhere (`levelName`). `CAMPAIGN_LEVELS` 26. Levels 0-25 unchanged (`9097b344`) |
+| v19.1 | PENDING | MINOR: **"First Breath"** - level 26 renamed (from `OUTSIDE_NAMES`, js/game.js: the next outside levels are just the next names - Fresh Air, Open Ground, Same Sky, The Wall); its **level-list tile** a word to a line, centred, its font fitted to the same tile as the numbers at every width (`fitLevelNames`); and the **daylight interface** (Settings -> Display, only once level 26 is reached, off by default, `echomaze.lightui`): every menu and screen in a light look by ONE filter and the theme variables (`html[data-ui='light']`), the game and the HUD untouched. Levels, saves, the editor and share codes unchanged (`9097b344`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2636,6 +2637,33 @@ pause) works and nothing is drawn while you play; generic per-level flags; shown
   everything again, the tap-to-show pause button for ~3 s, no ripple or crouch button on touch, the joystick walking you,
   the way on -> "More to come soon." -> the title. `walkAll`, `perf`, `cues` (every level 0-26) and `firstTime` (best 26 ->
   "Continue (Outside 1)", 27 Finished) include it; `light` now ends in Outside 1.
+
+## v19.1: First Breath, its tile, and the daylight interface (owner's brief, MINOR)
+
+- **The name**: level 26 is "First Breath" wherever a level's name is shown - one table, `OUTSIDE_NAMES` in js/game.js
+  (`levelName` reads it; past its end: "Outside N"). Fresh Air, Open Ground, Same Sky and The Wall are already in it for
+  the levels to come: add a level, and its name is there.
+- **The tile**: a named level's tile in the level list holds its words one to a line (`.lvl-name`, a span a word),
+  centred, at the largest size that fits inside the same tile as the numbered ones (`fitLevelNames`, after the list is
+  shown and on every resize, down to 6 px). Checked at 1366x768, 844x390 and 390x844 - and with a longer name.
+- **The daylight interface** (`LIGHTUI_KEY` `echomaze.lightui`, Settings -> Display "Daylight interface"): offered only
+  once level 26 has been reached in any mode (`lightUnlocked` - before that the row is hidden and a stored '1' does
+  nothing), off by default, applied at once (`applyLightUi`, at start-up and on every return to the title). It is ONE
+  rule in style.css: `html[data-ui='light'] .overlay, #dialog, #whatsnew { filter: invert(1) hue-rotate(180deg) }` - every
+  screen drawn as ever, then its lightness inverted with its hues kept, so every text, border, chip, focus ring and
+  button keeps its contrast by construction - and the theme variables set inside those screens to the values that come
+  OUT of the filter as dark green (`--ui-rgb`), warm amber (`--exit-rgb`), deep red (`--danger-rgb`) and slate text
+  (`--ink`, `--dim`) - they beat the palette's, which are set on <html>, so Calm, Visual cues and every palette work as
+  ever. The canvases inside screens (the wordmark, the legend's art, the editor's map) go through the filter too, so they
+  read dark-on-light with their hues. Not filtered: the game, the HUD and everything over play (hints, banners,
+  captions - readable on the dark and on the daylight), the end screen (its own white-to-dark), the cutscenes. The
+  touch buttons get a light plate. The title's own backdrop goes light under it (draw(), drawTitleBackdrop). The test
+  copy has it unlocked (its save is past 26).
+- **Tests**: `tools/lightui-test.js` - `gate` (hidden before 26, even with '1' stored; there after; off by default; on and
+  off at once and remembered), `screens` (the title, How to play, Levels & cutscenes, Fragments, every Settings tab,
+  What's new, My Levels and the pause menu - each light, and the worst text contrast on each worked out through the
+  filter, at least 3:1), `tiles`, `play` (levels 3, 15 and 26 played with it on, the HUD and captions unfiltered); in
+  `tools/check.js` with Visual cues ON and off, on a save before 26, and the tile on phones both ways up.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

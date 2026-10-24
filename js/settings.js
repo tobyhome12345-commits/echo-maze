@@ -342,6 +342,11 @@ const EchoSettings = (() => {
       renderPalettes();
       if (tab === 'stats') renderStats();
       $('timer-toggle').checked = P.getShowTimer();
+      // (v19.1) the daylight interface: not there at all until the outside has been reached
+      const lu = !!(env.lightUnlocked && env.lightUnlocked());
+      $('lightui-row').classList.toggle('hidden', !lu);
+      $('lightui-toggle').disabled = !lu;
+      $('lightui-toggle').checked = lu && env.lightUi();
     }
 
     function open(from) {
@@ -445,6 +450,10 @@ const EchoSettings = (() => {
         const out = document.querySelector(`[data-vol-out="${bus}"]`);
         if (out) out.textContent = `${sl.value}%`;
       });
+    });
+    $('lightui-toggle').addEventListener('change', (e) => {
+      if (env.lightUnlocked && env.lightUnlocked()) env.setLightUi(e.target.checked);
+      e.target.blur();
     });
     $('timer-toggle').addEventListener('change', (e) => {
       env.setShowTimer(e.target.checked);

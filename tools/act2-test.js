@@ -535,7 +535,7 @@ window.Act2Test = (() => {
     T.check(`...it opens in the white (${st().outside.white})`, st().outside.white > 0.8);
     step(5);
     T.check(`...and the colour comes in (${st().outside.white})`, st().outside.white < 0.05);
-    T.check('shown as "Outside 1" - 25 is still "Level 25", and the next would be "Outside 2"', E().levelName(26) === 'Outside 1' && E().levelName(25) === 'Level 25' && E().levelName(27) === 'Outside 2');
+    T.check('shown as "First Breath" (v19.1) - 25 is still "Level 25", and the next would be "Fresh Air"', E().levelName(26) === 'First Breath' && E().levelName(25) === 'Level 25' && E().levelName(27) === 'Fresh Air');
     await sleep(120); // (a real frame: the page's own state)
     T.check('nothing on screen while you play: no HUD, no banner, no captions', body.classList.contains('no-hud') && !shown('hud') && !shown('banner') && !shown('cue-caption'));
     // only the movement keys do anything
@@ -867,7 +867,7 @@ window.Act2Test = (() => {
     if (best === 16) T.check('a save on 16: Continue (Level 16), the editor not unlocked by it', /16/.test(cont.textContent) && !E().settings().editor.unlocked);
     if (best === 21) T.check('(v18.0) a save that finished 20 (best 21): Continue (Level 21), not Finished', !cont.classList.contains('hidden') && /21/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 25) T.check('(v18.2) a save that finished 24 (best 25): Continue (Level 25), not Finished', !cont.classList.contains('hidden') && /25/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
-    if (best === 26) T.check('(v19.0) a save that finished 25 (best 26): Continue (Outside 1), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('Outside 1') && !document.getElementById('title').textContent.includes('Finished'));
+    if (best === 26) T.check('(v19.0) a save that finished 25 (best 26): Continue (First Breath), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('First Breath') && !document.getElementById('title').textContent.includes('Finished'));
     if (best >= 27) T.check('a save past Outside 1: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
     if (best <= 1) T.check('a fresh save: Begin starts with the tutorial (level 0)', E().newPlayer());
     if (best === 17) {

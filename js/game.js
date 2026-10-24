@@ -43,6 +43,7 @@
   const CALM_KEY = 'echomaze.calm';
   const SEEN_KEY = 'echomaze.seen'; // { intro: 1, scent: 1 } cutscenes that have played, so they can be replayed
   const VISUALCUES_KEY = 'echomaze.visualcues'; // '1' = the Visual cues accessibility option is on
+  const LIGHTUI_KEY = 'echomaze.lightui'; // (v19.1) '1' = the daylight interface (a light look for the menus), once First Breath is reached
   const TOUCH_KEY = 'echomaze.touch'; // '1' = touch controls forced on, '0' = forced off, unset = automatic (touch devices)
   const TUTORIAL_KEY = 'echomaze.tutorial'; // '1' = the tutorial has been finished or skipped (a save without it is simply "not yet")
   const EDITOR_KEY = 'echomaze.editor'; // '1' = the level editor's spoiler warning was read and accepted (v15.0); the levels themselves are js/levelstore.js's
@@ -2033,11 +2034,13 @@
   const levelFlag = (k) => !!(level && level.flags && level.flags[k]);
   const MOVE_ACTIONS = ['up', 'down', 'left', 'right'];
   /**
-   * (v19.0) A level's name on screen. 1-25 are "Level N"; from 26 on it is the outside - "Outside 1", "Outside 2"...
-   * The internal numbers (saves, progress) never change: only what is shown.
+   * (v19.0) A level's name on screen. 1-25 are "Level N"; from 26 on it is the outside, and each outside level has a
+   * name of its own (v19.1) - the next one is just the next name in OUTSIDE_NAMES. (Past the end of the list:
+   * "Outside N".) The internal numbers (saves, progress) never change: only what is shown.
    */
   const OUTSIDE_FIRST = 26;
-  const levelName = (n) => (n >= OUTSIDE_FIRST ? `Outside ${n - OUTSIDE_FIRST + 1}` : `Level ${n}`);
+  const OUTSIDE_NAMES = ['First Breath', 'Fresh Air', 'Open Ground', 'Same Sky', 'The Wall']; // 26, 27, 28... (only 26 exists yet)
+  const levelName = (n) => (n >= OUTSIDE_FIRST ? OUTSIDE_NAMES[n - OUTSIDE_FIRST] || `Outside ${n - OUTSIDE_FIRST + 1}` : `Level ${n}`);
   const levelShort = (n) => (n >= OUTSIDE_FIRST ? levelName(n) : `Lv ${n}`);
   const levelLower = (n) => (n >= OUTSIDE_FIRST ? levelName(n) : `level ${n}`); // (inside a sentence)
   const CRUMBLE_CRACK = 0.6; // s after you step off a crumbling tile: it cracks...
@@ -3637,11 +3640,11 @@
   }
 
   function drawTitleBackdrop() {
-    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalCompositeOperation = lightUiOn() ? 'source-over' : 'lighter';
     for (const r of titleRipples) {
       const rad = r.t * 240 * DPR;
       const a = Math.max(0, 1 - r.t / 6) * 0.35;
-      ctx.strokeStyle = `rgba(95,212,255,${a})`;
+      ctx.strokeStyle = lightUiOn() ? `rgba(38,102,70,${a})` : `rgba(95,212,255,${a})`;
       ctx.lineWidth = 1.5 * DPR;
       ctx.beginPath();
       ctx.arc(r.x * DPR, r.y * DPR, rad, 0, TAU);
@@ -3657,7 +3660,7 @@
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#010206';
+    ctx.fillStyle = state === 'title' && lightUiOn() ? '#f3efe3' : '#010206'; // (v19.1: the daylight interface's title)
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (state === 'title') {
@@ -4680,6 +4683,7 @@
   }
 
   function toTitle() {
+    applyLightUi(); // (v19.1: reaching First Breath unlocks it - and a stored choice applies from then on)
     destroyVoices();
     loreReader.hide();
     audio.stopAmbient();
@@ -4833,8 +4837,16 @@
         b.type = 'button';
         b.className = 'lvl';
         const num = document.createElement('span');
-        num.textContent = n >= OUTSIDE_FIRST ? levelName(n) : n; // (v19.0: Outside 1...)
-        if (n >= OUTSIDE_FIRST) b.classList.add('named');
+        if (n >= OUTSIDE_FIRST) {
+          // (v19.1) a name, not a number: a word to a line, centred, its size fitted to the tile (fitLevelNames)
+          b.classList.add('named');
+          num.className = 'lvl-name';
+          for (const w of levelName(n).split(' ')) {
+            const line = document.createElement('span');
+            line.textContent = w;
+            num.appendChild(line);
+          }
+        } else num.textContent = n;
         b.appendChild(num);
         // the medals won on this level, in this mode (three little pips: time, ripples, flawless). Level 13
         // is not raced and takes none, so its button simply has no pips (see MEDAL_LEVELS).
@@ -4880,7 +4892,25 @@
       list.appendChild(b);
     }
     showOverlay('replay');
+    fitLevelNames();
   }
+  /**
+   * (v19.1) A named level's tile (First Breath...) is the same size as a numbered one: its words, one to a line, at the
+   * largest size that fits inside it - whatever the screen width, and for any name added later.
+   */
+  function fitLevelNames() {
+    document.querySelectorAll('#level-grid .lvl-name').forEach((el) => {
+      const box = el.parentElement;
+      if (!box.clientWidth) return; // (not on screen yet)
+      let fs = 14;
+      el.style.fontSize = `${fs}px`;
+      while (fs > 6 && (el.scrollWidth > box.clientWidth - 6 || el.offsetHeight > box.clientHeight - 4)) {
+        fs -= 0.5;
+        el.style.fontSize = `${fs}px`;
+      }
+    });
+  }
+  window.addEventListener('resize', () => fitLevelNames());
 
   // ------------------------------------------------------------ how to play (v15.5)
   /**
@@ -5495,6 +5525,23 @@
     drawLegend(); // the title legend is painted with the real art, so it has to be redrawn in the new colours
   }
 
+  /**
+   * (v19.1) THE DAYLIGHT INTERFACE: a light look for every menu and screen (style.css, html[data-ui='light']). Only
+   * offered once the outside has been reached (level 26 in any mode - before that the option is not there at all,
+   * and a stored '1' does nothing); off by default; applied at once. The game itself, and the HUD over it, never change.
+   */
+  const lightUnlocked = () => furthestReached() >= OUTSIDE_FIRST;
+  let lightUi = store.get(LIGHTUI_KEY) === '1';
+  const lightUiOn = () => lightUi && lightUnlocked();
+  function applyLightUi() {
+    if (lightUiOn()) document.documentElement.dataset.ui = 'light';
+    else delete document.documentElement.dataset.ui;
+  }
+  function setLightUi(on) {
+    lightUi = !!on;
+    store.set(LIGHTUI_KEY, lightUi ? '1' : '0');
+    applyLightUi();
+  }
   function setShowTimer(on) {
     showTimer = !!on;
     EchoProfile.setShowTimer(showTimer);
@@ -5530,6 +5577,10 @@
     setPalette,
     setShowTimer,
     medalsChanged: () => refreshTitle(),
+    lightUnlocked, // (v19.1) the daylight interface
+    lightUi: () => lightUi,
+    setLightUi,
+
     mode: () => mode,
     modeIds: () => MODE_ORDER,
     modeLabel: (m) => MODES[m || mode].label,
@@ -6200,12 +6251,16 @@
   showOverlay('title'); // ... and the title fades up rather than simply being there
   setTimeout(maybeShowWhatsNew, 900); // (v16.3) What's new, once, if the game has updated since this player last looked
   wordmark.reveal(false); // the first title of the session: there is no AudioContext yet, so it is silent
+  applyLightUi(); // (v19.1)
   requestAnimationFrame(frame);
 
   // Test hook: only exposed when the page is opened with ?debug
   if (/[?&]debug\b/.test(location.search)) {
     window.__echo = {
       levelName: (n) => levelName(n), // (v19.0)
+      lightUi: () => ({ on: lightUiOn(), chosen: lightUi, unlocked: lightUnlocked(), attr: document.documentElement.dataset.ui || '' }), // (v19.1)
+      setLightUi: (on) => setLightUi(on),
+      fitLevelNames: () => fitLevelNames(),
       info: () => ({ state, levelNum, levelTime, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state, part: levelPart, falling: !!a2Falling }),
       deadSeen: () => [...deadSeen.keys()], // (v18.0, 22: the black patches on the map now)
       frameErrors: () => frameErrors, // (v18.1: errors the game loop caught and carried on from)

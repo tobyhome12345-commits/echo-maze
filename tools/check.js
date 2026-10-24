@@ -58,6 +58,12 @@ const QUICK = [
   // them on (echomaze.visualcues = '1'), the real game loop included (Act2Test.cues), and once with them off. (A returning
   // player's save: without the What's new key its dialog opens over the game and takes the keys.)
   { name: 'Act 2, Visual cues ON', save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: ['cues', 'liar', 'shuffle', 'loop', 'behind', 'crumble', 'deadair', 'creep', 'wrongway', 'light', 'outside', 'walkAll'].map((n) => ['Act2Test', n]) },
+  // (v19.1) the daylight interface and First Breath's tile: Visual cues ON then off, a finished save; the tile at phone sizes
+  { name: 'Daylight interface, Visual cues ON', save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"easy":27,"normal":27,"hard":27,"hardcore":27}' }, load: ['lightui-test.js'], runs: ['gate', 'screens', 'tiles', 'play'].map((n) => ['LightUiTest', n]) },
+  { name: 'Daylight interface, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}' }, load: ['lightui-test.js'], runs: ['gate', 'screens', 'play'].map((n) => ['LightUiTest', n]) },
+  { name: 'Daylight interface: hidden before the outside', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":21}', 'echomaze.lightui': '1' }, load: ['lightui-test.js'], runs: [['LightUiTest', 'gate']] },
+  { name: "First Breath's tile on a phone", size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}' }, load: ['lightui-test.js'], runs: [['LightUiTest', 'tiles']] },
+  { name: "First Breath's tile on a phone held upright", size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":27}' }, load: ['lightui-test.js'], runs: [['LightUiTest', 'tiles']] },
   // (v19.0) Outside 1 on a phone held sideways, with touch controls: the joystick, the tap-to-pause, the frame time
   { name: 'Outside 1 on a phone, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.visualcues': '1', 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['act2-test.js'], runs: [['Act2Test', 'outside'], ['Act2Test', 'perf']] },
   { name: 'Act 2, Visual cues off: the real loop', load: ['act2-test.js'], runs: [['Act2Test', 'cues']] },
@@ -216,7 +222,9 @@ function whatsNewCheck(version, rows) {
     for (const l of n.lines || []) {
       const o = typeof l === 'string' ? { text: l } : l;
       if (typeof o.text !== 'string' || !o.text.trim() || o.text.length > 170) problems.push(`${n.version}: every line is plain text of at most 170 characters ("${String(o.text).slice(0, 40)}...")`);
-      if (o.minLevel !== undefined && !(Number.isInteger(o.minLevel) && o.minLevel >= 1 && o.minLevel <= 25)) problems.push(`${n.version}: minLevel must be a level, 1-25`); // (v18.0: the campaign is 24 levels)
+      // (v19.1) up to one past the last level - read from js/level.js, not written in here (it went stale twice)
+      const top = +((/const STORY_LAST = (\d+)/.exec(fs.readFileSync(path.join(ROOT, 'js', 'level.js'), 'utf8')) || [])[1] || 0) + 1;
+      if (o.minLevel !== undefined && !(Number.isInteger(o.minLevel) && o.minLevel >= 1 && o.minLevel <= top)) problems.push(`${n.version}: minLevel must be a level, 1-${top}`);
       if (o.tag !== undefined && o.tag !== 'Level editor') problems.push(`${n.version}: the only tag is 'Level editor'`);
     }
   }

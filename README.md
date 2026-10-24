@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v19.0 - the outside
+**Current version:** v19.1 - first breath
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -372,7 +372,7 @@ All three follow calm mode: the near miss keeps its cue and its pulse at about a
 
 ## Levels
 
-There are **twenty-six levels** (the tutorial is **level 0** and is not one of them — see above). Levels 1 to 12 are generated mazes that grow bigger and more loop-filled as your ripple range shrinks and its cooldown grows (maze sizes run from 7 x 5 cells on level 1 to 18 x 14 on level 12). Level 1 has no monsters so you can learn the ropes. A maze for a given seed is the same in every mode. **Levels 13 to 24 are different**: they are drawn by hand, they are the same every time, and they tell one story in a row — *the capture*, *the gaol*, *the false exit* and *another one*, then **Act 2, the broken gaol** (17 to 20) and its second part, **the void** (21 to 24), and **the light** (25), and then **Act 3, the outside**: Outside 1 (level 26 inside the game), below. The story so far ends after Outside 1.
+There are **twenty-six levels** (the tutorial is **level 0** and is not one of them — see above). Levels 1 to 12 are generated mazes that grow bigger and more loop-filled as your ripple range shrinks and its cooldown grows (maze sizes run from 7 x 5 cells on level 1 to 18 x 14 on level 12). Level 1 has no monsters so you can learn the ropes. A maze for a given seed is the same in every mode. **Levels 13 to 24 are different**: they are drawn by hand, they are the same every time, and they tell one story in a row — *the capture*, *the gaol*, *the false exit* and *another one*, then **Act 2, the broken gaol** (17 to 20) and its second part, **the void** (21 to 24), and **the light** (25), and then **Act 3, the outside**: First Breath (level 26 inside the game), below. The story so far ends after First Breath.
 
 The monsters on each level are **exact** (the number never varies from run to run). **Levels 1 to 8 are the same in every mode. From level 9 on, Easy has one fewer monster** (the modes otherwise differ in speed, hearing, ripples and puddles, not in how many monsters there are). **Normal, Hard and Hardcore:**
 
@@ -455,13 +455,15 @@ Every one is checked to be finishable (`tools/act2-check.js`: 21 over every comb
 
 ### Level 25: the light (the end of Act 2)
 
-**Spoilers.** Level 15's mirror. A long quiet hall, and far off down it - through a long line of bars you can see through but never walk through - a faint warm light: the only real light in the game. It grows and warms as you come, and the sound of outside (the wind, at night) grows with it. Partway along, the stone behind you splits and level 16's faster Warden is let out; a little later the floor behind starts falling into the void, so there is no going back. The way runs winding to the light. **This time the light is real**: reach it and the Warden stops at the edge and comes no further, its hum fades, and the light floods in. Then the white runs on into Outside 1. The hint is *Don't stop.* It is checked to be fair (`tools/act2-check.js`): a clean run stays 6.5 s ahead of it, and the falling floor never reaches anyone who keeps moving.
+**Spoilers.** Level 15's mirror. A long quiet hall, and far off down it - through a long line of bars you can see through but never walk through - a faint warm light: the only real light in the game. It grows and warms as you come, and the sound of outside (the wind, at night) grows with it. Partway along, the stone behind you splits and level 16's faster Warden is let out; a little later the floor behind starts falling into the void, so there is no going back. The way runs winding to the light. **This time the light is real**: reach it and the Warden stops at the edge and comes no further, its hum fades, and the light floods in. Then the white runs on into First Breath. The hint is *Don't stop.* It is checked to be fair (`tools/act2-check.js`): a clean run stays 6.5 s ahead of it, and the falling floor never reaches anyone who keeps moving.
 
-### Act 3, the outside: Outside 1
+### Act 3, the outside: First Breath
 
 **Spoilers.** The white you came out into fades, and the colour comes in: **daylight**, for the first time. A big open field, grass in light and dark patches, flowers, trees you walk under, and you - seen for the first time, from above. Nothing to fight and nothing to solve: the wind and the birds, your steps in the grass, and a worn path that leads, if you follow it, to a gap in the trees on the far side where the sun comes through (the outside sound gets a little louder that way). Reaching it is the end of the story so far: *More to come soon.*
 
-Out here **only the movement keys** do anything (and pause): no ripple, no crouch, and nothing on screen while you walk - no HUD, no hints, no Visual cue glyphs. Pausing brings it all back. On a touch screen only the joystick is there; tap anywhere else and the pause button shows for a few seconds. It is shown as **Outside 1** everywhere (the level list, Continue, the pause menu); inside the game it is level 26, so saves just carry on.
+Out here **only the movement keys** do anything (and pause): no ripple, no crouch, and nothing on screen while you walk - no HUD, no hints, no Visual cue glyphs. Pausing brings it all back. On a touch screen only the joystick is there; tap anywhere else and the pause button shows for a few seconds. It is shown as **First Breath** everywhere (the level list, Continue, the pause menu); inside the game it is level 26, so saves just carry on. The outside levels to come each have a name too.
+
+**The daylight interface.** Once you have reached First Breath, Settings -> Display has a **Daylight interface** switch: every menu and screen in a light, bright look - soft light backgrounds, dark green and slate text, a warm accent - instead of the dark one. The game itself, and the HUD and captions over it, stay as they are. Off unless you turn it on.
 
 ### Crouching (every level, every mode)
 
