@@ -1602,9 +1602,10 @@ class SoundEngine {
     const pitch = o && o.pitch ? o.pitch : 1;
     const shake = o && o.shake ? o.shake : 0;
     const f0 = (165 + (code % 7) * 7 + Math.random() * 12) * pitch * (shake ? 1 + shake * (Math.random() * 2 - 1) : 1);
-    const src = this._osc('sawtooth', f0, t, 0.16);
-    src.frequency.linearRampToValueAtTime(f0 * (shake ? 0.9 - shake : 0.9), t + 0.11);
-    const g = this._env(t, 0.014, 1.4 * vol, 0.09);
+    const len = o && o.len ? o.len : 1; // (v19.3: a slower voice holds each syllable longer)
+    const src = this._osc('sawtooth', f0, t, 0.16 * len);
+    src.frequency.linearRampToValueAtTime(f0 * (shake ? 0.9 - shake : 0.9), t + 0.11 * len);
+    const g = this._env(t, 0.014 * len, 1.4 * vol, 0.09 * len);
     [[f1, 5, 1], [f2, 7, 0.55]].forEach(([f, q, a]) => {
       const bp = this._filter('bandpass', f, q);
       const bg = c.createGain();
@@ -1613,7 +1614,7 @@ class SoundEngine {
       bp.connect(bg);
       bg.connect(g);
     });
-    this._route(g, o && o.pan ? o.pan : 0, 0.3); // (v19.2: a villager's murmur comes from where they are)
+    this._route(g, o && o.pan ? o.pan : 0, o && o.wet !== undefined ? o.wet : 0.3); // (v19.2: a villager's murmur comes from where they are)
     return src;
   }
 
@@ -1689,6 +1690,26 @@ class SoundEngine {
         }
       },
     };
+  }
+
+  /**
+   * (v19.3) A knock, far off in the dark ("Nothing Listens"): a low, soft blow on something big and hollow, almost all
+   * of it heard as its reverb - the long echo is the scene's own (it plays each knock again, quieter, after it).
+   */
+  knock(pan = 0, gain = 0.6) {
+    if (!this.ctx || gain < 0.01) return;
+    const t = this.ctx.currentTime;
+    const o = this._osc('sine', 92, t, 0.5);
+    o.frequency.exponentialRampToValueAtTime(48, t + 0.32);
+    const g = this._env(t, 0.004, 0.5 * gain * (this.calm ? 0.7 : 1), 0.3);
+    o.connect(g);
+    this._route(g, pan, 0.95);
+    const n = this._noise(t, 0.07);
+    const lp = this._filter('lowpass', 520, 0.8);
+    const ng = this._env(t, 0.002, 0.22 * gain * (this.calm ? 0.7 : 1), 0.05);
+    n.connect(lp);
+    lp.connect(ng);
+    this._route(ng, pan, 0.9);
   }
 
   /** The wave comes back off a lore fragment: a dry, papery tick with a thin high edge. Quiet on purpose. */

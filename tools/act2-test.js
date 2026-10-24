@@ -43,6 +43,12 @@
  *                        a little way off, never turning to you; their day the same every time; every one of them starting
  *                        again at the same instant, softly, under a hush; every village sound echoed once, quieter, a
  *                        beat later - never yours; the joystick on touch; the gate -> "More to come soon." -> the title
+ *   (v19.3) Act2Test.dusk()  28, "Dusk": Fresh Air's gate runs into it; the light goes with how far you walk (never with
+ *                        time, and never back), to black; the birds and wind fade, the steps turn dry; the Warden never
+ *                        moves, cannot hurt you, its hum comes up, it turns to you; the Talk prompt only near it (and
+ *                        nothing else on screen); the Interact key rebinds; "Nothing Listens": not skippable the first
+ *                        time, pausable, every line as a subtitle in order, the knocks, seen only at its end -> "More to
+ *                        come soon." -> the title; then in the replay list, and skippable there
  *   Act2Test.wrongway()  24: its first way out leads to the second part (nothing saved); caught there, Try again is the
  *                        second part again; the level from the list or Continue is the first part; the second part's way
  *                        out is the end of the game so far
@@ -794,15 +800,9 @@ window.Act2Test = (() => {
       // the gate at the far end: the end of the story so far
       const stopped2 = spy('stopDaylight');
       const r = await walk(27, false);
-      T.check(`walked through the village to the gate (${r.seconds} s)`, r.cleared && E().info().state === 'ending', r);
-      await sleep(400);
-      T.check('the end screen: "More to come soon."', $('ending-text').textContent === 'More to come soon.' && !$('ending').classList.contains('hidden'));
-      T.check('...the outside sound ends with it', stopped2.length >= 1);
+      T.check(`walked through the village to the gate (${r.seconds} s) - and on into Dusk (v19.3)`, r.cleared && E().info().state === 'play' && E().info().levelNum === 28, r);
       stopped2.restore();
-      T.check('...and only now is Fresh Air saved as cleared', ((E().settings().progress || {}).normal || 0) >= 28);
-      $('btn-ending-title').click();
-      await until(() => E().info().state === 'title', 3000);
-      T.check('its button: back to the title', E().info().state === 'title' && !body.classList.contains('no-hud'));
+      T.check('...and Fresh Air is saved as cleared', ((E().settings().progress || {}).normal || 0) >= 28);
     } finally {
       window.removeEventListener('error', onErr);
       for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
@@ -945,13 +945,13 @@ window.Act2Test = (() => {
       if (on) T.check(`${tag} 23: ...captioned`, captions.has('[the edge gives way]'));
       // every level starts and runs
       const dead = [];
-      for (let n = 0; n <= 27; n++) {
+      for (let n = 0; n <= 28; n++) {
         await toTitle();
         E().go(n);
         const adv = await live(700);
         if (!(adv > 0.2)) dead.push(`${n}: ${E().info().state} +${adv.toFixed(2)}`);
       }
-      T.check(`${tag}: every level 0-27 starts and runs`, dead.length === 0, dead);
+      T.check(`${tag}: every level 0-28 starts and runs`, dead.length === 0, dead);
     } finally {
       console.error = oe;
       window.removeEventListener('error', onErr);
@@ -1082,7 +1082,8 @@ window.Act2Test = (() => {
     if (best === 25) T.check('(v18.2) a save that finished 24 (best 25): Continue (Level 25), not Finished', !cont.classList.contains('hidden') && /25/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 26) T.check('(v19.0) a save that finished 25 (best 26): Continue (First Breath), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('First Breath') && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 27) T.check('(v19.2) a save that finished First Breath (best 27): Continue (Fresh Air), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('Fresh Air') && !document.getElementById('title').textContent.includes('Finished'));
-    if (best >= 28) T.check('a save past Fresh Air: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
+    if (best === 28) T.check('(v19.3) a save that finished Fresh Air (best 28): Continue (Dusk), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('Dusk') && !document.getElementById('title').textContent.includes('Finished'));
+    if (best >= 29) T.check('a save past Dusk: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
     if (best <= 1) T.check('a fresh save: Begin starts with the tutorial (level 0)', E().newPlayer());
     if (best === 17) {
       $('btn-continue').click();
@@ -1111,7 +1112,12 @@ window.Act2Test = (() => {
       await until(() => E().info().state === 'play' && E().info().levelNum === 27, 4000);
       T.check('Continue from that save: Fresh Air, the village', E().info().levelNum === 27 && E().info().level.story.kind === 'village');
     }
-    T.check(`the campaign is ${STORY_LAST} levels (17-27 are story levels)`, E().settings().campaignLevels === 27 && isStoryLevel(17) && isStoryLevel(27) && !isStoryLevel(28));
+    if (best === 28) {
+      $('btn-continue').click();
+      await until(() => E().info().state === 'play' && E().info().levelNum === 28, 4000);
+      T.check('Continue from that save: Dusk', E().info().levelNum === 28 && E().info().level.story.kind === 'dusk');
+    }
+    T.check(`the campaign is ${STORY_LAST} levels (17-28 are story levels)`, E().settings().campaignLevels === 28 && isStoryLevel(17) && isStoryLevel(28) && !isStoryLevel(29));
     T.note({ progress: E().settings().progress, editor: E().settings().editor.unlocked, title: $('mode-tag-' + E().settings().mode) ? $('mode-tag-' + E().settings().mode).textContent : null, cont: $('btn-continue').classList.contains('hidden') ? null : $('btn-continue').textContent });
     return T.done();
   }
@@ -1120,8 +1126,9 @@ window.Act2Test = (() => {
   async function perf() {
     const T = suite('perf');
     const size = `${innerWidth}x${innerHeight}${document.body.classList.contains('touch') ? ' touch' : ''}`;
-    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]) {
+    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]) {
       await enter(n, true);
+      if (n === 28) E().tp(E().dusk().keeper.x - 120, E().dusk().keeper.y); // (Dusk: in the dark, by the Warden)
       ping();
       step(0.3);
       const t0 = performance.now();
@@ -1137,5 +1144,260 @@ window.Act2Test = (() => {
     return T.done();
   }
 
-  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues, light, outside, village };
+  // ------------------------------------------------------------------------------------------ (v19.3) 28: Dusk
+  async function dusk() {
+    const T = suite('dusk');
+    const st = () => E().storyState();
+    const dk = () => E().dusk();
+    const body = document.body;
+    const shown = (id) => getComputedStyle($(id)).display !== 'none';
+    const talkUp = () => $('talk').classList.contains('show') && shown('talk');
+    const errs = [];
+    const onErr = (e) => errs.push(String(e.message || e));
+    window.addEventListener('error', onErr);
+    const fe0 = E().frameErrors ? E().frameErrors() : 0;
+    const cuesOn = !!E().settings().visualCues;
+    try {
+      // from Fresh Air's gate
+      await enter(27);
+      const ex = L().exit;
+      E().tp(ex.x - 60, ex.y);
+      const stopped = spy('stopDaylight');
+      key('ArrowRight', true);
+      for (let i = 0; i < 60 && st().phase !== 'leaving'; i++) step(1 / 60);
+      key('ArrowRight', false);
+      for (let i = 0; i < 60 && E().info().levelNum !== 28; i++) step(0.25);
+      T.check("Fresh Air's gate runs into Dusk (28)", E().info().levelNum === 28 && E().info().state === 'play' && L().story.kind === 'dusk' && L().flags.interact);
+      T.check('...the wind and the birds carried on, never stopped between them', stopped.length === 0, stopped.length);
+      stopped.restore();
+      T.check(`...a gentle fade: it opens in the white (${st().outside.white})`, st().outside.white > 0.8);
+      step(5);
+      T.check(`...into the daylight (${st().outside.white}), the light all there (${dk().p})`, st().outside.white < 0.05 && dk().p === 0 && dk().s1 === 0);
+      T.check('shown as "Dusk" (27 still "Fresh Air")', E().levelName(28) === 'Dusk' && E().levelName(27) === 'Fresh Air');
+      await sleep(150);
+      T.check('nothing on screen - not even the Talk prompt, far from anyone', body.classList.contains('no-hud') && !shown('hud') && !shown('banner') && !shown('cue-caption') && !talkUp());
+      // standing still: nothing changes
+      walkTo(P().x + 120, P().y, 1.5);
+      const a = dk();
+      step(8);
+      const b = dk();
+      T.check(`standing still 8 s: the light stays as it was (${a.p.toFixed(3)} -> ${b.p.toFixed(3)})`, a.p === b.p && a.k === b.k);
+      // only the movement keys
+      const r0 = E().ripples().length;
+      for (const code of ['Space', 'ShiftLeft', 'KeyV', 'KeyC']) {
+        key(code, true);
+        step(1 / 30);
+        key(code, false);
+        step(1 / 30);
+      }
+      T.check('only movement: Space and Shift do nothing (and E, far from it, nothing)', E().ripples().length === r0 && !E().crouch().crouching && E().info().state === 'play');
+      // the grass underfoot, early on
+      let grass = spy('grassStep');
+      let dry = spy('footstep');
+      walkTo(P().x + 200, P().y, 2);
+      T.check(`early on: grass underfoot (${grass.length} soft steps, ${dry.length} dry)`, grass.length >= 3 && dry.length === 0);
+      grass.restore();
+      dry.restore();
+      // walking on: the light goes with the distance
+      const K = dk().keeper;
+      const humFar = dk().hum; // (far off: its hum, if any, faint)
+      const samples = [];
+      for (let x = P().x; x < K.x - 400; x += 400) {
+        walkTo(Math.min(x + 400, K.x - 400), K.y, 4);
+        samples.push([Math.round(P().x), dk().p, dk().s1, dk().s2, dk().s3]);
+      }
+      const mono = samples.every((s, i) => i === 0 || s[1] >= samples[i - 1][1]);
+      const midDusk = samples.find((s) => s[2] > 0.3 && s[3] < 0.3);
+      const midNight = samples.find((s) => s[3] > 0.5 && s[4] < 0.5);
+      T.check(`walking on, the light goes with how far you are (${samples.map((s) => s[1].toFixed(2)).join(' ')})`, mono && samples[samples.length - 1][1] > 0.9);
+      T.check('...through dusk, then night, then black: the ground gone', !!midDusk && !!midNight && dk().s3 > 0.99, { midDusk, midNight, s3: dk().s3 });
+      // turning back does not bring the light back
+      const pBack = dk().p;
+      walkTo(P().x - 300, P().y, 3);
+      T.check(`walking back: the dark stays (${pBack.toFixed(3)} -> ${dk().p.toFixed(3)})`, dk().p === pBack);
+      walkTo(P().x + 300, P().y, 3);
+      // the sound has drained away with the light
+      const chirps = spy('birdChirp');
+      const wind = spy('setDaylight');
+      grass = spy('grassStep');
+      dry = spy('footstep');
+      walkTo(P().x + 160, P().y, 2);
+      step(6);
+      T.check(`in the dark: no birds (${chirps.length}), the wind gone (${wind.length ? wind[wind.length - 1][0].toFixed(3) : '?'})`, chirps.length === 0 && wind.length > 0 && wind[wind.length - 1][0] < 0.03);
+      T.check(`...your steps the gaol's dry, quiet ones (${dry.length} dry, ${grass.length} on grass)`, dry.length >= 3 && grass.length === 0);
+      chirps.restore();
+      wind.restore();
+      grass.restore();
+      dry.restore();
+      // the Warden: its hum comes up as you come near
+      walkTo(K.x - 300, K.y, 4);
+      const humNear = dk().hum;
+      T.check(`its hum comes up as you come near (${humFar.toFixed(4)} -> ${humNear.toFixed(4)})`, humNear > humFar * 1.5 && humNear > 0);
+      T.check('...and no Talk prompt yet, 300 px off', !talkUp() && !dk().talkable);
+      // close to it: it turns to face you; the prompt, and only it
+      walkTo(K.x - 70, K.y + 30, 3);
+      step(3);
+      const want = Math.atan2(P().y - K.y, P().x - K.x);
+      let dh = Math.abs(dk().h - want) % (Math.PI * 2);
+      if (dh > Math.PI) dh = Math.PI * 2 - dh;
+      T.check(`close to, it turns to face you (off by ${dh.toFixed(2)} rad)`, dh < 0.2);
+      await sleep(150);
+      T.check('the Talk prompt is up - and nothing else on screen', dk().talkable && talkUp() && !shown('hud') && !shown('banner') && !shown('cue-caption'));
+      T.check(`...with its key on a keyboard (${$('talk-key').textContent})`, body.classList.contains('touch') || $('talk-key').textContent === 'E');
+      // harmless, and it never moves: walk straight into it
+      const kx = K.x;
+      const ky = K.y;
+      key('ArrowRight', true);
+      for (let i = 0; i < 180; i++) step(1 / 60);
+      key('ArrowRight', false);
+      T.check(`walking into it: stopped by it, and nothing happens (${E().info().state}, ${Math.round(Math.hypot(P().x - kx, P().y - ky))} px off)`, E().info().state === 'play' && Math.hypot(P().x - kx, P().y - ky) >= 26 && dk().keeper.x === kx && dk().keeper.y === ky);
+      E().tp(K.x - 70, K.y);
+      step(0.5);
+      // the Interact key rebinds: F talks, E does not (and E still drops an item, which it may share)
+      E().bindKey('interact', 0, 'KeyF');
+      T.check('the Interact key rebinds (to F) - and the item key keeps E', E().keys().interact[0] === 'KeyF' && E().keys().item.includes('KeyE'));
+      key('KeyE', true);
+      step(1 / 30);
+      key('KeyE', false);
+      step(1 / 30);
+      T.check('...E no longer talks', E().info().state === 'play');
+      await sleep(150);
+      T.check(`...and the prompt shows the new key (${$('talk-key').textContent})`, body.classList.contains('touch') || $('talk-key').textContent === 'F' || $('talk-key').textContent === 'E');
+      const seen0 = !!(E().settings().seen || {}).listens;
+      if (body.classList.contains('touch')) {
+        $('talk').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 61, pointerType: 'touch' }));
+      } else {
+        key('KeyF', true);
+        step(1 / 30);
+        key('KeyF', false);
+      }
+      await until(() => E().info().state === 'cutscene', 2000);
+      T.check(`${body.classList.contains('touch') ? 'a tap on Talk' : 'F'}: the scene "Nothing Listens"`, E().info().state === 'cutscene' && E().cutscene.kind === 'listens');
+      E().resetKeys();
+      T.check('the prompt has gone with the level', !talkUp());
+      // the first time: it cannot be skipped
+      const cs = E().cutscene;
+      const LS = cs.LISTENS;
+      if (!seen0) {
+        E().csTo(2);
+        for (const code of ['Enter', 'Space', 'Escape']) {
+          key(code, true);
+          key(code, false);
+        }
+        $('cs-skip').click();
+        step(0.1);
+        T.check('the first time: Enter, Space, Esc and the Skip button do not skip it (and the button is hidden)', E().info().state === 'cutscene' && cs.kind === 'listens' && $('cs-skip').classList.contains('hidden'));
+      }
+      // the pause key pauses it, and nothing skips it while paused
+      key('KeyP', true);
+      key('KeyP', false);
+      const t0 = cs.time;
+      await sleep(400);
+      T.check('P pauses it (its clock stands still)', E().csPaused() && Math.abs(cs.time - t0) < 0.05);
+      key('KeyP', true);
+      key('KeyP', false);
+      T.check('...and P lets it go on', !E().csPaused());
+      if (!cs.listens || E().info().state !== 'cutscene') {
+        T.check('the scene is running', false, { state: E().info().state, kind: cs.kind, d: dk() && dk().d, talkable: dk() && dk().talkable });
+        return T.done();
+      }
+      // every line, in order, as a subtitle - always (it is dialogue); the knocks
+      const got = [];
+      const fxSeen = new Set();
+      for (let i = 0; i < LS.lines.length; i++) {
+        E().csTo(LS.at[i] + LS.lines[i].length / 12 + 0.3);
+        got.push(cs.listens.subtitle);
+        if ($('cs-fx').classList.contains('show')) fxSeen.add($('cs-fx').textContent);
+        if (i === 8) {
+          for (let k = 0; k < 3; k++) {
+            E().csTo(LS.knocks[k] + 0.3);
+            if ($('cs-fx').classList.contains('show')) fxSeen.add($('cs-fx').textContent);
+          }
+        }
+      }
+      const right = got.every((g, i) => g === LS.lines[i]);
+      T.check(`all ${LS.lines.length} lines shown as subtitles, in order, whole`, right, got.map((g, i) => (g === LS.lines[i] ? 'ok' : g)).join(' | '));
+      T.check(`"Listen..." and then three slow knocks (${cs.listens.knocks})`, cs.listens.knocks === 3);
+      T.check('no name over its words (the Warden is never named)', $('cs-speaker').textContent === '' && !/warden/i.test(LS.lines.join(' ')));
+      if (cuesOn) T.check(`with Visual cues on: the sounds captioned (${[...fxSeen].join(' ')})`, fxSeen.has('[three slow knocks]'));
+      else T.check('with Visual cues off: no [sound captions] - the words still shown', fxSeen.size === 0 && right);
+      E().csTo(LS.last + 0.3);
+      T.check('one more knock after its last line', cs.listens.knocks === 4);
+      E().csTo(LS.cut + 0.2);
+      T.check('...then a cut to black', cs.listens.cut && E().info().state === 'cutscene');
+      T.check('not seen until it has played to its end', !!(E().settings().seen || {}).listens === seen0);
+      E().csTo(LS.end + 0.5);
+      await until(() => E().info().state === 'ending', 4000);
+      await sleep(300);
+      T.check('to its end: then "More to come soon."', E().info().state === 'ending' && $('ending-text').textContent === 'More to come soon.' && !$('ending').classList.contains('hidden'));
+      T.check('...now it counts as seen, and Dusk as cleared', !!(E().settings().seen || {}).listens && ((E().settings().progress || {}).normal || 0) >= 29);
+      $('btn-ending-title').click();
+      await until(() => E().info().state === 'title', 3000);
+      T.check('its button: back to the title', E().info().state === 'title' && !body.classList.contains('no-hud'));
+      // in the replay list now - and skippable there
+      await sleep(200);
+      $('btn-replay').click();
+      await until(() => !E().ui().transitioning, 2000);
+      await sleep(150);
+      const row = [...document.querySelectorAll('#replay .scene')].find((b) => /Nothing Listens/.test(b.textContent));
+      T.check('Levels & cutscenes: "Nothing Listens" is there, to play again', !!row && !row.disabled && /What the keeper said in the dark/.test(row.textContent));
+      if (row) {
+        row.click();
+        await until(() => E().info().state === 'cutscene' && !E().ui().transitioning, 3000);
+        E().csTo(1.2);
+        T.check('...played again, it shows the Skip button', E().cutscene.kind === 'listens' && !$('cs-skip').classList.contains('hidden'));
+        key('Enter', true);
+        key('Enter', false);
+        await until(() => E().info().state === 'title' && !$('replay').classList.contains('hidden'), 3000);
+        T.check('...and skips straight back to the replay screen', E().info().state === 'title' && !$('replay').classList.contains('hidden'));
+      }
+    } finally {
+      window.removeEventListener('error', onErr);
+      for (const k of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) key(k, false);
+      E().resetKeys();
+    }
+    T.check('no exception, and the game loop caught nothing', errs.length === 0 && (E().frameErrors ? E().frameErrors() : 0) === fe0, errs.slice(0, 3));
+    await toTitle();
+    return T.done();
+  }
+
+  /** (v19.3) "Nothing Listens" on the page's screen: its subtitles inside it and big enough to read; the real loop running. */
+  async function duskScreen() {
+    const T = suite('duskScreen');
+    const errs = [];
+    const onErr = (e) => errs.push(String(e.message || e));
+    window.addEventListener('error', onErr);
+    try {
+      await toTitle();
+      E().setSeen('listens', true);
+      const row = () => [...document.querySelectorAll('#replay .scene')].find((b) => /Nothing Listens/.test(b.textContent));
+      $('btn-replay').click();
+      await until(() => !E().ui().transitioning, 2000);
+      await sleep(150);
+      row().click();
+      await until(() => E().info().state === 'cutscene' && !E().ui().transitioning, 3000);
+      const LS = E().cutscene.LISTENS;
+      const longest = LS.lines.reduce((a, b, i) => (b.length > LS.lines[a].length ? i : a), 0);
+      E().csTo(LS.at[longest] + LS.lines[longest].length / 12 + 0.3);
+      await sleep(250); // (the real loop draws it)
+      const box = $('cs-sub').getBoundingClientRect();
+      const fs = parseFloat(getComputedStyle($('cs-line')).fontSize);
+      T.check(`${innerWidth}x${innerHeight}: its longest line fits on screen (${Math.round(box.left)}-${Math.round(box.right)}, ${Math.round(box.top)}-${Math.round(box.bottom)})`, box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight && E().cutscene.listens.subtitle === LS.lines[longest]);
+      T.check(`...at a size that can be read (${fs}px)`, fs >= 14);
+      const t0 = E().cutscene.time;
+      await sleep(800);
+      T.check('the real loop plays it', E().cutscene.time - t0 > 0.4);
+      key('Enter', true);
+      key('Enter', false);
+      await until(() => E().info().state === 'title', 3000);
+    } finally {
+      window.removeEventListener('error', onErr);
+      E().setSeen('listens', false);
+    }
+    T.check('no exception', errs.length === 0, errs.slice(0, 3));
+    await toTitle();
+    return T.done();
+  }
+
+  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues, light, outside, village, dusk, duskScreen };
 })();

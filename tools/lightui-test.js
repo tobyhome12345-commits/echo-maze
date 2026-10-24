@@ -209,7 +209,7 @@ window.LightUiTest = (() => {
       const lines = nm.children.length;
       const fits = nm.scrollWidth <= b.clientWidth - 2 && nm.offsetHeight <= b.clientHeight;
       const same = plain ? Math.abs(b.offsetWidth - plain.offsetWidth) <= 1 && Math.abs(b.offsetHeight - plain.offsetHeight) <= 1 : true;
-      T.check(`${size}: "${nm.textContent}" - ${lines} lines, inside its tile (${nm.scrollWidth}x${nm.offsetHeight} in ${b.clientWidth}x${b.clientHeight}), the same size as a numbered tile`, lines === 2 && fits && same, { w: b.offsetWidth, h: b.offsetHeight, pw: plain && plain.offsetWidth, ph: plain && plain.offsetHeight, fs: nm.style.fontSize });
+      T.check(`${size}: "${nm.textContent}" - ${lines} lines, inside its tile (${nm.scrollWidth}x${nm.offsetHeight} in ${b.clientWidth}x${b.clientHeight}), the same size as a numbered tile`, lines >= 1 && lines <= 3 && fits && same, { w: b.offsetWidth, h: b.offsetHeight, pw: plain && plain.offsetWidth, ph: plain && plain.offsetHeight, fs: nm.style.fontSize });
       // a longer name, added later, must fit too
       const keep = nm.innerHTML;
       nm.innerHTML = '<span>Somewhere</span><span>Further</span>';

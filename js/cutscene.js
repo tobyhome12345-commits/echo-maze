@@ -385,9 +385,61 @@ const EchoCutscene = (() => {
     [22.8, 552, 104], [24.6, 516, 60], [KT_LAST_DROP, 560, 84, 76],
   ];
 
+  // ------------------------------------------------- (v19.3) "Nothing Listens": the talk in the dark (end of Dusk)
+  // The black void Dusk ends in: you and the Warden, facing each other in its faint pale glow, and nothing else. It
+  // speaks - slow, low, in the explorers' formant voice taken right down - and the words are subtitles, always shown
+  // (they are dialogue). You never speak. Pauses between its lines; its hum swells on two of them; before "the
+  // knocking" a silence, three slow knocks far off with a long echo (it turns its head a little towards them), and
+  // one more knock after its last line - then a cut to black, and the end of the story so far.
+  const LS_LINES = [
+    // [text, the pause before it (s)]
+    ['You kept going. They never do.', 0],
+    ['Forgive the dark. It is easier to talk here. Nothing listens in the dark. Mostly.', 1.6],
+    ['You think I built the maze. I did not. Nobody did. I only keep it.', 2.0],
+    ['The ones you ran from were never hunting you. They were looking for the door.', 1.8],
+    ['I made the yard from what I remembered. The grass. The village. I am told I got the sky wrong.', 2.2],
+    ["I have never been outside the wall. Nor has anyone I've kept.", 1.8],
+    ['I kept them all. Nobody was ever lost here. Only kept.', 2.4], // (its hum swells)
+    ['But you came from somewhere. Everyone does.', 2.2],
+    ['Listen...', 2.6],
+    ['It has been knocking since you left the light. It knows how you got here.', 0], // (after the knocks; the hum swells)
+    ['Come to the wall. I will tell you the rest, if it lets me.', 2.0],
+  ];
+  const LS_CPS = 12; // its words: slow
+  const LS_FIRST = 3.2; // s: its first line (after the fade in)
+  const LS_HOLD = 1.6; // s a line stays up once it is all there
+  const LS_SWELL = [6, 9]; // the lines (0-based) its hum swells on
+  const LS_HUSH = 1.8; // s of silence after "Listen..." before the first knock
+  const LS_KNOCK_GAP = 1.7; // s between the knocks
+  const LS_AFTER_KNOCKS = 2.6; // s after the third before it speaks again
+  const LS_LAST_KNOCK = 2.4; // s after its last line: one more knock
+  const LS_CUT = 1.5; // ...and then this long before the cut to black
+  const LS_PLAYER = { x: 470, y: 300 }; // you
+  const LS_WARDEN = { x: 548, y: 300 }; // it, facing you
+  const LS_KNOCK_PAN = -0.55; // far off in the dark, to one side
+  // the timeline, worked out once from the lines above: when each line starts, the knocks, the cut, the end
+  const LS = (() => {
+    let t = LS_FIRST;
+    const at = [];
+    let knocks = [];
+    LS_LINES.forEach(([text, gap], i) => {
+      t += gap;
+      at.push(t);
+      t += text.length / LS_CPS + LS_HOLD;
+      if (i === 8) {
+        knocks = [0, 1, 2].map((k) => t + LS_HUSH + k * LS_KNOCK_GAP);
+        t = knocks[2] + LS_AFTER_KNOCKS;
+      }
+    });
+    const last = t + LS_LAST_KNOCK;
+    const cut = last + LS_CUT;
+    return { at, knocks, last, cut, end: cut + 1.4 };
+  })();
+  const PAL_LISTENS = { glow: '200,210,226', cone: '200,210,226', body: '176,184,198', hand: '186,192,204', head: '206,212,222', lamp: '226,232,240' };
+
   // per-scene set-up: when the scene proper begins, the lamp colours, and which level's ambient drone plays
-  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S, kept: 0, alarm: AL_S };
-  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER, kept: PAL_KEEPER, alarm: PAL_ALARM };
+  const SCENE_START = { intro: S, scent: SC_S, mimic: MM_S, decoy: DC_S, stalker: ST_S, muffler: MF_S, singer: SG_S, keeper: KP_S, kept: 0, alarm: AL_S, listens: 0 };
+  const SCENE_PAL = { intro: PAL_INTRO, scent: PAL_SCENT, mimic: PAL_MIMIC, decoy: PAL_DECOY, stalker: PAL_STALKER, muffler: PAL_MUFFLER, singer: PAL_SINGER, keeper: PAL_KEEPER, kept: PAL_KEEPER, alarm: PAL_ALARM, listens: PAL_LISTENS };
   const SCENE_AMBIENT = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14, kept: 14, alarm: 12 };
 
   // ------------------------------------------------------------------- stage
@@ -505,6 +557,7 @@ const EchoCutscene = (() => {
     // keeper scene state (v16.0): the Warden, the explorer, the gate, the door and the key - see updateKeeperScene
     let kp = null;
     let kt = null; // (v16.2) the hidden scene's state - see updateKeptScene
+    let ls = null; // (v19.3) "Nothing Listens" - see updateListensScene
 
     // -------------------------------------------------------------- helpers
     const sceneT = () => time - sceneStart;
@@ -586,16 +639,26 @@ const EchoCutscene = (() => {
     }
     function updateSub() {
       if (!sub) return;
-      const n = Math.min(sub.text.length, Math.floor((time - sub.start) * CPS));
+      const cps = sub.cps || CPS;
+      const n = Math.min(sub.text.length, Math.floor((time - sub.start) * cps));
       if (n !== sub.shown) {
-        for (let i = sub.shown; i < n; i++) {
+        for (let i = sub.shown; i < n && !sub.spoken; i++) {
           const ch = sub.text[i];
           if (/[a-z]/i.test(ch) && i % 2 === 0) audio.voice(ch.toLowerCase().charCodeAt(0));
         }
         sub.shown = n;
         el.line.textContent = sub.text.slice(0, n);
       }
-      if (n >= sub.text.length && time - (sub.start + sub.text.length / CPS) > 1.6) clearSub();
+      if (n >= sub.text.length && time - (sub.start + sub.text.length / cps) > (sub.hold || 1.6)) clearSub();
+    }
+    /** (v19.3) A line of the Warden's: typed at its own slow pace, spoken whole in its low voice. No name over it. */
+    function sayKeeper(text) {
+      sub = { text, start: time, shown: 0, cps: LS_CPS, hold: LS_HOLD - 0.2, spoken: true };
+      el.speaker.textContent = '';
+      el.line.textContent = '';
+      el.sub.classList.add('show');
+      const v = audio.speak(text, { pitch: 0.5, shake: 0.025, vol: 0.95, cps: LS_CPS, len: 1.7, wet: 0.5 });
+      if (ls) ls.speech = v;
     }
 
     function stopMonsterVoice() {
@@ -2208,10 +2271,114 @@ const EchoCutscene = (() => {
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    // ------------------------------------------------- (v19.3) "Nothing Listens"
+    function buildListens() {
+      events = [];
+      ev = 0;
+      const at = (t, fn) => events.push({ t, fn });
+      stage.person = { x: LS_PLAYER.x, y: LS_PLAYER.y, r: 9 };
+      person = stage.person;
+      ls = { h: Math.PI, hum: 0.08, glow: 1, line: -1, knocks: 0, cut: false, speech: null };
+      camX = (LS_PLAYER.x + LS_WARDEN.x) / 2;
+      camY = LS_PLAYER.y + 6;
+      mvoice = audio.createEnemyVoice(46.25, 'warden'); // its own low hum (15-16's)
+      LS_LINES.forEach(([text], i) => at(LS.at[i], () => {
+        ls.line = i;
+        sayKeeper(text);
+      }));
+      const knock = (t, g, last) => {
+        at(t, () => {
+          ls.knocks++;
+          audio.knock(LS_KNOCK_PAN, g);
+        });
+        // the long echo: the same knock again, quieter and further off, twice
+        at(t + 0.62, () => audio.knock(LS_KNOCK_PAN * 0.6, g * 0.34));
+        at(t + 1.3, () => audio.knock(LS_KNOCK_PAN * 0.3, g * 0.13));
+        if (last) at(t + 0.1, () => fx('[one more knock]', 2.2));
+      };
+      LS.knocks.forEach((t) => knock(t, 0.7, false));
+      knock(LS.last, 0.8, true);
+      at(LS.cut, () => {
+        ls.cut = true; // to black - not a fade
+        clearSub();
+        stopMonsterVoice();
+      });
+      at(LS.end, () => finish());
+      // [sound captions] (Visual cues option only) - its words are subtitles, always shown
+      const fxs = (t, text, dur) => at(t, () => fx(text, dur));
+      fxs(1.0, '[a low hum]', 2.2);
+      LS_SWELL.forEach((i) => fxs(LS.at[i] + 0.3, '[the hum swells]', 2.0));
+      fxs(LS.knocks[0] - 1.2, '[silence]', 1.1);
+      fxs(LS.knocks[0] + 0.1, '[three slow knocks]', LS_KNOCK_GAP * 2 + 1.2);
+      fxs(LS.knocks[2] + 1.5, '[a long echo]', 1.8);
+      events.sort((a, b) => a.t - b.t);
+    }
+    function updateListensScene(dt) {
+      const st = sceneT();
+      // its hum: low; it swells on two of its lines, and goes when it cuts to black
+      const swelling = LS_SWELL.some((i) => st >= LS.at[i] && st < LS.at[i] + LS_LINES[i][0].length / LS_CPS + LS_HOLD);
+      const target = ls.cut ? 0 : swelling ? 0.17 : st > LS.knocks[0] - LS_HUSH && st < LS.knocks[2] + 1.5 ? 0.03 : 0.08;
+      ls.hum += (target - ls.hum) * Math.min(1, dt * 1.2);
+      ls.glow = 0.85 + 0.15 * Math.sin(st * 0.9) + (swelling ? 0.25 : 0);
+      if (mvoice) audio.updateEnemyVoice(mvoice, { gain: ls.hum * (isCalm() ? 0.6 : 1), pan: 0.22, mood: 0.05, muffle: false });
+      // where it looks: at you - and, while it listens to the knocking, a little aside, towards it
+      const listening = st >= LS.at[8] && st < LS.knocks[2] + 1.8;
+      const want = listening ? Math.PI - 0.5 : Math.PI;
+      ls.h += (want - ls.h) * Math.min(1, dt * 1.1);
+    }
+    function drawListensWorld() {
+      if (ls.cut) return;
+      const W = LS_WARDEN;
+      const P = LS_PLAYER;
+      const D = EchoPalette.daylight;
+      // its faint pale glow - the only light there is
+      ctx.globalCompositeOperation = 'lighter';
+      const R = 150;
+      const g = ctx.createRadialGradient(W.x, W.y, 0, W.x, W.y, R);
+      g.addColorStop(0, `rgba(${PAL_LISTENS.glow},${0.2 * ls.glow})`);
+      g.addColorStop(0.55, `rgba(${PAL_LISTENS.glow},${0.06 * ls.glow})`);
+      g.addColorStop(1, 'rgba(150,160,180,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(W.x, W.y, R, 0, TAU);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      // you, from above, as you are seen outside - faintly, in its light, facing it
+      ctx.save();
+      ctx.globalAlpha = 0.72;
+      ctx.translate(P.x, P.y);
+      ctx.fillStyle = D.bodyEdge;
+      ctx.beginPath();
+      ctx.ellipse(0, -4.5, 3.4, 2.4, 0, 0, TAU);
+      ctx.ellipse(0, 4.5, 3.4, 2.4, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = D.body;
+      ctx.strokeStyle = D.bodyEdge;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5.6, 9, 0, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = D.head;
+      ctx.beginPath();
+      ctx.arc(1.2, 0, 4.4, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = D.hair;
+      ctx.beginPath();
+      ctx.arc(0.2, 0, 4.4, Math.PI * 0.55, Math.PI * 1.45);
+      ctx.fill();
+      ctx.restore();
+      // it: the hunting Warden's stone (js/warden.js), still
+      ctx.globalCompositeOperation = 'lighter';
+      EchoWarden.drawHunter(ctx, W.x, W.y, 18, { a: 0.92, t: time, h: ls.h, variant: 'regular' });
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
     function start(k = 'intro') {
       kind = SCENE_START[k] !== undefined ? k : 'intro';
       kp = null;
       kt = null;
+      ls = null;
       sceneStart = SCENE_START[kind];
       pal = SCENE_PAL[kind];
       smell = 0;
@@ -2263,6 +2430,7 @@ const EchoCutscene = (() => {
       else if (kind === 'keeper') buildKeeper();
       else if (kind === 'alarm') buildAlarm();
       else if (kind === 'kept') buildKept();
+      else if (kind === 'listens') buildListens(); // (v19.3)
       else build();
       // (v16.0) a scene the game says cannot be skipped yet (the keeper scene's first viewing) shows no Skip button
       el.skip.classList.toggle('hidden', !canSkipNow());
@@ -2272,7 +2440,7 @@ const EchoCutscene = (() => {
       el.sub.classList.remove('show');
       fxUntil = 0;
       if (el.fx) el.fx.classList.remove('show');
-      audio.startAmbient(SCENE_AMBIENT[kind]);
+      if (kind !== 'listens') audio.startAmbient(SCENE_AMBIENT[kind]); // (v19.3: the void is near silence - only its hum)
     }
 
     function cleanup() {
@@ -2348,6 +2516,10 @@ const EchoCutscene = (() => {
       }
       if (kind === 'kept') {
         updateKeptScene(dt);
+        return;
+      }
+      if (kind === 'listens') {
+        updateListensScene(dt);
         return;
       }
 
@@ -2841,6 +3013,8 @@ const EchoCutscene = (() => {
         drawKeeperWorld();
       } else if (kind === 'kept') {
         drawKeptWorld();
+      } else if (kind === 'listens') {
+        drawListensWorld();
       } else {
         env.drawRippleLayer();
         if (personVisible) drawPerson();
@@ -2872,6 +3046,10 @@ const EchoCutscene = (() => {
       ctx.fillRect(0, 0, cw, bar);
       ctx.fillRect(0, ch - bar, cw, bar);
       // (v16.0) the keeper scene's cut to the gaol door, and its end in black (level 14 wakes in it)
+      if (kind === 'listens' && ls && ls.cut) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch); // (v19.3) cut to black
+      }
       if (kind === 'keeper' || kind === 'kept') {
         const b = kind === 'kept' ? (st > KT_FADE ? smooth((st - KT_FADE) / 1.2) : 0) : keeperBlack(st);
         if (b > 0.003) {
@@ -2917,6 +3095,11 @@ const EchoCutscene = (() => {
         return kt ? { warden: { x: kt.wx, y: kt.wy, h: kt.wh }, reach: kt.reach, laid: kt.laid, notes: kt.notes.length, lit: { warden: kpLit(kt.wx, kt.wy), tally: kpLit(KT_TALLY.x + 46, KT_TALLY.y + 6), notes: kt.notes.slice(0, kt.laid).map((n) => +kpLit(n.x, n.y).toFixed(2)) } } : null;
       },
       KEPT_END: KT_END,
+      // for tests (v19.3): "Nothing Listens" - which line, the knocks, its hum, where it looks, the cut
+      get listens() {
+        return ls ? { line: ls.line, knocks: ls.knocks, hum: +ls.hum.toFixed(3), h: +ls.h.toFixed(3), cut: ls.cut, subtitle: el.sub.classList.contains('show') ? el.line.textContent : '' } : null;
+      },
+      LISTENS: { lines: LS_LINES.map((l) => l[0]), at: LS.at, knocks: LS.knocks, last: LS.last, cut: LS.cut, end: LS.end },
     };
   }
 

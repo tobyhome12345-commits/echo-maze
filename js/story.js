@@ -297,6 +297,83 @@ const EchoStory = (() => {
     return { W, H, map, path, shade, flower, trees, built, props: { houses, gardens, fences, well, stalls, bench, line, gate: { x: X[0], y: X[1] } }, people };
   })();
 
+  // ------------------------------------------------------------ (v19.3) DUSK: the walk into the dark
+  /**
+   * Level 28, "Dusk": a long meadow on from the village, in Fresh Air's daylight - and the further along it you walk,
+   * the more the light drains out of it (js/game.js drawDaylight, story `dusk()`): dusk, night, then nothing at all,
+   * the ground gone, you alone in black. Far along, a single Warden stands in a faint pale glow. It does not move and
+   * it cannot hurt you; close to it you can talk to it (the 'interact' key), and that is the scene "Nothing Listens".
+   * The edge of the map is a wall you cannot see once it is dark. Built once, the same every time (its own xorshift).
+   */
+  const DUSK = (() => {
+    const W = 150;
+    const H = 13;
+    let q = 0x0d05c;
+    const r = () => {
+      q ^= q << 13;
+      q >>>= 0;
+      q ^= q >>> 17;
+      q ^= q << 5;
+      q >>>= 0;
+      return q / 4294967296;
+    };
+    const S = [3, 6];
+    const KEEPER = [W - 14, 6]; // where it stands
+    const X = [W - 2, 6]; // (a way out the level has, past it, that does nothing: nothing happens here but the talk)
+    const path = new Float32Array(W * H);
+    for (let x = 1; x < W - 1; x++) {
+      const y = 6 + 1.6 * Math.sin(x / 11);
+      const wearK = clamp(1 - (x - 70) / 40, 0, 1); // the path fades out before the light does
+      for (let dy = -2; dy <= 2; dy++) {
+        const ty = Math.round(y) + dy;
+        if (ty < 1 || ty > H - 2) continue;
+        const i = ty * W + x;
+        path[i] = Math.max(path[i], wearK * Math.max(0, 1 - Math.abs(ty - y) / 2));
+      }
+    }
+    const G = 6;
+    const gw = Math.ceil(W / G) + 2;
+    const gv = Array.from({ length: gw * (Math.ceil(H / G) + 2) }, r);
+    const shade = new Uint8Array(W * H);
+    const flower = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const fx = x / G;
+        const fy = y / G;
+        const ix = Math.floor(fx);
+        const iy = Math.floor(fy);
+        const sx = (fx - ix) * (fx - ix) * (3 - 2 * (fx - ix));
+        const sy = (fy - iy) * (fy - iy) * (3 - 2 * (fy - iy));
+        const a = gv[iy * gw + ix] + (gv[iy * gw + ix + 1] - gv[iy * gw + ix]) * sx;
+        const b = gv[(iy + 1) * gw + ix] + (gv[(iy + 1) * gw + ix + 1] - gv[(iy + 1) * gw + ix]) * sx;
+        shade[y * W + x] = Math.min(4, Math.floor((a + (b - a) * sy) * 4.6 + r() * 0.5));
+        if (path[y * W + x] < 0.15 && x < 90 && r() < 0.04) flower[y * W + x] = 1 + Math.floor(r() * 3);
+      }
+    }
+    // trees along both sides of the meadow, thinning out ahead - none in the last of it
+    const trees = [];
+    for (let x = 8; x < 104; x += 3 + r() * 5) {
+      for (const side of [0, 1]) {
+        if (r() < 0.25 + x / 300) continue;
+        const y = side ? H - 1.2 - r() * 1.6 : 1.2 + r() * 1.6;
+        trees.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, r: 32 + r() * 24, tone: r() });
+      }
+    }
+    const map = [];
+    for (let y = 0; y < H; y++) {
+      let row = '';
+      for (let x = 0; x < W; x++) {
+        const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1;
+        row += edge ? '#' : x === S[0] && y === S[1] ? 'S' : x === X[0] && y === X[1] ? 'X' : x === KEEPER[0] && y === KEEPER[1] ? 'p' : '.';
+      }
+      map.push(row);
+    }
+    // how far along the way you are: 0 where you come in, 1 a little short of it
+    const from = (S[0] + 0.5) * TILE;
+    const to = (KEEPER[0] - 3 + 0.5) * TILE;
+    return { W, H, map, path, shade, flower, trees, dusk: { keeper: { x: (KEEPER[0] + 0.5) * TILE, y: (KEEPER[1] + 0.5) * TILE }, from, to } };
+  })();
+
   const LEVELS = {
     14: {
       kind: 'gaol',
@@ -665,6 +742,17 @@ const EchoStory = (() => {
       movementOnly: true,
       map: VILLAGE.map,
     },
+    // (v19.3) 28, "Dusk": the flags of the outside, and one more - a key to talk with (only near the one it is for)
+    28: {
+      kind: 'dusk',
+      daylight: true,
+      noRipple: true,
+      noCrouch: true,
+      noHud: true,
+      movementOnly: true,
+      interact: true,
+      map: DUSK.map,
+    },
   };
   /**
    * (v17.0) THE VOID, by `void` level (17: 1 ... 20: 4). Drawing and sound only - nothing in it is read by anything
@@ -748,7 +836,7 @@ const EchoStory = (() => {
         else if (ch === 'W') hunter = { x: c(x), y: c(y) };
         else if (ch === 'P') seals.push({ tx: x, ty: y });
         else if (ch === 'd') drips.push({ x: c(x), y: c(y) });
-        else if (ch === 'p') obstacles.push({ x: c(x), y: c(y), r: OBSTACLE_R });
+        else if (ch === 'p') obstacles.push({ x: c(x), y: c(y), r: spec.kind === 'dusk' ? 18 : OBSTACLE_R }); // (v19.3: on 28, the Warden standing there - its own size)
         else if (ch === 'g') ghosts.push({ i, tx: x, ty: y, gone: false });
         else if (ch === 'h') hidden.push({ i, tx: x, ty: y, shown: false });
         else if (ch === 'A') slideA.push(i);
@@ -868,8 +956,8 @@ const EchoStory = (() => {
       },
       act2,
       // (v19.0) per-level flags (js/game.js): every story level has them, all false but where a level says
-      flags: { daylight: !!spec.daylight, noRipple: !!spec.noRipple, noCrouch: !!spec.noCrouch, noHud: !!spec.noHud, movementOnly: !!spec.movementOnly },
-      field: spec.kind === 'field' ? FIELD : spec.kind === 'village' ? VILLAGE : null, // (v19.0) what the field looks like (drawing only; v19.2: and the village)
+      flags: { daylight: !!spec.daylight, noRipple: !!spec.noRipple, noCrouch: !!spec.noCrouch, noHud: !!spec.noHud, movementOnly: !!spec.movementOnly, interact: !!spec.interact },
+      field: spec.kind === 'field' ? FIELD : spec.kind === 'village' ? VILLAGE : spec.kind === 'dusk' ? DUSK : null, // (v19.0) what the field looks like (drawing only; v19.2: and the village)
       rayWalls: act2 ? act2.rayWalls : null, // (17: what a ripple's rays meet instead of level.walls)
       rippleScale: spec.ripple ? spec.ripple.speed : 0, // (20: the ripple's speed, as a fraction of its usual)
       rippleLag: spec.ripple ? spec.ripple.lag : 0, // (20: seconds before what it found is shown)
@@ -1328,13 +1416,15 @@ const EchoStory = (() => {
       if (kind === 'gaol') startGaol();
       else if (kind === 'light') startLight();
       else if (kind === 'outside') startOutside(); // (v18.2)
-      else if (kind === 'field' || kind === 'village') startField(); // (v19.0; v19.2 the village too)
+      else if (kind === 'field' || kind === 'village' || kind === 'dusk') startField(); // (v19.0; v19.2 the village; v19.3 dusk)
       else if (S.spec.act2) startAct2();
       else startDeep();
     }
 
     function stop() {
       hideSpeech();
+      if (dkVoice && audio) audio.destroyEnemyVoice(dkVoice); // (v19.3)
+      dkVoice = null;
       if (audio) {
         if (!carryDaylight) audio.stopDaylight(true); // (v19.0: kept from 25's end into the field)
         audio.stopCistern();
@@ -1704,6 +1794,8 @@ const EchoStory = (() => {
     // (25's sound of outside, carried on and swelling), louder towards the way on.
     function startField() {
       phase = 'calm';
+      dk = { p: 0, k: 0, s1: 0, s2: 0, s3: 0, h: 0, hum: 0, d: Infinity, talked: false, murmurCd: 3, echo: [] };
+      if (kind === 'dusk' && audio) dkVoice = audio.createEnemyVoice(46.25, 'warden'); // its own low voice (15-16's)
       vPhase = 0;
       vCycle = 0;
       vHush = 0;
@@ -1734,9 +1826,11 @@ const EchoStory = (() => {
       birdCd -= dt;
       if (birdCd <= 0) {
         birdCd = 1.6 + 3.6 * chirpRnd();
-        if (audio) audio.birdChirp(chirpRnd() * 1.6 - 0.8, 0.25 + 0.4 * chirpRnd());
+        const fewer = kind === 'dusk' ? clamp(1 - dk.k / 0.4, 0, 1) : 1; // (v19.3: the birds go quiet as it darkens)
+        if (audio && fewer > 0) audio.birdChirp(chirpRnd() * 1.6 - 0.8, (0.25 + 0.4 * chirpRnd()) * fewer);
       }
       if (kind === 'village') updateVillage(dt, near);
+      if (kind === 'dusk') updateDusk(dt);
     }
 
     // ===================================================== (v19.2) 27: FRESH AIR, THE VILLAGE
@@ -1842,6 +1936,68 @@ const EchoStory = (() => {
         villagePlay(e.snd, e.x, e.y, e.gain, e.who, true);
       }
     }
+    // ===================================================== (v19.3) 28: DUSK
+    // The light goes with how far you have come (never with time: standing still changes nothing), and it does not
+    // come back if you turn round. Four stretches: day; dusk (a warm, then violet, dimming); night (deep blue); and
+    // then black - the ground and everything on it gone. The sound goes with it: the wind and the birds fade, the
+    // village's last murmurs (and their echoes) behind you die away, and your steps turn to the gaol's dry ones
+    // (js/game.js). Far along, the Warden in its faint glow - harmless, still, its hum coming up as you come near;
+    // close to, it turns to face you; closer, you can talk to it.
+    const DUSK_TALK = 92; // px from it: the Talk prompt
+    const DUSK_TURN = 165; // px: it turns to you
+    let dk = { p: 0, k: 0, s1: 0, s2: 0, s3: 0, h: 0, hum: 0, d: Infinity, talked: false, murmurCd: 3, echo: [] };
+    let dkVoice = null;
+    function updateDusk(dt) {
+      const D = lv.field.dusk;
+      const p = P();
+      dk.p = Math.max(dk.p, clamp((p.x - D.from) / (D.to - D.from), 0, 1)); // as far as you have come - and kept
+      dk.s1 = smooth((dk.p - 0.1) / 0.28); // dusk
+      dk.s2 = smooth((dk.p - 0.34) / 0.3); // night
+      dk.s3 = smooth((dk.p - 0.6) / 0.22); // nothing
+      dk.k = smooth((dk.p - 0.08) / 0.7); // how much of the day has gone (the sound)
+      if (audio && phase !== 'leaving') audio.setDaylight(0.6 * (1 - dk.k));
+      // the village behind you: a murmur now and then, and its echo, dying away
+      dk.murmurCd -= dt;
+      if (dk.murmurCd <= 0) {
+        dk.murmurCd = 2.6 + 3 * chirpRnd();
+        const g = 0.16 * clamp(1 - dk.k / 0.3, 0, 1);
+        if (audio && g > 0.01) {
+          audio.murmur(-0.8, g, 0.8 + 0.4 * chirpRnd());
+          dk.echo.push({ at: clock + 0.45, g: g * 0.4 });
+        }
+      }
+      for (let i = dk.echo.length - 1; i >= 0; i--) {
+        if (clock < dk.echo[i].at) continue;
+        if (audio) audio.murmur(-0.7, dk.echo[i].g, 0.9);
+        dk.echo.splice(i, 1);
+      }
+      // the Warden: it never moves. Its hum comes up as you come near; close to, it turns to face you
+      const K = D.keeper;
+      dk.d = Math.hypot(p.x - K.x, p.y - K.y);
+      const want = dk.d < DUSK_TURN ? Math.atan2(p.y - K.y, p.x - K.x) : 0;
+      let dh = want - dk.h;
+      while (dh > Math.PI) dh -= Math.PI * 2;
+      while (dh < -Math.PI) dh += Math.PI * 2;
+      dk.h += dh * Math.min(1, dt * 1.4); // slowly
+      dk.hum = 0.16 * Math.pow(clamp(1 - dk.d / 1500, 0, 1), 1.5);
+      if (dkVoice) audio.updateEnemyVoice(dkVoice, { gain: dk.hum * (calm() ? 0.6 : 1), pan: clamp((K.x - p.x) / 420, -0.9, 0.9), mood: 0.05, muffle: false });
+    }
+    const duskTalkable = () => kind === 'dusk' && !dk.talked && phase !== 'leaving' && !locked && dk.d < DUSK_TALK;
+    /** (js/game.js) the dark, the Warden and the Talk prompt, as they are now. */
+    function dusk() {
+      if (!lv || kind !== 'dusk') return null;
+      return { p: dk.p, k: dk.k, s1: dk.s1, s2: dk.s2, s3: dk.s3, keeper: lv.field.dusk.keeper, h: dk.h, hum: dk.hum, d: dk.d, talkable: duskTalkable(), talked: dk.talked };
+    }
+    /** Talk to it (the interact key, or the Talk button): the scene "Nothing Listens" (js/game.js onTalk). */
+    function talk() {
+      if (!duskTalkable()) return false;
+      dk.talked = true;
+      setLock(true);
+      env.walk(0, 0);
+      if (env.talk) env.talk();
+      return true;
+    }
+
     /** (js/game.js drawDaylight) the villagers as they are now: where, facing, walking, how faded, what they wear. */
     function villagers() {
       if (!lv || kind !== 'village') return [];
@@ -2128,6 +2284,7 @@ const EchoStory = (() => {
     // ===================================================== the way out of each
     /** The player has reached this level's way out (js/game.js asks, instead of finishing the level itself). */
     function atExit() {
+      if (kind === 'dusk') return; // (v19.3) nothing happens at the far end of the dark: only the talk
       if (!lv || phase === 'leaving' || phase === 'wake' || phase === 'reveal' || phase === 'release') return;
       if (kind === 'gaol' && S.door && S.door.solid) return; // (cannot happen: the door is in the way)
       phase = 'leaving';
@@ -2219,7 +2376,7 @@ const EchoStory = (() => {
       if (kind === 'gaol') updateGaol(dt);
       else if (kind === 'light') updateLight(dt);
       else if (kind === 'outside') updateOutside(dt); // (v18.2)
-      else if (kind === 'field' || kind === 'village') updateField(dt); // (v19.0; v19.2 the village too)
+      else if (kind === 'field' || kind === 'village' || kind === 'dusk') updateField(dt); // (v19.0; v19.2 the village; v19.3 dusk)
       else if (S.spec.act2) updateAct2(dt);
       else updateDeep(dt);
     }
@@ -2360,7 +2517,8 @@ const EchoStory = (() => {
       drips: drips.map((d) => ({ x: d.x, y: d.y, on: d.on, metal: d.metal })),
       speaking: speech ? speech.text : null,
       act2: S && S.spec.act2 ? { glitch: +glitchT.toFixed(3), firstPing, fallIn: +fallIn.toFixed(2), flicker: +foldFlick.toFixed(3) } : null, // (v17.0)
-      outside: kind === 'outside' || kind === 'field' || kind === 'village' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2; v19.0 the field too; v19.2 the village)
+      outside: kind === 'outside' || kind === 'field' || kind === 'village' || kind === 'dusk' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2; v19.0 the field too; v19.2 the village)
+      dusk: kind === 'dusk' ? { p: +dk.p.toFixed(3), k: +dk.k.toFixed(3), s3: +dk.s3.toFixed(3), h: +dk.h.toFixed(3), hum: +dk.hum.toFixed(4), d: Math.round(dk.d), talkable: duskTalkable(), talked: dk.talked, keeper: lv.field.dusk.keeper } : null, // (v19.3)
       village: kind === 'village' ? { phase: +vPhase.toFixed(3), cycle: vCycle, resets: vResets, echoes: vEchoes.length, hush: +vHush.toFixed(3), loop: VILLAGE_LOOP, echoDelay: ECHO_DELAY, echoGain: ECHO_GAIN, echoMax: ECHO_MAX, people: villagers(), queue: vEchoes.map((e) => ({ snd: e.snd, x: e.x, y: e.y, at: +e.at.toFixed(3), gain: +e.gain.toFixed(4), from: e.who ? lv.field.people.indexOf(e.who) : -1 })) } : null, // (v19.2)
     });
 
@@ -2378,6 +2536,8 @@ const EchoStory = (() => {
       flicker,
       drawVoid,
       villagers, // (v19.2)
+      dusk, // (v19.3)
+      talk,
       state,
       get on() {
         return !!lv;

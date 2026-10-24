@@ -277,7 +277,7 @@ window.LoreStoryTest = (() => {
       if (!$('btn-replay').classList.contains('hidden')) {
         $('btn-replay').click();
         await sleep(350);
-        T.check(`${label}: not in Levels & cutscenes either (not even a ???)`, !replayHasKept() && document.querySelectorAll('#scene-list .scene').length === 9); // (the nine story scenes - v18.0 added the Alarm's)
+        T.check(`${label}: not in Levels & cutscenes either (not even a ???)`, !replayHasKept() && document.querySelectorAll('#scene-list .scene').length === 10); // (the ten story scenes - v18.0 added the Alarm's, v19.3 Dusk's)
         await toTitle();
       }
     }

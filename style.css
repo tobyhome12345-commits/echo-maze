@@ -4499,3 +4499,48 @@ body.touch.on-title #rotate {
     display: none;
   }
 }
+
+/* (v19.3) Dusk: the Talk prompt - small, pale, low in the middle of the dark; only there close to the one it is for */
+#talk {
+  position: fixed;
+  left: 50%;
+  bottom: 18%;
+  transform: translate(-50%, 6px);
+  z-index: 30;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(210, 220, 236, 0.45);
+  background: rgba(10, 14, 24, 0.72);
+  color: #e4ebf5;
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+#talk.show {
+  display: inline-flex;
+  opacity: 1;
+  transform: translate(-50%, 0);
+  animation: talk-in 0.45s ease;
+}
+@keyframes talk-in {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+#talk .key {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  border: 1px solid rgba(210, 220, 236, 0.6);
+  font-size: 13px;
+  text-align: center;
+}
+#talk .key.hidden { display: none; }
+body.touch #talk { bottom: auto; top: 58%; min-height: 52px; padding: 10px 26px; font-size: 17px; }

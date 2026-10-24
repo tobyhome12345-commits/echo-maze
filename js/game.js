@@ -36,7 +36,7 @@
   const SCENE_LEADS_TO = { intro: 1, scent: 6, mimic: 8, decoy: 9, stalker: 10, muffler: 11, singer: 12, keeper: 14, alarm: 22 };
   // (v16.0) the scenes that cannot be skipped until they have been seen once - and that count as seen only when
   // they have played to the END (every other scene counts the moment it starts, as it always has)
-  const SEEN_AT_END = { keeper: true };
+  const SEEN_AT_END = { keeper: true, listens: true }; // (v19.3: and Dusk's scene, "Nothing Listens")
   const SAVE_KEY = 'echomaze.best'; // legacy: one best level, from before difficulty modes
   const PROGRESS_KEY = 'echomaze.progress'; // { easy: 3, normal: 5, ... } highest level unlocked per mode
   const MODE_KEY = 'echomaze.mode';
@@ -213,6 +213,7 @@
    * pausing still works. Every one of them is reached only on a story level.
    */
   const story = EchoStory.create({
+    talk: () => onTalk(), // (v19.3) Dusk: the Warden has been talked to
     player: () => player,
     level: () => level,
     audio,
@@ -2030,7 +2031,7 @@
    *                anything else (Continue, the level list, a reload) starts the level from the beginning. Nothing
    *                is saved until the second part's way out.
    */
-  /** (v19.0) A per-level flag (a story level's `flags`, js/story.js): daylight, noRipple, noCrouch, noHud, movementOnly. */
+  /** (v19.0) A per-level flag (a story level's `flags`, js/story.js): daylight, noRipple, noCrouch, noHud, movementOnly (v19.3: interact). */
   const levelFlag = (k) => !!(level && level.flags && level.flags[k]);
   const MOVE_ACTIONS = ['up', 'down', 'left', 'right'];
   /**
@@ -2039,7 +2040,7 @@
    * "Outside N".) The internal numbers (saves, progress) never change: only what is shown.
    */
   const OUTSIDE_FIRST = 26;
-  const OUTSIDE_NAMES = ['First Breath', 'Fresh Air', 'Open Ground', 'Same Sky', 'The Wall']; // 26, 27, 28... (only 26 exists yet)
+  const OUTSIDE_NAMES = ['First Breath', 'Fresh Air', 'Dusk', 'Open Ground', 'Same Sky', 'The Wall']; // 26, 27, 28 (v19.3), and the names kept for what comes after
   const levelName = (n) => (n >= OUTSIDE_FIRST ? OUTSIDE_NAMES[n - OUTSIDE_FIRST] || `Outside ${n - OUTSIDE_FIRST + 1}` : `Level ${n}`);
   const levelShort = (n) => (n >= OUTSIDE_FIRST ? levelName(n) : `Lv ${n}`);
   const levelLower = (n) => (n >= OUTSIDE_FIRST ? levelName(n) : `level ${n}`); // (inside a sentence)
@@ -3017,7 +3018,12 @@
         player.stepDist = 0;
         if (!player.crouching) {
           // a crouching player makes no footstep sound, so nothing can hear one
-          if (levelFlag('daylight')) audio.grassStep(1); // (v19.0) outside: grass underfoot
+          if (levelFlag('daylight')) {
+            // (v19.0) outside: grass underfoot - (v19.3) on Dusk, as the light goes, the gaol's dry, quiet steps
+            const dk = story.dusk();
+            if (dk && dk.k > 0.55) audio.footstep(0.32);
+            else audio.grassStep(dk ? 1 - 0.5 * dk.k : 1);
+          }
           else if (level.act2 && onDeadAir()) audio.footstep(0.3); // (v18.0) 22: dead air - a dull step that nothing hears
           else {
             audio.footstep(1);
@@ -3759,13 +3765,15 @@
     if (f && f.props) drawVillage(D, f, x0, x1, y0, y1); // (v19.2) the village: its houses, fences, well and stalls
     // the way on: sunlight beyond the gap in the trees
     const ex = level.exit;
-    const glow = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, 150);
-    glow.addColorStop(0, `rgba(${D.light},0.55)`);
-    glow.addColorStop(1, `rgba(${D.light},0)`);
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(ex.x, ex.y, 150, 0, TAU);
-    ctx.fill();
+    if (!(f && f.dusk)) {
+      const glow = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, 150);
+      glow.addColorStop(0, `rgba(${D.light},0.55)`);
+      glow.addColorStop(1, `rgba(${D.light},0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(ex.x, ex.y, 150, 0, TAU);
+      ctx.fill();
+    }
     const vx0 = camX - cw / 2 / s - 80;
     const vx1 = camX + cw / 2 / s + 80;
     const vy0 = camY - ch / 2 / s - 80;
@@ -3798,7 +3806,51 @@
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (f && f.dusk) drawDusk(D, cw, ch, s);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  /**
+   * (v19.3) DUSK: the day draining out over everything drawn so far - a warm, violet dusk, a deep blue night, then
+   * black: the ground, the grass and the trees gone - and in it only you, and far ahead the Warden in its faint glow.
+   * Three full-screen fills and one glow: cheap on a phone. Drawing only (js/story.js dusk() says how dark).
+   */
+  function drawDusk(D, cw, ch, s) {
+    const dk = story.dusk();
+    if (!dk) return;
+    const inv = 1 / s;
+    const x0 = camX - (cw / 2) * inv;
+    const y0 = camY - (ch / 2) * inv;
+    const fill = (rgb, a) => {
+      if (a <= 0.003) return;
+      ctx.fillStyle = `rgba(${rgb},${a})`;
+      ctx.fillRect(x0 - 10, y0 - 10, cw * inv + 20, ch * inv + 20);
+    };
+    fill('78,34,70', 0.34 * dk.s1 * (1 - dk.s2)); // dusk
+    fill('8,12,34', 0.8 * dk.s2); // night
+    fill('1,2,6', dk.s3); // nothing
+    // you, in the dark: still there
+    if (dk.s2 > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, dk.s2) * 0.85;
+      drawWalker(D);
+      ctx.restore();
+    }
+    // the Warden, still, in a faint pale glow of its own
+    const K = dk.keeper;
+    if (Math.abs(K.x - camX) < cw * inv && Math.abs(K.y - camY) < ch * inv) {
+      const lit = 0.25 + 0.75 * dk.s2;
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(K.x, K.y, 0, K.x, K.y, 130);
+      g.addColorStop(0, `rgba(200,210,226,${0.2 * lit})`);
+      g.addColorStop(0.5, `rgba(170,182,204,${0.07 * lit})`);
+      g.addColorStop(1, 'rgba(150,160,180,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(K.x, K.y, 130, 0, TAU);
+      ctx.fill();
+      EchoWarden.drawHunter(ctx, K.x, K.y, 18, { a: 0.9 * lit, t: artT, h: dk.h, variant: 'regular' });
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
   /** You, from above: shoulders, a head, walking - the first time you are really seen. */
   function drawWalker(D) {
@@ -4473,6 +4525,8 @@
           toTitle();
           if (back === 'archive') showArchive();
           else showReplay();
+        } else if (kind === 'listens') {
+          onTalkDone(); // (v19.3) after the talk in the dark: the end of the story so far
         } else {
           // each scene leads into the level it introduces (see SCENE_LEADS_TO)
           startLevel(SCENE_LEADS_TO[kind] || 1);
@@ -4843,6 +4897,25 @@
   }
 
   /**
+   * (v19.3) DUSK: talking to the Warden in the dark (the interact key, or the Talk button) - its scene, "Nothing
+   * Listens", and after it (onTalkDone) Dusk counts as cleared and the end screen comes up.
+   */
+  function onTalk() {
+    if (state !== 'play' || levelNum !== STORY_LAST || !levelFlag('interact')) return;
+    $('talk').classList.remove('show');
+    talkShown = false;
+    story.stop(); // (what is left of the outside's sound, and its hum, end with the level)
+    startCutscene('listens');
+  }
+  function onTalkDone() {
+    const newBest = saveBest(levelNum + 1);
+    EchoProfile.addClear(mode);
+    EchoProfile.flush();
+    state = 'play'; // (onStoryEnd takes it from the level it ends)
+    onStoryEnd(newBest);
+  }
+
+  /**
    * (v18.2) THE END OF THE STORY SO FAR: after level 25, the light. A calm screen - white fading to dark, one line and a
    * way back to the title. A PLACEHOLDER: when the next part of the story exists, this function and these words are
    * what get replaced (the overlay is #ending in index.html; its look is "#ending" in style.css).
@@ -4969,6 +5042,7 @@
     { kind: 'singer', name: 'Keep Moving', blurb: 'What to do when the song finds you.', locked: 'You will see it when you clear level 11.' },
     { kind: 'keeper', name: 'Somewhere Deeper', blurb: 'Between one dark and the next.', locked: 'You will see it when you clear level 13.' },
     { kind: 'alarm', name: 'Only A Voice', blurb: 'What calls the others.', locked: 'You will see it when you clear level 21.' }, // (v18.0)
+    { kind: 'listens', name: 'Nothing Listens', blurb: 'What the keeper said in the dark.', locked: 'You will see it at the end of Dusk.' }, // (v19.3) unlocked once seen
     // (v16.2) HIDDEN: not listed at all until every fragment is found (js/lore.js secretUnlocked); never played for
     // you, only from here or the Fragments screen; skippable like any scene
     { kind: 'kept', name: 'Kept', blurb: 'For the ones who looked everywhere.', secret: true },
@@ -5810,6 +5884,11 @@
     if (GAME_KEYS.includes(e.code) || ((state === 'play' || state === 'capture') && a)) e.preventDefault();
     keys[e.code] = true;
     if (e.repeat) return;
+    // (v19.3) a level with someone to talk to: the Interact key (E by default - it may share it with the item key)
+    if (state === 'play' && levelFlag('interact') && EchoProfile.keysFor('interact').includes(e.code)) {
+      story.talk();
+      return;
+    }
     // (v19.0) a level that takes only movement (Outside 1): no other game key does anything there - pause still does
     if (state === 'play' && levelFlag('movementOnly') && a && !MOVE_ACTIONS.includes(a) && a !== 'pause') return;
 
@@ -6148,9 +6227,20 @@
   }
   // (v19.0) ...and there, a tap anywhere but the joystick shows the pause button for a few seconds
   let pauseShowTimer = null;
+  let talkShown = false; // (v19.3) the Talk prompt is up
+  // ...a tap or a click on it talks, as the Interact key does (a finger: at once, on the press)
+  $('talk').addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    e.preventDefault();
+    story.talk();
+  });
+  $('talk').addEventListener('click', () => {
+    story.talk();
+    $('talk').blur();
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!document.body.classList.contains('no-hud')) return;
-    if (e.target && e.target.closest && e.target.closest('#touch-zone, #touch-stick')) return;
+    if (e.target && e.target.closest && e.target.closest('#touch-zone, #touch-stick, #talk')) return;
     document.body.classList.add('show-pause');
     clearTimeout(pauseShowTimer);
     pauseShowTimer = setTimeout(() => document.body.classList.remove('show-pause'), 3000);
@@ -6236,6 +6326,18 @@
     // (v19.0) a level with nothing on screen while you play (noHud): body.no-hud hides it all (style.css)
     const bare = state === 'play' && levelFlag('noHud');
     if (document.body.classList.contains('no-hud') !== bare) document.body.classList.toggle('no-hud', bare);
+    // (v19.3) the Talk prompt: the one thing on screen on Dusk, and only close to the one it is for
+    const dkNow = state === 'play' && levelFlag('interact') ? story.dusk() : null;
+    const talkOn = !!(dkNow && dkNow.talkable);
+    if (talkOn !== talkShown) {
+      talkShown = talkOn;
+      $('talk').classList.toggle('show', talkOn);
+      if (talkOn) {
+        const keys = EchoProfile.keysFor('interact').map(EchoProfile.keyLabel).join(' / ');
+        $('talk-key').textContent = keys;
+        $('talk-key').classList.toggle('hidden', touchOn || !keys);
+      }
+    }
     if (touchOn && state === 'play') {
       touch.setCooldown(cfg.cooldown > 0 ? 1 - cooldown / cfg.cooldown : 1);
       touch.setItem(!!player.hasDecoy);
@@ -6633,6 +6735,8 @@
       // v14.0: levels 14-16 (js/story.js). go(14..16) plays them; step() drives them (the beats run inside play).
       story,
       storyState: () => story.state(),
+      dusk: () => story.dusk(), // (v19.3)
+      talk: () => story.talk(),
       scriptLock: () => ({ locked: scriptLock, walk: { ...scriptWalk } }),
       hunter: () => {
         const e = enemies.find((m) => m.kind === 'warden');

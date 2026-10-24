@@ -281,6 +281,29 @@ if (!only.length || only.includes(27)) {
   ok('27: nobody stands where you come in', !near.length);
 }
 
+// (v19.3) 28, Dusk: one long meadow, the way to the Warden open, nothing to solve, nothing to fight
+if (!only.length || only.includes(28)) {
+  warnings.length = 0;
+  const L = vm.runInContext(`generateLevel(28, 12345, 'normal')`, ctx);
+  const W = L.W;
+  const D = L.field.dusk;
+  ok('level 28 (dusk): built with no warnings', !warnings.length, warnings.join(' / '));
+  ok('28: daylight, nothing on screen, movement only - and a key to talk with', ['daylight', 'noRipple', 'noCrouch', 'noHud', 'movementOnly', 'interact'].every((k) => L.flags[k]));
+  ok('28: hand-built (two seeds and two modes give the same map)', JSON.stringify(Array.from(L.walls)) === JSON.stringify(Array.from(vm.runInContext(`generateLevel(28, 999, 'hard').walls`, ctx))));
+  ok('28: no monsters - the Warden there is not one (it never moves, it cannot hurt you)', !L.enemies.length);
+  const k = Math.floor(D.keeper.y / 40) * W + Math.floor(D.keeper.x / 40);
+  const ob = L.obstacles.find((o) => Math.hypot(o.x - D.keeper.x, o.y - D.keeper.y) < 1);
+  ok('28: it stands in your way as something solid, its own size', !!ob && ob.r === 18 && L.blocked[k] === 1);
+  const s = Math.floor(L.start.y / 40) * W + Math.floor(L.start.x / 40);
+  const d = vm.runInContext(`bfsDist(generateLevel(28, 12345, 'normal').blocked, ${W}, ${L.H}, ${s})`, ctx);
+  const beside = k - 2;
+  ok(`28: the way to it is open (${d[beside]} tiles)`, d[beside] > 0);
+  const secs = (D.to - D.from) / 170;
+  ok(`28: the walk into the dark takes about half a minute (${secs.toFixed(0)} s), the scene after it the rest`, secs > 25 && secs < 45);
+  ok('28: the edge is a wall all round (an invisible boundary in the dark)', L.walls.every((w, i) => (i % W === 0 || i % W === W - 1 || i < W || i >= W * (L.H - 1) ? w === 1 : true)));
+  ok('28: no tree in the last of it (the dark is empty)', L.field.trees.every((t) => t.x < D.to - 30 * 40));
+}
+
 const failed = results.filter((r) => !r).length;
 console.log(`\n${results.length - failed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -318,7 +318,7 @@ function wardenConfig(modeId) {
  * zeroed. The Warden that hunts you on 15 and 16 is not one of the generator's monsters: the level places it.
  */
 const STORY_FIRST = 14;
-const STORY_LAST = 27; // (v17.0: levels 17-20, follow 14-16; v18.0: 21-24; v18.2: 25, the light; v19.0: 26, First Breath; v19.2: 27, Fresh Air)
+const STORY_LAST = 28; // (v17.0: levels 17-20, follow 14-16; v18.0: 21-24; v18.2: 25, the light; v19.0: 26, First Breath; v19.2: 27, Fresh Air; v19.3: 28, Dusk)
 const isStoryLevel = (n) => n >= STORY_FIRST && n <= STORY_LAST;
 function storyConfig(n, modeId) {
   const base = levelConfig(n, modeId, true); // `true`: the plain curve, before this exception

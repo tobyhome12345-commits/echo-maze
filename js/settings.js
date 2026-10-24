@@ -143,7 +143,7 @@ const EchoSettings = (() => {
         return true;
       }
       const { action, slot } = capturing;
-      const other = P.actionFor(e.code);
+      const other = P.actionFor(e.code, action); // (v19.3: an action that may share the key is not a clash)
       if (other && other !== action) {
         pending = { action, slot, code: e.code, other };
         capturing = null;

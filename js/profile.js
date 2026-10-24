@@ -67,6 +67,7 @@ const EchoProfile = (() => {
     { id: 'ripple', label: 'Send a ripple', group: 'act' },
     { id: 'crouch', label: 'Crouch (hold)', group: 'act' },
     { id: 'item', label: 'Use / drop your item', group: 'act' },
+    { id: 'interact', label: 'Interact (talk)', group: 'act' }, // (v19.3) only where there is someone to talk to
     { id: 'pause', label: 'Pause', group: 'act' },
     { id: 'mute', label: 'Mute', group: 'opt' },
     { id: 'calm', label: 'Calm mode', group: 'opt' },
@@ -81,11 +82,18 @@ const EchoProfile = (() => {
     ripple: ['Space'],
     crouch: ['ShiftLeft', 'ShiftRight'],
     item: ['KeyE'],
+    interact: ['KeyE'],
     pause: ['KeyP'],
     mute: ['KeyM'],
     calm: ['KeyC'],
     cues: ['KeyV'],
   };
+  /**
+   * (v19.3) Actions that may share a key: they are never both of use at once (an item is only carried in a maze,
+   * Interact only matters on a level with someone to talk to), so E is both by default and binding a key to one never
+   * takes it from the other.
+   */
+  const SHARED = { item: 'interact', interact: 'item' };
   /** Keys the game keeps for itself whatever the bindings say. */
   const RESERVED = { Escape: 'Esc always means back or pause', Enter: 'Enter always confirms' };
 
@@ -118,9 +126,9 @@ const EchoProfile = (() => {
   /** The codes bound to an action (never empty unless the player cleared it). */
   const keysFor = (action) => bindings[action] || [];
 
-  /** Which action a key code runs, or null. */
-  function actionFor(code) {
-    for (const a of ACTIONS) if (bindings[a.id].indexOf(code) >= 0) return a.id;
+  /** Which action a key code runs, or null. `except`: the action being bound (v19.3: and what may share with it) is left out. */
+  function actionFor(code, except) {
+    for (const a of ACTIONS) if (a.id !== except && SHARED[except] !== a.id && bindings[a.id].indexOf(code) >= 0) return a.id;
     return null;
   }
 
@@ -142,7 +150,7 @@ const EchoProfile = (() => {
   function bindKey(action, slot, code) {
     if (!bindings[action]) return;
     for (const a of ACTIONS) {
-      if (a.id === action) continue;
+      if (a.id === action || SHARED[action] === a.id) continue;
       const i = bindings[a.id].indexOf(code);
       if (i >= 0) bindings[a.id].splice(i, 1);
     }

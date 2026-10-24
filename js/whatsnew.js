@@ -34,6 +34,15 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v19.3',
+      title: 'Dusk',
+      lines: [
+        { text: 'A new level after Fresh Air: Dusk - and a new scene at the end of it.', minLevel: 28 },
+        { text: 'Settings, Controls: a new Interact key (E by default).', minLevel: 28 },
+        { text: 'Already reached the end? Continue takes you on - nothing you had is lost.', minLevel: 28 },
+      ],
+    },
+    {
       version: 'v19.2',
       title: 'Fresh Air',
       lines: [
