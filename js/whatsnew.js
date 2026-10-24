@@ -34,6 +34,14 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v19.0',
+      title: 'The outside',
+      lines: [
+        { text: 'After the light: the outside. A new part of the story begins.', minLevel: 25 },
+        { text: 'Already reached the end? Continue takes you on - nothing you had is lost.', minLevel: 25 },
+      ],
+    },
+    {
       version: 'v18.2',
       title: 'The light',
       lines: [

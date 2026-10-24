@@ -51,6 +51,91 @@ const EchoStory = (() => {
    *   W  where a Warden stands   P  a passage sealed with stone, until something cracks it open
    *   p  a pillar (an ordinary obstacle, like the generated levels' boulders and pillars)
    */
+  // ------------------------------------------------------------ (v19.0) ACT 3: OUTSIDE 1 - the field
+  /**
+   * The first level outside (26, shown as "Outside 1"): one big open field in daylight, walled only by its edge.
+   * Built once, the same every time, from a small xorshift of its own (never Math.random, never the generator's
+   * numbers): the map, a worn path from where you come out to the gap in the trees you leave by, the grass's light
+   * and dark patches, flowers, and trees - all of it DRAWING (js/game.js drawDaylight): you walk under the trees.
+   */
+  const FIELD = (() => {
+    const W = 84;
+    const H = 56;
+    let q = 0x0ff1e1d;
+    const r = () => {
+      q ^= q << 13;
+      q >>>= 0;
+      q ^= q >>> 17;
+      q ^= q << 5;
+      q >>>= 0;
+      return q / 4294967296;
+    };
+    const S = [4, 30]; // where you come out of the light
+    const X = [W - 2, 18]; // the way on: past a gap in the trees at the far side
+    // the worn path: one slow curve between them
+    const pathY = (x) => {
+      const u = (x - S[0]) / (X[0] - S[0]);
+      return S[1] + (X[1] - S[1]) * u + 6 * Math.sin(u * Math.PI * 2);
+    };
+    const path = new Float32Array(W * H); // 0..1: how worn
+    for (let x = S[0]; x <= X[0]; x++) {
+      const y = pathY(x);
+      for (let dy = -2; dy <= 2; dy++) {
+        const ty = Math.round(y) + dy;
+        if (ty < 1 || ty > H - 2) continue;
+        const i = ty * W + x;
+        path[i] = Math.max(path[i], Math.max(0, 1 - Math.abs(ty - y) / 2.2));
+      }
+    }
+    // light and dark patches of grass: a smooth noise over a coarse grid
+    const G = 7;
+    const gw = Math.ceil(W / G) + 2;
+    const gv = Array.from({ length: gw * (Math.ceil(H / G) + 2) }, r);
+    const shade = new Uint8Array(W * H);
+    const flower = new Uint8Array(W * H); // 0 none, 1-3 a colour
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const fx = x / G;
+        const fy = y / G;
+        const ix = Math.floor(fx);
+        const iy = Math.floor(fy);
+        const sx = (fx - ix) * (fx - ix) * (3 - 2 * (fx - ix));
+        const sy = (fy - iy) * (fy - iy) * (3 - 2 * (fy - iy));
+        const a = gv[iy * gw + ix] + (gv[iy * gw + ix + 1] - gv[iy * gw + ix]) * sx;
+        const b = gv[(iy + 1) * gw + ix] + (gv[(iy + 1) * gw + ix + 1] - gv[(iy + 1) * gw + ix]) * sx;
+        shade[y * W + x] = Math.min(4, Math.floor((a + (b - a) * sy) * 4.6 + r() * 0.5));
+        if (path[y * W + x] < 0.15 && r() < 0.035) flower[y * W + x] = 1 + Math.floor(r() * 3);
+      }
+    }
+    // trees: a line of them across the far side with one gap where the path goes through, and others scattered -
+    // never on the path, never right where you come out
+    const trees = [];
+    const c = (t) => (t + 0.5) * TILE;
+    const clear = (x, y, d) => trees.every((t) => Math.hypot(t.x - x, t.y - y) > d);
+    for (let x = W - 9; x <= W - 6; x += 1.5) {
+      for (let y = 1.5; y < H - 1.5; y += 1.6 + r() * 0.6) {
+        if (Math.abs(y - pathY(Math.round(x))) < 3.4) continue; // the gap
+        trees.push({ x: c(x + (r() - 0.5) * 0.8), y: c(y), r: 44 + r() * 16, tone: r() });
+      }
+    }
+    for (let k = 0; k < 400 && trees.length < 190; k++) {
+      const x = 3 + r() * (W - 15);
+      const y = 2 + r() * (H - 4);
+      if (Math.abs(y - pathY(Math.round(x))) < 4 || Math.hypot(x - S[0], y - S[1]) < 9) continue;
+      const tx = c(x);
+      const ty = c(y);
+      if (!clear(tx, ty, 92)) continue;
+      trees.push({ x: tx, y: ty, r: 34 + r() * 30, tone: r() });
+    }
+    const map = [];
+    for (let y = 0; y < H; y++) {
+      let row = '';
+      for (let x = 0; x < W; x++) row += x === 0 || y === 0 || x === W - 1 || y === H - 1 ? '#' : x === S[0] && y === S[1] ? 'S' : x === X[0] && y === X[1] ? 'X' : '.';
+      map.push(row);
+    }
+    return { W, H, map, path, shade, flower, trees };
+  })();
+
   const LEVELS = {
     14: {
       kind: 'gaol',
@@ -394,6 +479,20 @@ const EchoStory = (() => {
         // </map25>
       ],
     },
+    // ================================================================== (v19.0) ACT 3, THE OUTSIDE
+    // 26, "Outside 1": the field. Daylight, grass and trees, nothing to fight and nothing to solve - the breather
+    // after twenty-five levels of dark. Its flags (read by js/game.js, for any level that sets them): daylight (no
+    // darkness, no sonar: the field is drawn), noRipple, noCrouch, noHud (nothing on screen while you play),
+    // movementOnly (only the movement keys and pause do anything).
+    26: {
+      kind: 'field',
+      daylight: true,
+      noRipple: true,
+      noCrouch: true,
+      noHud: true,
+      movementOnly: true,
+      map: FIELD.map,
+    },
   };
   /**
    * (v17.0) THE VOID, by `void` level (17: 1 ... 20: 4). Drawing and sound only - nothing in it is read by anything
@@ -518,7 +617,7 @@ const EchoStory = (() => {
     if (!spec.act2 && dOpen[eIdx] < 0) console.warn(`EchoStory: level ${n}'s way out cannot be reached even with everything open`);
     // 14 (the door) and 15 (the sealed passage): the way out must NOT be reachable until the story opens it -
     // on 14 that is the whole of "the key cannot be skipped"
-    if (!spec.act2 && spec.kind !== 'deep' && dShut[eIdx] >= 0) console.warn(`EchoStory: level ${n}'s way out can be reached without opening anything`);
+    if (!spec.act2 && spec.kind !== 'deep' && !spec.daylight && dShut[eIdx] >= 0) console.warn(`EchoStory: level ${n}'s way out can be reached without opening anything`);
     // 16: the seal is the Warden's - nothing may reach it, and it may reach nothing, until it breaks out
     if (spec.kind === 'deep' && hunter && dShut[Math.floor(hunter.y / TILE) * W + Math.floor(hunter.x / TILE)] >= 0) console.warn(`EchoStory: level ${n}'s Warden is not sealed in`);
     if (key && dShut[Math.floor(key.y / TILE) * W + Math.floor(key.x / TILE)] < 0) console.warn(`EchoStory: level ${n}'s key cannot be reached`);
@@ -592,10 +691,13 @@ const EchoStory = (() => {
         drips, // where water drips (a small ripple of its own)
         barTiles,
         hunterAt: hunter,
-        exitMuted: spec.kind === 'light', // 15: no chime from the real way out while it is sealed off
+        exitMuted: spec.kind === 'light' || !!spec.daylight, // 15: no chime from the real way out while it is sealed off (v19.0: and none outside - the wind tells you)
         spec,
       },
       act2,
+      // (v19.0) per-level flags (js/game.js): every story level has them, all false but where a level says
+      flags: { daylight: !!spec.daylight, noRipple: !!spec.noRipple, noCrouch: !!spec.noCrouch, noHud: !!spec.noHud, movementOnly: !!spec.movementOnly },
+      field: spec.kind === 'field' ? FIELD : null, // (v19.0) what the field looks like (drawing only)
       rayWalls: act2 ? act2.rayWalls : null, // (17: what a ripple's rays meet instead of level.walls)
       rippleScale: spec.ripple ? spec.ripple.speed : 0, // (20: the ripple's speed, as a fraction of its usual)
       rippleLag: spec.ripple ? spec.ripple.lag : 0, // (20: seconds before what it found is shown)
@@ -912,6 +1014,8 @@ const EchoStory = (() => {
     let white = 0; // 0..1 of white over everything: the light, flooding in at the end
     let whiteTo = 0;
     let hushK = 1; // the Warden's hum, fading out once you are through
+    let carryDaylight = false; // (v19.0) 25 -> 26: the outside sound is not stopped between them
+    let birdCd = 0;
 
     const P = () => env.player();
     const calm = () => !!env.calm();
@@ -1052,6 +1156,7 @@ const EchoStory = (() => {
       if (kind === 'gaol') startGaol();
       else if (kind === 'light') startLight();
       else if (kind === 'outside') startOutside(); // (v18.2)
+      else if (kind === 'field') startField(); // (v19.0)
       else if (S.spec.act2) startAct2();
       else startDeep();
     }
@@ -1059,7 +1164,7 @@ const EchoStory = (() => {
     function stop() {
       hideSpeech();
       if (audio) {
-        audio.stopDaylight(true);
+        if (!carryDaylight) audio.stopDaylight(true); // (v19.0: kept from 25's end into the field)
         audio.stopCistern();
         audio.stopVoid(); // (v17.0)
       }
@@ -1422,6 +1527,39 @@ const EchoStory = (() => {
       );
     }
 
+    // ===================================================== (v19.0) 26: OUTSIDE 1, THE FIELD
+    // It begins in the white 25 ended in, and the colour comes in slowly. No words, no hint, no title: wind and birds
+    // (25's sound of outside, carried on and swelling), louder towards the way on.
+    function startField() {
+      phase = 'calm';
+      setLock(true);
+      veil = 0; // (not the dark every other story level opens in: the light it ended in)
+      veilFrom = 0;
+      veilTo = 0;
+      white = 1;
+      whiteTo = 0;
+      birdCd = 2.5;
+      if (audio) {
+        audio.startDaylight(); // (already going, if you came from 25)
+        audio.setDaylight(0.7);
+      }
+      carryDaylight = false;
+      play([[1.4, () => {}]], release);
+    }
+    function updateField(dt) {
+      if (whiteTo < white) white = Math.max(whiteTo, white - dt / 4.5); // the colour, coming in slowly
+      else if (whiteTo > white) white = Math.min(whiteTo, white + dt / 2.2);
+      const p = P();
+      const ex = lv.exit;
+      const near = clamp(1 - Math.hypot(p.x - ex.x, p.y - ex.y) / 3000, 0, 1);
+      if (audio && phase !== 'leaving') audio.setDaylight(0.5 + 0.5 * near); // the wind and the birds louder towards the way on
+      birdCd -= dt;
+      if (birdCd <= 0) {
+        birdCd = 1.6 + 3.6 * chirpRnd();
+        if (audio) audio.birdChirp(chirpRnd() * 1.6 - 0.8, 0.25 + 0.4 * chirpRnd());
+      }
+    }
+
     // ===================================================== (v18.2) 25: THE LIGHT
     // Arrival: a long quiet hall, and far off down it a faint warm pinpoint - level 15's light, drawn the same way and
     // held to the same rule (clipped to what you could really see), but at the way out, and real. The sound of outside
@@ -1721,6 +1859,11 @@ const EchoStory = (() => {
           ],
           null
         );
+      } else if (kind === 'field') {
+        // (v19.0) the way on: the light again, softly, and the end of the story so far
+        env.walk(0, 0);
+        whiteTo = 1;
+        play([[2.6, () => env.finish()]], null);
       } else if (kind === 'outside') {
         // (v18.2) THE REAL WAY OUT. Behind you it stops at the edge and comes no further: its steps stop, then its hum
         // fades, a few seconds of nothing - and then the light floods in, the sound of outside rises, and it is over.
@@ -1733,8 +1876,10 @@ const EchoStory = (() => {
               if (audio) audio.setDaylight(1);
               caption('[the wind, outside]');
             }],
-            [6.0, () => audio && audio.stopDaylight()],
-            [7.4, () => env.finish()],
+            [7.4, () => {
+              carryDaylight = true; // (v19.0) the sound of outside carries on, into the field
+              env.finish();
+            }],
           ],
           null
         );
@@ -1782,6 +1927,7 @@ const EchoStory = (() => {
       if (kind === 'gaol') updateGaol(dt);
       else if (kind === 'light') updateLight(dt);
       else if (kind === 'outside') updateOutside(dt); // (v18.2)
+      else if (kind === 'field') updateField(dt); // (v19.0)
       else if (S.spec.act2) updateAct2(dt);
       else updateDeep(dt);
     }
@@ -1922,7 +2068,7 @@ const EchoStory = (() => {
       drips: drips.map((d) => ({ x: d.x, y: d.y, on: d.on, metal: d.metal })),
       speaking: speech ? speech.text : null,
       act2: S && S.spec.act2 ? { glitch: +glitchT.toFixed(3), firstPing, fallIn: +fallIn.toFixed(2), flicker: +foldFlick.toFixed(3) } : null, // (v17.0)
-      outside: kind === 'outside' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2)
+      outside: kind === 'outside' || kind === 'field' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2; v19.0 the field too)
     });
 
     return {

@@ -325,6 +325,28 @@ class SoundEngine {
     this._track(n);
   }
 
+  /**
+   * (v19.0) A footstep in grass, outside: a soft, bright brush of noise instead of the stone's dull thud - and no
+   * echo off it (there is nothing out there to echo off).
+   */
+  grassStep(gain = 1, pan = 0) {
+    if (!this.ctx || this._busy(90)) return;
+    const t = this.ctx.currentTime;
+    const n = this._noise(t, 0.16);
+    const bp = this._filter('bandpass', 2400 + Math.random() * 900, 0.7);
+    const g = this._env(t, 0.012, 0.16 * gain, 0.11);
+    n.connect(bp);
+    bp.connect(g);
+    this._route(g, pan, 0);
+    const n2 = this._noise(t + 0.02, 0.1);
+    const lp = this._filter('lowpass', 520, 0.7);
+    const g2 = this._env(t + 0.02, 0.008, 0.12 * gain, 0.06);
+    n2.connect(lp);
+    lp.connect(g2);
+    this._route(g2, pan, 0);
+    this._track(n);
+  }
+
   /** Bumping into a wall or obstacle. */
   bump(gain = 1) {
     if (this._busy(90)) return;

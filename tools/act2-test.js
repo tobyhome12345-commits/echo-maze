@@ -34,6 +34,10 @@
  *   (v18.2) Act2Test.light()  25: the light seen from the start and growing as you come; past the trip point the
  *                        stone splits and the faster Warden comes; the floor behind goes; reaching the light it stops,
  *                        falls silent, the white floods in - and the end screen, "More to come soon.", back to the title
+ *   (v19.0) Act2Test.outside()  26, "Outside 1": 25's white runs into it, the sound of outside carried on; the colour
+ *                        comes in; nothing on screen; only the movement keys (and pause) do anything; grass underfoot;
+ *                        pause shows the menu and closing it hides everything again; a tap shows the pause button for
+ *                        a few seconds; on a touch screen the joystick walks you; the way on -> "More to come soon."
  *   Act2Test.wrongway()  24: its first way out leads to the second part (nothing saved); caught there, Try again is the
  *                        second part again; the level from the list or Continue is the first part; the second part's way
  *                        out is the end of the game so far
@@ -510,6 +514,91 @@ window.Act2Test = (() => {
     return T.done();
   }
 
+  // ------------------------------------------------------------------------------------------ (v19.0) 26: Outside 1
+  async function outside() {
+    const T = suite('outside');
+    const st = () => E().storyState();
+    const body = document.body;
+    const shown = (id) => getComputedStyle($(id)).display !== 'none';
+    // from the end of 25: through its white flood, straight into the field
+    await enter(25, true);
+    const ex25 = L().exit;
+    E().tp(ex25.x, ex25.y - 30);
+    key('ArrowDown', true);
+    for (let i = 0; i < 30 && st().phase !== 'leaving'; i++) step(1 / 60);
+    key('ArrowDown', false);
+    const stopped = spy('stopDaylight');
+    for (let i = 0; i < 60 && E().info().levelNum !== 26; i++) step(0.25);
+    T.check("25's white flood runs into Outside 1 (level 26)", E().info().levelNum === 26 && E().info().state === 'play' && L().flags.daylight);
+    T.check('...the sound of outside carried on, never stopped between them', stopped.length === 0, stopped.length);
+    stopped.restore();
+    T.check(`...it opens in the white (${st().outside.white})`, st().outside.white > 0.8);
+    step(5);
+    T.check(`...and the colour comes in (${st().outside.white})`, st().outside.white < 0.05);
+    T.check('shown as "Outside 1" - 25 is still "Level 25", and the next would be "Outside 2"', E().levelName(26) === 'Outside 1' && E().levelName(25) === 'Level 25' && E().levelName(27) === 'Outside 2');
+    await sleep(120); // (a real frame: the page's own state)
+    T.check('nothing on screen while you play: no HUD, no banner, no captions', body.classList.contains('no-hud') && !shown('hud') && !shown('banner') && !shown('cue-caption'));
+    // only the movement keys do anything
+    const s0 = E().settings();
+    const r0 = E().ripples().length;
+    const muted0 = !!E().audio.muted;
+    for (const code of ['Space', 'ShiftLeft', 'KeyE', 'KeyV', 'KeyC', 'KeyM']) {
+      key(code, true);
+      step(1 / 30);
+      key(code, false);
+      step(1 / 30);
+    }
+    const s1 = E().settings();
+    T.check('Space (ripple), Shift (crouch), E, V, C, M: none of them does anything', E().ripples().length === r0 && !E().crouch().crouching && s1.visualCues === s0.visualCues && s1.calm === s0.calm && !!E().audio.muted === muted0);
+    const grass = spy('grassStep');
+    const stone = spy('footstep');
+    const x0 = P().x;
+    walkTo(P().x + 200, P().y, 2);
+    T.check(`the movement keys walk you (${Math.round(P().x - x0)} px)`, P().x > x0 + 120);
+    T.check(`...and it is grass underfoot (${grass.length} soft steps, ${stone.length} stone ones)`, grass.length >= 3 && stone.length === 0);
+    grass.restore();
+    stone.restore();
+    // pause: the menu as ever - and closing it hides everything again
+    key('Escape', true);
+    key('Escape', false);
+    await until(() => E().info().state === 'paused', 1500);
+    await sleep(120);
+    T.check('the pause key: the pause menu shows as usual', E().info().state === 'paused' && !$('pause').classList.contains('hidden') && !body.classList.contains('no-hud'));
+    key('Escape', true);
+    key('Escape', false);
+    await until(() => E().info().state === 'play', 1500);
+    await sleep(120);
+    T.check('...and closing it hides everything again', body.classList.contains('no-hud') && !shown('hud'));
+    // a tap away from the joystick: the pause button, for a few seconds
+    $('game').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 41, pointerType: 'touch', clientX: innerWidth * 0.8, clientY: innerHeight * 0.5 }));
+    T.check('a tap away from the joystick shows the pause button', body.classList.contains('show-pause') && getComputedStyle($('tbtn-pause')).display === 'flex');
+    await sleep(3300);
+    T.check('...and after about 3 s it goes again', !body.classList.contains('show-pause') && getComputedStyle($('tbtn-pause')).display === 'none');
+    // a touch screen: the joystick walks you, and it is the only control there
+    if (body.classList.contains('touch')) {
+      T.check('on a touch screen: no ripple or crouch button', !shown('tbtn-ripple') && !shown('tbtn-crouch'));
+      const zone = $('touch-zone');
+      const zr = zone.getBoundingClientRect();
+      const px0 = P().x;
+      const at = { bubbles: true, pointerId: 42, pointerType: 'touch', isPrimary: true, clientX: zr.left + 90, clientY: zr.top + zr.height / 2 };
+      zone.dispatchEvent(new PointerEvent('pointerdown', at));
+      zone.dispatchEvent(new PointerEvent('pointermove', { ...at, clientX: at.clientX + 70 }));
+      step(0.8);
+      zone.dispatchEvent(new PointerEvent('pointerup', { ...at, clientX: at.clientX + 70 }));
+      T.check(`the joystick walks you (${Math.round(P().x - px0)} px)`, P().x > px0 + 60);
+    }
+    // the way on: the end of the story so far
+    const r = await walk(26, false);
+    T.check(`walked across the field to the way on (${r.seconds} s)`, r.cleared && E().info().state === 'ending', r);
+    await sleep(400);
+    T.check('the end screen: "More to come soon."', $('ending-text').textContent === 'More to come soon.' && !$('ending').classList.contains('hidden'));
+    T.check('...and only now is Outside 1 saved as cleared', ((E().settings().progress || {}).normal || 0) >= 27);
+    $('btn-ending-title').click();
+    await until(() => E().info().state === 'title', 3000);
+    T.check('its button: back to the title', E().info().state === 'title' && !body.classList.contains('no-hud'));
+    return T.done();
+  }
+
   // ------------------------------------------------------------------------------------------ (v18.2) 25: the light
   async function light() {
     const T = suite('light');
@@ -537,12 +626,8 @@ window.Act2Test = (() => {
     await toTitle();
     // the whole way, with the real keys - to the light, the silence and the white, and the end screen
     const r = await walk(25, true);
-    T.check(`walked to the light with it behind you (${r.seconds} s)`, r.cleared && E().info().state === 'ending', r);
-    T.check('the end screen: "More to come soon."', $('ending-text').textContent === 'More to come soon.' && !$('ending').classList.contains('hidden'));
-    T.check('...and only now is the whole story saved', ((E().settings().progress || {}).normal || 0) >= 26);
-    $('btn-ending-title').click();
-    await until(() => E().info().state === 'title', 3000);
-    T.check('its button: back to the title', E().info().state === 'title');
+    T.check(`walked to the light with it behind you (${r.seconds} s) - and on into Outside 1 (v19.0)`, r.cleared && E().info().levelNum === 26, r);
+    T.check('...and 25 is saved as cleared', ((E().settings().progress || {}).normal || 0) >= 26);
     // the last beat, step by step: it stops at the edge, its hum fades, the white floods in
     await enter(25, true);
     E().tp(L().exit.x - 60, L().exit.y - 40);
@@ -558,7 +643,7 @@ window.Act2Test = (() => {
     step(3.5);
     T.check(`...then the white floods in (${st().outside.white})`, st().outside.white > 0.5);
     for (let i = 0; i < 40 && E().info().state === 'play'; i++) step(0.25);
-    T.check('...and the end screen', E().info().state === 'ending');
+    T.check('...and on into Outside 1', E().info().levelNum === 26 && E().info().state === 'play');
     await toTitle();
     return T.done();
   }
@@ -647,13 +732,13 @@ window.Act2Test = (() => {
       if (on) T.check(`${tag} 23: ...captioned`, captions.has('[the edge gives way]'));
       // every level starts and runs
       const dead = [];
-      for (let n = 0; n <= 25; n++) {
+      for (let n = 0; n <= 26; n++) {
         await toTitle();
         E().go(n);
         const adv = await live(700);
         if (!(adv > 0.2)) dead.push(`${n}: ${E().info().state} +${adv.toFixed(2)}`);
       }
-      T.check(`${tag}: every level 0-25 starts and runs`, dead.length === 0, dead);
+      T.check(`${tag}: every level 0-26 starts and runs`, dead.length === 0, dead);
     } finally {
       console.error = oe;
       window.removeEventListener('error', onErr);
@@ -740,7 +825,7 @@ window.Act2Test = (() => {
   }
   async function walkAll(monsters = false) {
     const T = suite('walkAll');
-    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25, 26]) {
       const r = await walk(n, monsters);
       T.check(`level ${n}: walked through to the way out${monsters ? ' (monsters in)' : ' (monsters out)'}`, r.cleared, r);
       T.note(r);
@@ -782,7 +867,8 @@ window.Act2Test = (() => {
     if (best === 16) T.check('a save on 16: Continue (Level 16), the editor not unlocked by it', /16/.test(cont.textContent) && !E().settings().editor.unlocked);
     if (best === 21) T.check('(v18.0) a save that finished 20 (best 21): Continue (Level 21), not Finished', !cont.classList.contains('hidden') && /21/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
     if (best === 25) T.check('(v18.2) a save that finished 24 (best 25): Continue (Level 25), not Finished', !cont.classList.contains('hidden') && /25/.test(cont.textContent) && !document.getElementById('title').textContent.includes('Finished'));
-    if (best >= 26) T.check('a save past 25: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
+    if (best === 26) T.check('(v19.0) a save that finished 25 (best 26): Continue (Outside 1), not Finished', !cont.classList.contains('hidden') && cont.textContent.includes('Outside 1') && !document.getElementById('title').textContent.includes('Finished'));
+    if (best >= 27) T.check('a save past Outside 1: Finished', cont.classList.contains('hidden') && document.getElementById('title').textContent.includes('Finished'));
     if (best <= 1) T.check('a fresh save: Begin starts with the tutorial (level 0)', E().newPlayer());
     if (best === 17) {
       $('btn-continue').click();
@@ -801,7 +887,12 @@ window.Act2Test = (() => {
       await until(() => E().info().state === 'play' && E().info().levelNum === 25, 4000);
       T.check('Continue from that save: level 25, the light', E().info().levelNum === 25 && E().info().level.story.kind === 'outside');
     }
-    T.check(`the campaign is ${STORY_LAST} levels (17-25 are story levels)`, E().settings().campaignLevels === 25 && isStoryLevel(17) && isStoryLevel(25) && !isStoryLevel(26));
+    if (best === 26) {
+      $('btn-continue').click();
+      await until(() => E().info().state === 'play' && E().info().levelNum === 26, 4000);
+      T.check('Continue from that save: Outside 1, the field', E().info().levelNum === 26 && E().info().level.story.kind === 'field');
+    }
+    T.check(`the campaign is ${STORY_LAST} levels (17-26 are story levels)`, E().settings().campaignLevels === 26 && isStoryLevel(17) && isStoryLevel(26) && !isStoryLevel(27));
     T.note({ progress: E().settings().progress, editor: E().settings().editor.unlocked, title: $('mode-tag-' + E().settings().mode) ? $('mode-tag-' + E().settings().mode).textContent : null, cont: $('btn-continue').classList.contains('hidden') ? null : $('btn-continue').textContent });
     return T.done();
   }
@@ -810,7 +901,7 @@ window.Act2Test = (() => {
   async function perf() {
     const T = suite('perf');
     const size = `${innerWidth}x${innerHeight}${document.body.classList.contains('touch') ? ' touch' : ''}`;
-    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24, 25]) {
+    for (const n of [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]) {
       await enter(n, true);
       ping();
       step(0.3);
@@ -827,5 +918,5 @@ window.Act2Test = (() => {
     return T.done();
   }
 
-  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues, light };
+  return { liar, shuffle, loop, behind, walk, walkAll, walkMonsters, firstTime, perf, crumble, deadair, creep, wrongway, cues, light, outside };
 })();

@@ -1834,7 +1834,7 @@
   }
 
   function emitRipple() {
-    if (state !== 'play' || cooldown > 0 || scriptLock || a2Falling) return; // (a scripted beat on 14-16 has the controls; v18.0: nor while you fall)
+    if (state !== 'play' || cooldown > 0 || scriptLock || a2Falling || levelFlag('noRipple')) return; // (a scripted beat on 14-16 has the controls; v18.0: nor while you fall; v19.0: nor where a level has no ripple)
     if (crouchHeld()) return; // you cannot send a ripple while crouching
     cooldown = cfg.cooldown;
     ripplesUsed++;
@@ -2029,6 +2029,17 @@
    *                anything else (Continue, the level list, a reload) starts the level from the beginning. Nothing
    *                is saved until the second part's way out.
    */
+  /** (v19.0) A per-level flag (a story level's `flags`, js/story.js): daylight, noRipple, noCrouch, noHud, movementOnly. */
+  const levelFlag = (k) => !!(level && level.flags && level.flags[k]);
+  const MOVE_ACTIONS = ['up', 'down', 'left', 'right'];
+  /**
+   * (v19.0) A level's name on screen. 1-25 are "Level N"; from 26 on it is the outside - "Outside 1", "Outside 2"...
+   * The internal numbers (saves, progress) never change: only what is shown.
+   */
+  const OUTSIDE_FIRST = 26;
+  const levelName = (n) => (n >= OUTSIDE_FIRST ? `Outside ${n - OUTSIDE_FIRST + 1}` : `Level ${n}`);
+  const levelShort = (n) => (n >= OUTSIDE_FIRST ? levelName(n) : `Lv ${n}`);
+  const levelLower = (n) => (n >= OUTSIDE_FIRST ? levelName(n) : `level ${n}`); // (inside a sentence)
   const CRUMBLE_CRACK = 0.6; // s after you step off a crumbling tile: it cracks...
   const CRUMBLE_FALL = 0.35; // ...and this much later it is gone
   const FALL_SECONDS = 0.8; // s of falling before the Caught screen
@@ -2280,7 +2291,7 @@
 
   // ---------------------------------------------------------------- crouching
   /** Is a crouch key (Shift) held? Same speed as walking; no footsteps, no ripples, and a stalker cannot hear you. */
-  const crouchHeld = () => act('crouch') || touch.crouch; // a crouch key (Shift by default), or the touch CROUCH button held
+  const crouchHeld = () => !levelFlag('noCrouch') && (act('crouch') || touch.crouch); // a crouch key (Shift by default), or the touch CROUCH button held (v19.0: never where a level has no crouch)
 
   /**
    * The instant you start crouching, everything your ripples showed you is wiped from the screen and from the
@@ -2996,13 +3007,15 @@
       contact = moveCircle(player, mvx * WALK_SPEED * dt, mvy * WALK_SPEED * dt);
       const step = Math.hypot(player.x - px, player.y - py);
       walked = step > 0.3;
+      if (walked) player.face = Math.atan2(mvy, mvx); // (v19.0: which way you are facing - drawn outside, where you are seen)
       player.stepDist += step;
       if (scored()) EchoProfile.bump('distance', step);
       if (player.stepDist >= 30) {
         player.stepDist = 0;
         if (!player.crouching) {
           // a crouching player makes no footstep sound, so nothing can hear one
-          if (level.act2 && onDeadAir()) audio.footstep(0.3); // (v18.0) 22: dead air - a dull step that nothing hears
+          if (levelFlag('daylight')) audio.grassStep(1); // (v19.0) outside: grass underfoot
+          else if (level.act2 && onDeadAir()) audio.footstep(0.3); // (v18.0) 22: dead air - a dull step that nothing hears
           else {
             audio.footstep(1);
             hearFootstep(player.x, player.y);
@@ -3652,6 +3665,12 @@
       return;
     }
     if (!level) return;
+    // (v19.0) DAYLIGHT: no dark and no sonar - the field is simply there (and the white it fades in from)
+    if (levelFlag('daylight')) {
+      drawDaylight();
+      if (level.story) story.veil(ctx, canvas.width, canvas.height);
+      return;
+    }
 
     const s = viewScale * DPR;
     // level 13 adds its own tremor on top of the game's (and none at all in calm mode - see js/warden.js)
@@ -3680,6 +3699,141 @@
     // levels 14-16: the dark each one opens and closes in, and level 15's reveal
     if (level.story) story.veil(ctx, canvas.width, canvas.height);
   }
+
+  // -------------------------------------------------------------- (v19.0) DAYLIGHT: the outside
+  /**
+   * A level with the daylight flag (Outside 1): everything around you, drawn as it is - grass in patches, a worn path,
+   * flowers, the edge of the field, trees you walk under, the sun beyond the gap in them - and you, seen for the
+   * first time. Only what is on screen is drawn (a few hundred rectangles, the trees in view), so it is cheap on a
+   * phone. Drawing only: nothing here is read by anything else.
+   */
+  function drawDaylight() {
+    const D = EchoPalette.daylight;
+    const f = level.field;
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const s = viewScale * DPR;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = D.hedge;
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.setTransform(s, 0, 0, s, cw / 2 - camX * s, ch / 2 - camY * s);
+    const W = level.W;
+    const x0 = Math.max(0, Math.floor((camX - cw / 2 / s) / TILE));
+    const x1 = Math.min(W - 1, Math.floor((camX + cw / 2 / s) / TILE));
+    const y0 = Math.max(0, Math.floor((camY - ch / 2 / s) / TILE));
+    const y1 = Math.min(level.H - 1, Math.floor((camY + ch / 2 / s) / TILE));
+    // the grass, in its patches; the edge of the field
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        const i = ty * W + tx;
+        ctx.fillStyle = level.walls[i] ? D.hedge : D.grass[f ? f.shade[i] : 2];
+        ctx.fillRect(tx * TILE, ty * TILE, TILE + 0.5, TILE + 0.5);
+      }
+    }
+    if (f) {
+      // the worn path, and a few flowers
+      for (let ty = y0; ty <= y1; ty++) {
+        for (let tx = x0; tx <= x1; tx++) {
+          const i = ty * W + tx;
+          const w = f.path[i];
+          if (w > 0.02) {
+            ctx.fillStyle = `rgba(${D.path},${0.6 * w})`;
+            ctx.fillRect(tx * TILE, ty * TILE, TILE + 0.5, TILE + 0.5);
+          }
+          if (f.flower[i]) {
+            ctx.fillStyle = D.flowers[f.flower[i] - 1];
+            const h = (i * 2654435761) >>> 0;
+            for (let k = 0; k < 3; k++) {
+              ctx.beginPath();
+              ctx.arc(tx * TILE + 8 + ((h >> (k * 5)) & 23), ty * TILE + 8 + ((h >> (k * 5 + 9)) & 23), 2.2, 0, TAU);
+              ctx.fill();
+            }
+          }
+        }
+      }
+    }
+    // the way on: sunlight beyond the gap in the trees
+    const ex = level.exit;
+    const glow = ctx.createRadialGradient(ex.x, ex.y, 0, ex.x, ex.y, 150);
+    glow.addColorStop(0, `rgba(${D.light},0.55)`);
+    glow.addColorStop(1, `rgba(${D.light},0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(ex.x, ex.y, 150, 0, TAU);
+    ctx.fill();
+    const vx0 = camX - cw / 2 / s - 80;
+    const vx1 = camX + cw / 2 / s + 80;
+    const vy0 = camY - ch / 2 / s - 80;
+    const vy1 = camY + ch / 2 / s + 80;
+    const seen = f ? f.trees.filter((t) => t.x > vx0 && t.x < vx1 && t.y > vy0 && t.y < vy1) : [];
+    // the trees' shadows on the grass, then you, then their canopies over you
+    ctx.fillStyle = D.shadow;
+    for (const t of seen) {
+      ctx.beginPath();
+      ctx.ellipse(t.x + t.r * 0.22, t.y + t.r * 0.28, t.r * 0.95, t.r * 0.8, 0, 0, TAU);
+      ctx.fill();
+    }
+    drawWalker(D);
+    for (const t of seen) {
+      const under = Math.hypot(player.x - t.x, player.y - t.y) < t.r * 0.95;
+      ctx.globalAlpha = under ? 0.5 : 1; // you, under it: still seen through the leaves
+      const sway = Math.sin(artT * 0.7 + t.tone * 9) * 1.2;
+      ctx.fillStyle = D.canopy[0];
+      ctx.beginPath();
+      ctx.arc(t.x + sway, t.y, t.r, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = D.canopy[1 + Math.floor(t.tone * 2)];
+      ctx.beginPath();
+      ctx.arc(t.x - t.r * 0.18 + sway, t.y - t.r * 0.2, t.r * 0.72, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = D.canopy[3];
+      ctx.beginPath();
+      ctx.arc(t.x - t.r * 0.32 + sway, t.y - t.r * 0.36, t.r * 0.34, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  /** You, from above: shoulders, a head, walking - the first time you are really seen. */
+  function drawWalker(D) {
+    const x = player.x;
+    const y = player.y;
+    const a = player.face === undefined ? 0 : player.face;
+    const stride = Math.sin(player.stepDist / 30 * Math.PI * 2) * (keysMoving() ? 3.2 : 0);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = D.shadow;
+    ctx.beginPath();
+    ctx.ellipse(2, 3, 11, 8, 0, 0, TAU);
+    ctx.fill();
+    ctx.rotate(a);
+    // feet, stepping
+    ctx.fillStyle = D.bodyEdge;
+    ctx.beginPath();
+    ctx.ellipse(stride, -4.5, 3.4, 2.4, 0, 0, TAU);
+    ctx.ellipse(-stride, 4.5, 3.4, 2.4, 0, 0, TAU);
+    ctx.fill();
+    // shoulders
+    ctx.fillStyle = D.body;
+    ctx.strokeStyle = D.bodyEdge;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 5.6, 9, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    // head, and hair at the back of it
+    ctx.fillStyle = D.head;
+    ctx.beginPath();
+    ctx.arc(1.2, 0, 4.4, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = D.hair;
+    ctx.beginPath();
+    ctx.arc(0.2, 0, 4.4, Math.PI * 0.55, Math.PI * 1.45);
+    ctx.fill();
+    ctx.restore();
+  }
+  const keysMoving = () => MOVE_ACTIONS.some((k) => act(k)) || (touch.vec().x !== 0 || touch.vec().y !== 0);
 
   // -------------------------------------------------------------- UI / flow
   /**
@@ -3770,7 +3924,7 @@
 
   function updateHud() {
     // the tutorial is not a level and is the same in every mode, so it says neither; a custom level says its name
-    hudNumber('hud-level', inTutorial() ? 'Tutorial' : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `Level ${levelNum} · ${MODES[mode].label}`);
+    hudNumber('hud-level', inTutorial() ? 'Tutorial' : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `${levelName(levelNum)} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
     hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : player && player.hasKey ? 'Key' : '';
@@ -3803,10 +3957,10 @@
     }
     if (n >= WARDEN_LEVEL && loreReader.state()) {
       // (v16.2) a fragment's line is up (they share the place): the hint waits until it has gone
-      loreBannerBack = { n, title: `Level ${n}`, text: hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]) };
+      loreBannerBack = { n, title: levelName(n), text: hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]) };
       return;
     }
-    $('banner-title').textContent = `Level ${n}`;
+    $('banner-title').textContent = levelName(n);
     $('banner-text').textContent = hintText(HINTS[n] || GENERIC_HINTS[n % GENERIC_HINTS.length]);
     el.classList.add('show');
     clearTimeout(bannerTimer);
@@ -3918,8 +4072,14 @@
     camY = player.y;
     state = 'play';
     // (a custom level sounds like the level its tuning comes from - CUSTOM_CURVE_LEVEL, js/level.js)
-    audio.startAmbient(level.custom ? CUSTOM_CURVE_LEVEL : n);
-    music.start(level.custom ? CUSTOM_CURVE_LEVEL : n); // the level's own mood (js/music.js); silent until the AudioContext exists
+    if (levelFlag('daylight')) {
+      // (v19.0) outside: no cave drone and no score - the wind and the birds are the level's sound (js/story.js)
+      audio.stopAmbient();
+      music.stop();
+    } else {
+      audio.startAmbient(level.custom ? CUSTOM_CURVE_LEVEL : n);
+      music.start(level.custom ? CUSTOM_CURVE_LEVEL : n); // the level's own mood (js/music.js); silent until the AudioContext exists
+    }
     showOverlay(null);
     $('hud').classList.remove('hidden');
     updateHud();
@@ -4263,7 +4423,7 @@
         go(() => {
           toTitle();
           const note = $('title-notice');
-          note.textContent = `☠ You died on level ${died}: "${line}" ${tip} Hardcore gives you one life, so that run is over.`;
+          note.textContent = `☠ You died on ${levelLower(died)}: "${line}" ${tip} Hardcore gives you one life, so that run is over.`;
           note.classList.remove('hidden');
         });
         return;
@@ -4504,7 +4664,7 @@
     state = 'paused';
     touch.releaseAll(); // never carry a held finger across a screen change
     EchoProfile.flush(); // write the stats out now: the page may never come back
-    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : customRun ? `${modeLabel()} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · Level ${levelNum}`;
+    $('pause-mode').textContent = inTutorial() ? 'Tutorial' : customRun ? `${modeLabel()} · ${customRun.from === 'editor' ? 'Test play' : customTitle()}` : `${MODES[mode].label} · ${levelName(levelNum)}`;
     $('btn-quit').textContent = customRun ? customBackLabel() : 'Quit to title'; // (v15.0: a custom level goes back where it came from)
     $('btn-pause-skip-tut').classList.toggle('hidden', !inTutorial()); // the way out of the tutorial, for anyone who is done with it
     refreshOptionUi();
@@ -4557,8 +4717,8 @@
   /** A best level past the last real level means the game was finished. */
   const isFinished = (n) => n > CAMPAIGN_LEVELS;
   /** Hardcore's high score is the furthest you got. */
-  const scoreText = (n) => (isFinished(n) ? 'finished the game' : `level ${n}`);
-  const scoreShort = (n) => (isFinished(n) ? 'Finished' : `Lv ${n}`);
+  const scoreText = (n) => (isFinished(n) ? 'finished the game' : levelLower(n));
+  const scoreShort = (n) => (isFinished(n) ? 'Finished' : levelShort(n));
 
   /** Bring the title screen's mode picker, best-level tags and Continue button up to date. */
   function refreshTitle() {
@@ -4570,7 +4730,7 @@
       const best = getBest(m);
       const tag = b.querySelector('small');
       if (MODES[m].oneLife) tag.textContent = progress[m] ? `High score: ${scoreShort(progress[m])}` : '';
-      else tag.textContent = isFinished(best) ? 'Finished' : best > 1 ? `Best: Lv ${best}` : '';
+      else tag.textContent = isFinished(best) ? 'Finished' : best > 1 ? `Best: ${levelShort(best)}` : '';
     });
     $('mode-desc').textContent = MODE_INFO[mode];
     // Hardcore's high score stays visible even though it can never be resumed.
@@ -4583,7 +4743,7 @@
     const btn = $('btn-continue');
     // ...and nothing to continue once the game has been finished (there is no level after the last)
     btn.classList.toggle('hidden', best <= 1 || !!MODES[mode].oneLife || isFinished(best));
-    btn.textContent = `Continue (Level ${best})`;
+    btn.textContent = `Continue (${levelName(best)})`;
     // (v15.5) one main action: Continue when there is a game to go back to, Begin when there is not
     const resume = !btn.classList.contains('hidden');
     btn.classList.toggle('primary', resume);
@@ -4673,7 +4833,8 @@
         b.type = 'button';
         b.className = 'lvl';
         const num = document.createElement('span');
-        num.textContent = n;
+        num.textContent = n >= OUTSIDE_FIRST ? levelName(n) : n; // (v19.0: Outside 1...)
+        if (n >= OUTSIDE_FIRST) b.classList.add('named');
         b.appendChild(num);
         // the medals won on this level, in this mode (three little pips: time, ripples, flawless). Level 13
         // is not raced and takes none, so its button simply has no pips (see MEDAL_LEVELS).
@@ -4685,12 +4846,12 @@
           b.appendChild(pips);
         }
         if (n <= cleared) {
-          b.setAttribute('aria-label', `Play level ${n} again`);
+          b.setAttribute('aria-label', `Play ${levelLower(n)} again`);
           b.addEventListener('click', () => playLevel(n));
         } else {
           b.disabled = true;
           b.title = 'Not cleared yet';
-          b.setAttribute('aria-label', `Level ${n}, not cleared yet`);
+          b.setAttribute('aria-label', `${levelName(n)}, not cleared yet`);
         }
         grid.appendChild(b);
       }
@@ -5405,6 +5566,8 @@
     if (GAME_KEYS.includes(e.code) || ((state === 'play' || state === 'capture') && a)) e.preventDefault();
     keys[e.code] = true;
     if (e.repeat) return;
+    // (v19.0) a level that takes only movement (Outside 1): no other game key does anything there - pause still does
+    if (state === 'play' && levelFlag('movementOnly') && a && !MOVE_ACTIONS.includes(a) && a !== 'pause') return;
 
     if (a === 'mute') return toggleMute();
     if (a === 'calm') return setCalm(!calm); // works on every screen, in every mode
@@ -5739,6 +5902,15 @@
     if (frameErrors <= FRAME_ERRORS_LOGGED) console.error(`Echo Maze: an error in the frame's ${where} (the game carries on)`, err);
     else if (frameErrors === FRAME_ERRORS_LOGGED + 1) console.error('Echo Maze: more frame errors - not shown');
   }
+  // (v19.0) ...and there, a tap anywhere but the joystick shows the pause button for a few seconds
+  let pauseShowTimer = null;
+  document.addEventListener('pointerdown', (e) => {
+    if (!document.body.classList.contains('no-hud')) return;
+    if (e.target && e.target.closest && e.target.closest('#touch-zone, #touch-stick')) return;
+    document.body.classList.add('show-pause');
+    clearTimeout(pauseShowTimer);
+    pauseShowTimer = setTimeout(() => document.body.classList.remove('show-pause'), 3000);
+  });
   function frame(now) {
     try {
       frameUpdate(now);
@@ -5817,6 +5989,9 @@
     // touch controls: shown only while playing (and released the moment they are not)
     if (touchOn && state === 'play' && window.innerHeight > window.innerWidth) pause(); // portrait: the "rotate your device" note is up
     touch.setVisible(touchOn && state === 'play' && !scriptLock); // (not while a beat on 14-16 has the controls)
+    // (v19.0) a level with nothing on screen while you play (noHud): body.no-hud hides it all (style.css)
+    const bare = state === 'play' && levelFlag('noHud');
+    if (document.body.classList.contains('no-hud') !== bare) document.body.classList.toggle('no-hud', bare);
     if (touchOn && state === 'play') {
       touch.setCooldown(cfg.cooldown > 0 ? 1 - cooldown / cfg.cooldown : 1);
       touch.setItem(!!player.hasDecoy);
@@ -6030,6 +6205,7 @@
   // Test hook: only exposed when the page is opened with ?debug
   if (/[?&]debug\b/.test(location.search)) {
     window.__echo = {
+      levelName: (n) => levelName(n), // (v19.0)
       info: () => ({ state, levelNum, levelTime, player, enemies, level, ripples: ripples.length, audio: audio.ctx && audio.ctx.state, part: levelPart, falling: !!a2Falling }),
       deadSeen: () => [...deadSeen.keys()], // (v18.0, 22: the black patches on the map now)
       frameErrors: () => frameErrors, // (v18.1: errors the game loop caught and carried on from)

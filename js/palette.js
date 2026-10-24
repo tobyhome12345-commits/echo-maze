@@ -249,5 +249,20 @@ const EchoPalette = (() => {
     },
     label: (id = current) => palette(id).label,
     note: (id = current) => palette(id).note,
+    // (v19.0) DAYLIGHT: the outside (levels with the daylight flag - js/game.js drawDaylight). Not one of the
+    // palettes above: nothing out there has to be told apart by colour, it only has to look like a summer field.
+    daylight: {
+      grass: ['#5e9c43', '#67a64a', '#71b052', '#7bb95a', '#86c263'], // dark patch .. light patch
+      path: '201,176,118', // a worn path (rgb, drawn with its wear as alpha)
+      flowers: ['#fbf6e4', '#f4d33f', '#e07fb6'],
+      hedge: '#2c5527', // the edge of the field
+      canopy: ['#2e6a33', '#3c7d3c', '#4f9446', '#64a852'], // a tree, from its shade to its sunlit top
+      shadow: 'rgba(18, 40, 14, 0.26)',
+      light: '255,246,214', // the sun on the far side of the gap in the trees
+      body: '#3f6c8f', // you: a jacket...
+      bodyEdge: '#2b4c66',
+      head: '#e9c9a4', // ...a head, from above
+      hair: '#5a3d2a',
+    },
   };
 })();
