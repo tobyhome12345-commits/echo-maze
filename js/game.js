@@ -120,6 +120,7 @@
     22: 'Where nothing answers, nothing hears.',
     23: 'It is coming in from the edges.',
     24: 'Not every way out is out.',
+    25: "Don't stop.", // (v18.2)
   };
   const GENERIC_HINTS = [
     'Ripple, listen, move. Never stay where you rippled.',
@@ -274,6 +275,14 @@
     },
     nextPart: () => {
       nextPartPending = true; // (v18.0) 24: on into its second part, the same way
+    },
+    // (v18.2) 25: the floor behind you starts to go, on its schedule, from now
+    collapse: () => {
+      if (level.act2 && level.act2.creep && level.act2.creep.relative) level.act2.creep.base = levelTime;
+    },
+    // (v18.2) 25: the Warden's hum, 1 as ever .. 0 silent
+    hush: (k) => {
+      for (const e of enemies) if (e.kind === 'warden') e.hush = k;
     },
   });
 
@@ -1726,7 +1735,7 @@
     const sp = spatial(e.x, e.y, warden ? 950 : 720); // (a Warden can be heard coming from further off)
     const excited = chasing || e.state === 'marked' || e.state === 'leap'; // hunting you / a singer with you marked
     const mood = excited ? 1 : e.state === 'search' ? 0.65 : e.sleeper ? 0.1 : scent || stalker || singer ? 0.5 : muffler ? 0.4 : 0.35;
-    const gain = sp.g * (0.16 + 0.3 * mood);
+    const gain = sp.g * (0.16 + 0.3 * mood) * (e.hush === undefined ? 1 : e.hush); // (v18.2: 25's Warden, falling silent at the edge)
     if (e.voice) audio.updateEnemyVoice(e.voice, { gain, pan: sp.pan, mood, muffle: muf, doppler });
     // its voice as a sustained cue, while it would be audible (the stalker's breathing: three small dots)
     if (gain >= 0.012) cues.hold(e, cueKind, e.x, e.y, cueLoud(gain / 0.46), blocked, stalker ? 3 : 1);
@@ -2095,7 +2104,7 @@
     }
     // 23: the next ring goes - a low rumble, a little shake
     const cr = a2.creep;
-    while (cr && a2CreepNext < cr.layers.length && levelTime >= cr.layers[a2CreepNext].t) {
+    while (cr && a2CreepNext < cr.layers.length && levelTime >= cr.layers[a2CreepNext].t + (cr.relative ? cr.base : 0)) {
       for (const i of cr.layers[a2CreepNext++].tiles) becomeVoid(i);
       audio.stoneGrind(0, 0.4);
       audio.wardenStep(0, 0.5, false, true);
@@ -4455,7 +4464,7 @@
   }
 
   /**
-   * THE END OF THE GAME SO FAR: level 24's way out (v18.0; v17.0: 20's; it was 16's until Act 2). STUB - the area after it has not been built yet, so the game
+   * THE END OF THE GAME SO FAR: level 25's way out (v18.2; v18.0: 24's; v17.0: 20's; it was 16's until Act 2). STUB - the area after it has not been built yet, so the game
    * ends on a short, deliberately temporary screen and goes back to the title. (Until v14.0 this screen came
    * straight after level 13's capture.) Replace this and the `#ending` overlay in index.html together when the
    * next area exists.
@@ -4470,12 +4479,24 @@
     cues.clear();
     story.stop();
     scriptLock = false;
-    level = null; // nothing behind the last screen but the dark the level faded into
+    level = null; // nothing behind the last screen but the light the level faded into
     $('hud').classList.add('hidden');
     $('banner').classList.remove('show');
-    showOverlay('ending');
-    audio.levelComplete();
+    showEndScreen();
     if (saved) showSaved();
+  }
+
+  /**
+   * (v18.2) THE END OF THE STORY SO FAR: after level 25, the light. A calm screen - white fading to dark, one line and a
+   * way back to the title. A PLACEHOLDER: when the next part of the story exists, this function and these words are
+   * what get replaced (the overlay is #ending in index.html; its look is "#ending" in style.css).
+   */
+  const ENDING_TEXT = 'More to come soon.';
+  const ENDING_BUTTON = 'Back to title';
+  function showEndScreen() {
+    $('ending-text').textContent = ENDING_TEXT;
+    $('ending-button').textContent = ENDING_BUTTON;
+    showOverlay('ending');
   }
 
   function pause() {

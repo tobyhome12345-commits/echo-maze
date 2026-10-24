@@ -64,7 +64,7 @@ function wardenChecks(tag, n, part, L, sol, spec) {
   ok(`${tag}: the Warden only ever reaches you along the way you came (${ahead} tiles of the way through it could reach first by another way)`, ahead === 0);
 }
 
-const levels = [[17, 1], [18, 1], [19, 1], [20, 1], [21, 1], [22, 1], [23, 1], [24, 1], [24, 2]].filter(([n]) => !only.length || only.includes(n));
+const levels = [[17, 1], [18, 1], [19, 1], [20, 1], [21, 1], [22, 1], [23, 1], [24, 1], [24, 2], [25, 1]].filter(([n]) => !only.length || only.includes(n));
 for (const [n, part] of levels) {
   warnings.length = 0;
   const L = vm.runInContext(`generateLevel(${n}, 12345, 'normal', ${part})`, ctx);
@@ -169,10 +169,50 @@ for (const [n, part] of levels) {
     ok(`24 part 2: only the Warden (${kinds})`, kinds === 'warden');
     wardenChecks('24 part 2', n, part, L, sol, spec);
   }
+  // ============================================================== (v18.2) 25: THE LIGHT
+  if (spec.kind === 'outside') {
+    const tau = 40 / 170; // s a tile, at your walking speed
+    const steps = sol.route.map((r) => r.tile);
+    const kTrip = steps.findIndex((t) => ((t % W) + 0.5) * 40 >= spec.tripX);
+    const tRelease = 0.7 + kTrip * tau; // a clean run reaches the trip point then
+    const h = L.enemies.find((e) => e.kind === 'warden');
+    ok(`25: level 16's Warden (upgraded, ${vm.runInContext('WARDEN_UPGRADED_SPEED', ctx)} x your speed) and nothing else (${kinds})`, kinds === 'warden' && h.variant === 'upgraded');
+    const tw = 40 / (vm.runInContext('WARDEN_UPGRADED_SPEED', ctx) * 170);
+    const hIdx = Math.floor(h.y / 40) * W + Math.floor(h.x / 40);
+    const dW = vm.runInContext(`(() => { const L = generateLevel(25, 1, 'normal', 1); const B = L.blocked.slice(); for (const s of L.story.seals) B[s.ty * L.W + s.tx] = 0; return Array.from(bfsDist(B, L.W, L.H, ${hIdx})); })()`, ctx);
+    let slack = Infinity;
+    for (let k = kTrip; k < steps.length; k++) slack = Math.min(slack, tRelease + spec.wake + dW[steps[k]] * tw - (0.7 + k * tau));
+    ok(`25: the trip point is on the way, after the long arrival (${kTrip} steps in: ${(kTrip * tau).toFixed(1)} s of clean walking)`, kTrip >= 15);
+    ok(`25: a clean run stays ${slack.toFixed(1)} s ahead of it all the way to the light (at least 1.5 s)`, slack >= 1.5);
+    const run = (steps.length - kTrip) * tau;
+    ok(`25: the run, release to light: ${run.toFixed(1)} s of clean walking (25-40 s for a player who pings and turns)`, run >= 12 && run <= 30);
+    // the floor behind: it never catches a player who keeps moving, and never the Warden
+    const cr = a2.creep;
+    let cl = Infinity;
+    steps.forEach((t, k) => {
+      const d = cr.dist[t];
+      if (k < kTrip || d < 0 || d >= cr.layers.length) return;
+      cl = Math.min(cl, tRelease + cr.layers[d].t - (0.7 + (k + 1) * tau));
+    });
+    ok(`25: the floor behind you never catches a player who keeps moving (${cl.toFixed(1)} s to spare at the closest)`, cl > 1);
+    const every = cr.layers[1].t - cr.layers[0].t;
+    const sIdx0 = Math.floor(L.start.y / 40) * W + Math.floor(L.start.x / 40);
+    const wardenPastStart = spec.wake + (dW[sIdx0] + 3) * tw;
+    ok(`25: ...and never the Warden: it starts ${cr.layers[0].t} s after the release (the Warden is past the start at ${wardenPastStart.toFixed(1)} s), one tile every ${every.toFixed(2)} s (it walks one every ${tw.toFixed(2)} s)`, every > tw && cr.layers[0].t > wardenPastStart);
+    const ex = Math.floor(L.exit.y / 40) * W + Math.floor(L.exit.x / 40);
+    ok(`25: the floor stops going ${spec.collapse.stopShort} tiles short of the light`, cr.dist[ex] - (cr.layers.length - 1) === spec.collapse.stopShort);
+    // the light is in sight from the start, down the long line (walls only - the bars are seen through)
+    const sees = vm.runInContext(`(() => { const L = generateLevel(25, 1, 'normal', 1); const W = L.W; const a = L.start, b = L.exit; const d = Math.hypot(b.x - a.x, b.y - a.y); for (let s = 0; s < d; s += 4) { const x = a.x + (b.x - a.x) * s / d, y = a.y + (b.y - a.y) * s / d; if (L.walls[Math.floor(y / 40) * W + Math.floor(x / 40)]) return false; } return true; })()`, ctx);
+    ok('25: the light can be seen from the start, far off down the hall', sees);
+    let turns = 0;
+    for (let k = 2; k < steps.length; k++) if (steps[k] - steps[k - 1] !== steps[k - 1] - steps[k - 2]) turns++;
+    ok(`25: a winding way to it (${turns} turns)`, turns >= 10);
+  }
+
   // every monster on a floor tile the player can reach (no one stuck in stone)
   const sIdx = Math.floor(L.start.y / 40) * W + Math.floor(L.start.x / 40);
   // (21: walking over crumbling floor - it is there until you have crossed it)
-  const reach = vm.runInContext(`(() => { const L = generateLevel(${n}, 1, 'normal', ${part}); const B = L.blocked.slice(); for (const c of (L.act2 && L.act2.crumbles) || []) B[c.i] = 0; return Array.from(bfsDist(B, L.W, L.H, ${sIdx})); })()`, ctx);
+  const reach = vm.runInContext(`(() => { const L = generateLevel(${n}, 1, 'normal', ${part}); const B = L.blocked.slice(); for (const c of (L.act2 && L.act2.crumbles) || []) B[c.i] = 0; for (const s of (L.story && L.story.seals) || []) B[s.ty * L.W + s.tx] = 0; return Array.from(bfsDist(B, L.W, L.H, ${sIdx})); })()`, ctx);
   for (const e of L.enemies) {
     const i = Math.floor(e.y / 40) * W + Math.floor(e.x / 40);
     ok(`level ${tag}: the ${e.kind} stands on open floor${spec.kind === 'shuffle' || spec.kind === 'loop' ? '' : ' you can reach'}`, !L.blocked[i] && (spec.kind === 'shuffle' || spec.kind === 'loop' || reach[i] >= 0));

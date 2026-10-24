@@ -552,18 +552,14 @@
   </section>
 
   <!--
-    STUB. What comes after level 24 has not been built yet, so the game stops here instead of pretending
-    otherwise. This whole overlay - and onStoryEnd() in js/game.js - is to be replaced when the next area exists.
-    (v12.0-v13.0 showed it straight after level 13's capture; since v14.0 the capture leads on into levels 14-16,
-    and this comes at the end of 16.)
+    THE END OF THE STORY SO FAR (v18.2): after level 25 you are outside. A placeholder until the next part exists -
+    its words are constants in showEndScreen() (js/game.js), the one place to change.
   -->
   <section id="ending" class="overlay hidden">
     <div class="panel small quiet">
-      <h2 class="hush">&hellip;</h2>
-      <p id="ending-text">Behind you, the stone settles. Ahead, the dark goes on.</p>
-      <p class="stub">This is as far as the maze goes for now. The next area is still being built.</p>
+      <p id="ending-text">More to come soon.</p>
       <div class="buttons">
-        <button id="btn-ending-title" class="primary">Back to title <span class="key">Enter</span></button>
+        <button id="btn-ending-title" class="primary"><span id="ending-button">Back to title</span> <span class="key">Enter</span></button>
       </div>
     </div>
   </section>

@@ -362,6 +362,38 @@ const EchoStory = (() => {
         ],
       },
     },
+    // ================================================================== (v18.2) 25: THE LIGHT - the end of Act 2
+    // Level 15's mirror. A light at the end of a long way, the faster Warden let out behind you - and this time the
+    // light is real: the way out IS outside. No words, no scene: only the light, the sound of outside and the chase.
+    // The bars (b) along the middle are the sight line to it: seen through, never walked.
+    25: {
+      kind: 'outside',
+      act2: true,
+      void: 2,
+      hunter: 'upgraded', // level 16's: 105% of your speed, its own low voice
+      tripX: 26 * 40 + 12, // px: past this, the stone behind you splits and it is let out
+      wake: 1.6, // s after that before it is out of the wall and coming (16's head start: RELEASE_WAKE - 1.4)
+      lightFar: 2000, // px from the light at which it is at its faintest (it grows and warms as you come)
+      // the floor behind you goes, on a fixed schedule from the moment it is let out: `delay` s, then one more tile
+      // of path from the start every `every` s (slower than it walks - it is always behind it), stopping `stopShort`
+      // tiles of path before the way out
+      collapse: { delay: 6.0, every: 0.28, stopShort: 14 },
+      map: [
+        // <map25>
+        '########################################################',
+        '#############################.....###.....###.....######',
+        '#############################.#.#.###.###.###.#.#.######',
+        '#############################.###.###.###.###.###.######',
+        '#############################.###.###.###.###.###.######',
+        '#############################.###.#.#.###.###.###.#.####',
+        '#############################.###.....###.....###.....##',
+        '#..#....p.......p.......p.....bbbbbbbbbbbbbbbbbbbbbbb..#',
+        '#W.P.S.......................bbbbbbbbbbbbbbbbbbbbbbbbbX#',
+        '#..#........p.......p........###########################',
+        '########################################################',
+        // </map25>
+      ],
+    },
   };
   /**
    * (v17.0) THE VOID, by `void` level (17: 1 ... 20: 4). Drawing and sound only - nothing in it is read by anything
@@ -492,7 +524,8 @@ const EchoStory = (() => {
     if (key && dShut[Math.floor(key.y / TILE) * W + Math.floor(key.x / TILE)] < 0) console.warn(`EchoStory: level ${n}'s key cannot be reached`);
 
     const enemies = [];
-    if (hunter) enemies.push({ kind: 'warden', x: hunter.x, y: hunter.y, variant: n === 16 ? 'upgraded' : 'regular', pitch: n === 16 ? 41.2 : 46.25 });
+    const fast = n === 16 || spec.hunter === 'upgraded'; // (v18.2: 25's is level 16's)
+    if (hunter) enemies.push({ kind: 'warden', x: hunter.x, y: hunter.y, variant: fast ? 'upgraded' : 'regular', pitch: fast ? 41.2 : 46.25 });
     for (const m of monsters) enemies.push(m); // (v17.0: Act 2's ordinary monsters, where the map puts them)
 
     // (v17.0) ACT 2: what each level's broken rule needs to know (js/game.js reads it; nothing else does)
@@ -530,7 +563,7 @@ const EchoStory = (() => {
         for (const i of deadTiles) dead[i] = 1;
       }
       const crumbles = crumbleTiles.map((i) => ({ i, state: 0, at: 0 })); // 0 whole, 1 stepped off, 2 cracked, 3 gone
-      act2 = { kind: spec.kind, void: spec.void || 1, ghosts, hidden, slides, slideRange: spec.slideRange || 240, folds, foldPair, rayWalls, voidGrid, crumbles, dead, creep: spec.creep ? creepSchedule(W, H, walls, spec.creep, cfg.mode) : null, part: spec.part || 1 };
+      act2 = { kind: spec.kind, void: spec.void || 1, ghosts, hidden, slides, slideRange: spec.slideRange || 240, folds, foldPair, rayWalls, voidGrid, crumbles, dead, creep: spec.creep ? creepSchedule(W, H, walls, spec.creep, cfg.mode) : spec.collapse ? collapseSchedule(W, H, blocked, start, exit, spec.collapse) : null, part: spec.part || 1 };
     }
 
     const built = {
@@ -598,6 +631,22 @@ const EchoStory = (() => {
   }
 
   /**
+   * (v18.2) 25: the floor behind you going. Tiles go in order of their walking distance from the start - one more
+   * tile of it every `every` s, from `delay` s after the Warden is let out (`relative`: the times count from
+   * `base`, which js/game.js sets at the release; until then, Infinity: nothing goes) - and stop `stopShort` tiles
+   * before the way out. The same every attempt.
+   */
+  function collapseSchedule(W, H, blocked, start, exit, co) {
+    const at = (p) => Math.floor(p.y / TILE) * W + Math.floor(p.x / TILE);
+    const d = bfsDist(blocked, W, H, at(start));
+    const last = d[at(exit)] - co.stopShort;
+    const layers = [];
+    for (let k = 0; k <= last; k++) layers.push({ t: co.delay + k * co.every, tiles: [] });
+    for (let i = 0; i < d.length; i++) if (d[i] >= 0 && d[i] <= last) layers[d[i]].tiles.push(i);
+    return { layers, relative: true, base: Infinity, dist: d };
+  }
+
+  /**
    * (v17.0) Can Act 2's level be finished, through its own broken rule? A search over where you stand AND every
    * sliding wall's state (18: a ping of yours toggles each one in range, exactly as the game does - and one never
    * slides onto the tile you are on), stepping through folds (19) and walking through ghost walls but not hidden
@@ -609,7 +658,7 @@ const EchoStory = (() => {
     const H = level.H;
     const a2 = level.act2;
     if (a2 && a2.crumbles && a2.crumbles.length) return solveCrumble(level);
-    if (a2 && a2.creep) return solveCreep(level);
+    if (a2 && a2.creep && !a2.creep.relative) return solveCreep(level); // (25's collapse is checked by tools/act2-check.js against the release)
     const tileOf = (p) => Math.floor(p.y / TILE) * W + Math.floor(p.x / TILE);
     const s0 = tileOf(level.start);
     const goal = tileOf(level.exit);
@@ -859,6 +908,10 @@ const EchoStory = (() => {
     let voidRnd = null;
     let staticCanvas = null; // the void's static: drawn once, moved about
     let foldFlick = 0;
+    // (v18.2) 25
+    let white = 0; // 0..1 of white over everything: the light, flooding in at the end
+    let whiteTo = 0;
+    let hushK = 1; // the Warden's hum, fading out once you are through
 
     const P = () => env.player();
     const calm = () => !!env.calm();
@@ -998,6 +1051,7 @@ const EchoStory = (() => {
       veilDur = 0.001;
       if (kind === 'gaol') startGaol();
       else if (kind === 'light') startLight();
+      else if (kind === 'outside') startOutside(); // (v18.2)
       else if (S.spec.act2) startAct2();
       else startDeep();
     }
@@ -1011,6 +1065,8 @@ const EchoStory = (() => {
       }
       glitchT = 0;
       foldFlick = 0;
+      white = 0;
+      whiteTo = 0;
       lv = null;
       S = null;
       kind = 'off';
@@ -1366,6 +1422,74 @@ const EchoStory = (() => {
       );
     }
 
+    // ===================================================== (v18.2) 25: THE LIGHT
+    // Arrival: a long quiet hall, and far off down it a faint warm pinpoint - level 15's light, drawn the same way and
+    // held to the same rule (clipped to what you could really see), but at the way out, and real. The sound of outside
+    // (level 15's daylight, without its birds: it is night out there) grows as you come. Past tripX the stone behind
+    // you splits and level 16's Warden is let out; the floor behind starts to go. The way out is the light.
+    function startOutside() {
+      phase = 'calm';
+      setLock(true);
+      white = 0;
+      whiteTo = 0;
+      hushK = 1;
+      const x = lv.exit;
+      const rays = [];
+      const N = 240;
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * TAU;
+        rays.push(env.raycast(x.x, x.y, Math.cos(a), Math.sin(a), LIGHT_REACH));
+      }
+      light = { x: x.x, y: x.y, k: 0.18, sight: 0, seen: false, near: false, rays, N, flick: 0 };
+      if (audio) {
+        audio.startVoid(S.spec.void);
+        audio.startDaylight();
+        audio.setDaylight(0.06);
+      }
+      play(
+        [
+          [0, () => fade(0, 1.6)],
+          [0.8, () => env.banner()],
+        ],
+        release
+      );
+    }
+    function updateOutside(dt) {
+      if (!light) return;
+      const p = P();
+      const see = lightSight(p);
+      light.sight = see < light.sight ? see : light.sight + (see - light.sight) * Math.min(1, 6 * dt);
+      const near = clamp(1 - Math.hypot(p.x - light.x, p.y - light.y) / S.spec.lightFar, 0, 1);
+      // it grows and warms the nearer you are - drawing only, never a light anything else reads
+      light.k += (0.18 + 0.82 * near - light.k) * Math.min(1, 1.5 * dt);
+      if (phase === 'leaving') {
+        hushK = Math.max(0, hushK - dt / 1.8); // its steps have stopped; now its hum goes
+        env.hush(hushK);
+      } else if (audio) audio.setDaylight(0.08 + 0.62 * near);
+      if (whiteTo > white) white = Math.min(whiteTo, white + dt / 3.2);
+      if (phase === 'calm' && !locked && p.x >= S.spec.tripX) releaseOutside();
+    }
+    /** Behind you, the stone splits: it is out - and the floor behind you starts to go. Nothing is said. */
+    function releaseOutside() {
+      const h = env.hunter();
+      phase = 'chase';
+      const s0 = S.seals[0];
+      const p = P();
+      const sx = s0 ? (s0.tx + 0.5) * TILE : p.x - 400;
+      if (audio) audio.stoneSplit(clamp((sx - p.x) / 500, -0.9, 0.9), 0.75);
+      caption('[stone splits, far behind you]');
+      shakeBy(7);
+      for (const sl of S.seals) env.openTile(sl.tx, sl.ty);
+      if (h) h.hidden = false;
+      env.music('hunt');
+      env.collapse(); // (the schedule starts now - its first tile goes collapse.delay s later)
+      after(S.spec.wake, () => {
+        if (!lv || phase === 'leaving') return;
+        if (audio) audio.stoneGrind(0, 0.45);
+        if (h) env.wake(h, 'upgraded');
+      });
+    }
+
     // ===================================================== 17-20: ACT 2, THE BROKEN GAOL
     // No words, no cutscene: each level opens in the dark the last one ended in, with its hint, and the void around it.
     function startAct2() {
@@ -1520,7 +1644,7 @@ const EchoStory = (() => {
       const warn = [];
       if (a2.creep) {
         for (const L of a2.creep.layers) {
-          const left = L.t - now;
+          const left = L.t + (a2.creep.relative ? a2.creep.base : 0) - now; // (v18.2: 25's counts from the release)
           if (left > 0 && left < CREEP_WARN) warn.push({ L, k: 1 - left / CREEP_WARN });
         }
       }
@@ -1597,6 +1721,23 @@ const EchoStory = (() => {
           ],
           null
         );
+      } else if (kind === 'outside') {
+        // (v18.2) THE REAL WAY OUT. Behind you it stops at the edge and comes no further: its steps stop, then its hum
+        // fades, a few seconds of nothing - and then the light floods in, the sound of outside rises, and it is over.
+        env.walk(0, 0);
+        env.music(null);
+        play(
+          [
+            [3.2, () => {
+              whiteTo = 1;
+              if (audio) audio.setDaylight(1);
+              caption('[the wind, outside]');
+            }],
+            [6.0, () => audio && audio.stopDaylight()],
+            [7.4, () => env.finish()],
+          ],
+          null
+        );
       } else {
         env.walk(0, 0);
         if (audio) audio.breath(1);
@@ -1640,6 +1781,7 @@ const EchoStory = (() => {
       if (!lv) return; // (the beat may have finished the level)
       if (kind === 'gaol') updateGaol(dt);
       else if (kind === 'light') updateLight(dt);
+      else if (kind === 'outside') updateOutside(dt); // (v18.2)
       else if (S.spec.act2) updateAct2(dt);
       else updateDeep(dt);
     }
@@ -1647,7 +1789,8 @@ const EchoStory = (() => {
     // -------------------------------------------------------------- drawing
     /** World space, under the ripples: level 15's light, and everything it falls on. */
     function draw(ctx, artT) {
-      if (!lv || kind !== 'light' || !light) return;
+      if (!lv || (kind !== 'light' && kind !== 'outside') || !light) return;
+      const sc = kind === 'outside' ? 0.3 + 0.7 * light.k : 1; // (v18.2: 25's grows from a pinpoint)
       const p = P();
       const g = light.k * light.sight * (0.9 + 0.1 * Math.sin(artT * 0.8));
       if (g <= 0.004) return;
@@ -1664,13 +1807,13 @@ const EchoStory = (() => {
       ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
       // 1. a pool of warm light that is simply there
-      const pool = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, LIGHT_REACH);
+      const pool = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, LIGHT_REACH * sc);
       pool.addColorStop(0, `rgba(${LIGHT_RGB},${0.2 * g})`);
       pool.addColorStop(0.35, `rgba(${LIGHT_RGB},${0.07 * g})`);
       pool.addColorStop(1, `rgba(${LIGHT_RGB},0)`);
       ctx.fillStyle = pool;
       ctx.beginPath();
-      ctx.arc(light.x, light.y, LIGHT_REACH, 0, TAU);
+      ctx.arc(light.x, light.y, LIGHT_REACH * sc, 0, TAU);
       ctx.fill();
       // 2. the stone it falls on, brighter the nearer the light
       ctx.lineCap = 'round';
@@ -1697,12 +1840,12 @@ const EchoStory = (() => {
         ctx.stroke();
       }
       // 3. the glare at the heart of it - the "opening"
-      const glare = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, 54);
+      const glare = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, 54 * sc);
       glare.addColorStop(0, `rgba(255,246,228,${0.6 * g})`);
       glare.addColorStop(1, `rgba(${LIGHT_RGB},0)`);
       ctx.fillStyle = glare;
       ctx.beginPath();
-      ctx.arc(light.x, light.y, 54, 0, TAU);
+      ctx.arc(light.x, light.y, 54 * sc, 0, TAU);
       ctx.fill();
       // 4. and where it comes from: a crack of light in what looks like stone (it is the Warden's seam)
       const h = env.hunter();
@@ -1741,6 +1884,11 @@ const EchoStory = (() => {
         ctx.fillStyle = `rgba(0,0,0,${(calm() ? 0.35 : 0.7) * (foldFlick / 0.22)})`;
         ctx.fillRect(0, 0, cw, ch);
       }
+      // (v18.2) 25: the light flooding in - slowly, never a flash
+      if (white > 0.002) {
+        ctx.fillStyle = `rgba(255,250,240,${white})`;
+        ctx.fillRect(0, 0, cw, ch);
+      }
       if (flare > 0.01) {
         const f = flare * flare * (calm() ? 0.3 : 1);
         const grad = ctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.5);
@@ -1774,6 +1922,7 @@ const EchoStory = (() => {
       drips: drips.map((d) => ({ x: d.x, y: d.y, on: d.on, metal: d.metal })),
       speaking: speech ? speech.text : null,
       act2: S && S.spec.act2 ? { glitch: +glitchT.toFixed(3), firstPing, fallIn: +fallIn.toFixed(2), flicker: +foldFlick.toFixed(3) } : null, // (v17.0)
+      outside: kind === 'outside' ? { white: +white.toFixed(3), hush: +hushK.toFixed(3) } : null, // (v18.2)
     });
 
     return {

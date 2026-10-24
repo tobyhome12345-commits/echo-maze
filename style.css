@@ -2249,10 +2249,14 @@ body.touch #saved-toast.show {
    STUB - replace it together with onCaptured() when the next area exists.
    ======================================================================== */
 
+/* (v18.2) after the light: white fading softly down to the dark, and nothing on it but the one line */
+#ending {
+  background: linear-gradient(180deg, rgb(255, 250, 240) 0%, rgb(214, 210, 204) 22%, rgb(58, 60, 66) 62%, rgb(4, 5, 8) 100%);
+}
 #ending .panel {
-  background: linear-gradient(180deg, rgba(10, 11, 14, 0.94), rgba(3, 4, 6, 0.96));
-  border-color: rgba(190, 205, 225, 0.12);
-  box-shadow: 0 0 80px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(190, 205, 225, 0.07), inset 0 0 44px rgba(0, 0, 0, 0.6);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 /* the "..." - big, dim, and given room to sit in */
@@ -2266,9 +2270,11 @@ body.touch #saved-toast.show {
 }
 
 #ending #ending-text {
-  font-size: 16px;
-  letter-spacing: 0.03em;
-  color: rgba(228, 238, 250, 0.94);
+  margin: 0 0 22px;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: rgba(236, 240, 246, 0.95);
+  text-shadow: 0 0 24px rgba(0, 0, 0, 0.35);
 }
 
 /* said plainly, and out of the fiction: this screen is not the real ending */

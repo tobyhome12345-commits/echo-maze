@@ -62,9 +62,23 @@ function killTree(child) {
     }
   }
 }
+/**
+ * End every process started from this temp profile. On Windows the process `spawn` returns is not always the one
+ * that owns the page processes, so ending "its tree" can miss them all (14 processes left per run - found in v18.1):
+ * the profile path in their command line is what they all share.
+ */
+function killByProfile(profile) {
+  if (process.platform !== 'win32' || !profile) return;
+  try {
+    execFileSync('powershell', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${path.basename(profile)}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`], { stdio: 'ignore', timeout: 30000 });
+  } catch (e) {
+    /* nothing left, or not allowed */
+  }
+}
 function endAll() {
   for (const [child, profile] of live) {
     killTree(child);
+    killByProfile(profile);
     try {
       fs.rmSync(profile, { recursive: true, force: true });
     } catch (e) {
@@ -262,12 +276,21 @@ async function withPage(fn, opts = {}) {
     await page.size(opts.w || 1366, opts.h || 768, !!opts.mobile);
     return await fn(page);
   } finally {
+    // (v18.1) close it properly: ask the browser itself (it ends all its own processes), then make sure - its tree,
+    // and every process from its temp profile (browser.kill() used to leave its page processes running)
+    try {
+      await Promise.race([send('Browser.close'), sleep(3000)]);
+    } catch (e) {
+      /* already closing */
+    }
     try {
       ws.close();
     } catch (e) {
       /* closed */
     }
-    killTree(browser); // (v18.1: the whole tree - its page processes too, which browser.kill() left running)
+    await sleep(500);
+    killTree(browser);
+    killByProfile(profile);
     live.delete(browser);
     await sleep(300);
     try {
