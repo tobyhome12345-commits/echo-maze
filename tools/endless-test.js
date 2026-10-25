@@ -7,9 +7,9 @@
  *   EndlessTest.run()      a run: the button starts it at depth 1, the HUD says the depth, no banner, no fragment; the
  *                          depth in play is the one (run seed, depth) builds; a cleared depth goes on to the next
  *                          behind a fade; a milestone chime at 5 and 10; "New best!" when you pass your best
- *   EndlessTest.caught()   caught: the run is over in every mode (Hardcore too) - Depth N, the best, "New best!", the
- *                          Caught screen's own line; Try again is a new run at once (a new seed, depth 1), Enter too;
- *                          Back to title
+ *   EndlessTest.caught()   caught: Depth N, the best, "New best!", the Caught screen's own line - and (v20.1) on
+ *                          Normal Try again is the same depth at once (the same maze), on Hardcore a new run from depth 1
+ *                          (a new seed); Enter too; Back to title
  *   EndlessTest.modes()    each difficulty keeps its own best; storage that throws: the mode still works
  *   EndlessTest.noWrites() a run (cleared depths, a catch, Try again, quitting) writes nothing but Endless's own key -
  *                          not progress, medals, stats, lore, seen - and Continue is what it was
@@ -258,25 +258,31 @@ window.EndlessTest = (() => {
         step(1 / 60);
         await until(() => shown('endless-over'), 3000);
         await settled();
-        T.check(`${m}: caught - the run is over (${m === 'hardcore' ? 'not the title: Endless is one life everywhere' : 'no Try again of the same depth'})`, info().state === 'caught' && shown('endless-over') && !shown('caught'));
+        const hc = m === 'hardcore';
+        T.check(`${m}: caught - Endless's own screen (not the title, not the campaign's Caught screen)`, info().state === 'caught' && shown('endless-over') && !shown('caught'));
         T.check(`...it says "Depth 3" (${$('eo-depth').textContent})`, $('eo-depth').textContent === 'Depth 3');
         T.check(`...the best for ${m} (${$('eo-best').textContent}) and "New best!"`, /: 3$/.test($('eo-best').textContent) && shown('eo-new'));
         T.check(`...and what caught you, in the Caught screen's own words ("${$('eo-line').textContent}")`, $('eo-line').textContent === 'The echo found you.');
+        T.check(`...it says what Try again will do ("${$('eo-again-label').textContent}": ${$('eo-note').textContent})`, hc ? $('eo-again-label').textContent === 'Start again' && /depth 1/.test($('eo-note').textContent) : $('eo-again-label').textContent === 'Try again' && /depth 3 again/.test($('eo-note').textContent));
         const seed0 = E().endless.state().seed;
+        const maze0 = hashLevel(L());
         const t0 = performance.now();
         $('btn-endless-again').click();
         const ms = performance.now() - t0;
-        T.check(`Try again: a new run at once (${ms.toFixed(0)} ms, a new seed, depth 1)`, info().state === 'play' && E().endless.state().depth === 1 && E().endless.state().seed !== seed0 && ms < 400 && !$('endless-over').classList.contains('in'));
-        // and again, this time not beating the best
+        if (hc) T.check(`Hardcore, Start again: a new run at depth 1, at once (${ms.toFixed(0)} ms, a new seed)`, info().state === 'play' && E().endless.state().depth === 1 && E().endless.state().seed !== seed0 && ms < 400 && !$('endless-over').classList.contains('in'));
+        else T.check(`Normal, Try again: depth 3 again, the same maze, at once (${ms.toFixed(0)} ms)`, info().state === 'play' && E().endless.state().depth === 3 && E().endless.state().seed === seed0 && hashLevel(L()) === maze0 && ms < 400 && !$('endless-over').classList.contains('in'));
+        // caught again
         const echo2 = info().enemies.find((e) => e.kind === 'echo');
         E().tp(echo2.x, echo2.y);
         step(1 / 60);
         step(1 / 60);
         await until(() => shown('endless-over'), 3000);
         await settled();
-        T.check(`...caught at depth 1: no "New best!", the best still 3 (${$('eo-best').textContent})`, !shown('eo-new') && /: 3$/.test($('eo-best').textContent));
+        if (hc) T.check(`...caught at depth 1: no "New best!", the best still 3 (${$('eo-best').textContent})`, !shown('eo-new') && /: 3$/.test($('eo-best').textContent) && $('eo-depth').textContent === 'Depth 1');
+        else T.check(`...caught at depth 3 again: still depth 3, the best 3 (${$('eo-best').textContent})`, $('eo-depth').textContent === 'Depth 3' && /: 3$/.test($('eo-best').textContent));
+        const seed1 = E().endless.state().seed;
         press('Enter');
-        T.check('Enter on it: Try again', info().state === 'play' && E().endless.state() && E().endless.state().depth === 1);
+        T.check(`Enter on it: ${hc ? 'a new run from depth 1' : 'depth 3 again'}`, info().state === 'play' && E().endless.state() && E().endless.state().depth === (hc ? 1 : 3) && (hc ? E().endless.state().seed !== seed1 : E().endless.state().seed === seed1));
         const echo3 = info().enemies.find((e) => e.kind === 'echo');
         E().tp(echo3.x, echo3.y);
         step(1 / 60);
@@ -286,7 +292,7 @@ window.EndlessTest = (() => {
         $('btn-endless-title').click();
         await until(() => info().state === 'title' && !E().ui().transitioning, 3000);
         T.check('Back to title', info().state === 'title' && !E().endless.state() && !$('title-notice').textContent.includes('Hardcore gives you one life'));
-        T.check(`the last run kept (${JSON.stringify(E().endless.save().last && E().endless.save().last.depth)})`, E().endless.save().last && E().endless.save().last.mode === m && E().endless.save().last.depth === 1);
+        T.check(`the last run kept (${JSON.stringify(E().endless.save().last && E().endless.save().last.depth)})`, E().endless.save().last && E().endless.save().last.mode === m && E().endless.save().last.depth === (hc ? 1 : 3));
       }
     } finally {
       w.stop();

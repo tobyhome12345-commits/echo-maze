@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v20.0 - endless mode
+**Current version:** v20.1 - endless retries
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -137,7 +137,7 @@ title screen (on a phone held upright, in **Settings**) shows the whole history 
 
 ## Endless
 
-Once you have cleared level 12 in any mode, an **Endless** button appears on the title screen (before that it is not there at all). Endless is one generated maze after another, each a little harder than the last, until you are caught - and your score is how deep you got. There is one life in every mode: caught, and the run is over. The screen says the depth you reached, your best for that difficulty (and **New best!** if you beat it), and what caught you; **Try again** starts a new run straight away (Enter does too), and **Back to title** goes back.
+Once you have cleared level 12 in any mode, an **Endless** button appears on the title screen (before that it is not there at all). Endless is one generated maze after another, each a little harder than the last, until you are caught - and your score is how deep you got. When you are caught the screen says the depth you reached, your best for that difficulty (and **New best!** if you beat it), and what caught you. On **Hardcore** that is the end of the run: **Start again** begins a new one at depth 1. On **Easy, Normal and Hard**, **Try again** puts you straight back at the start of the same depth - the same maze - and the run goes on. Enter does the same as the button, and **Back to title** goes back.
 
 - Depths 1-3 are small mazes with a single echo monster. From there the other monsters come in one at a time, in the order the story brings them - the scent monster, the mimic, the sonar decoy, the stalker, the Muffler, the Singer - about one new kind every three depths, and the Alarm too once you have met it in the story. Nothing else: no new monsters, nothing from the story levels.
 - The mazes grow until about depth 30. After that they stay that size, and the monsters slowly get more numerous and a little faster, up to a limit - they are always slower than you.

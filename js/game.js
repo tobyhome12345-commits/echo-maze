@@ -4683,7 +4683,7 @@
       if (state !== 'caught' || thisCatch !== catchCount) return;
       if (endlessRun) {
         $('endless-over').classList.toggle('danger', !calm);
-        showOverlay('endless-over'); // (v20.0) one life in every mode: the run is over
+        showOverlay('endless-over'); // (v20.0) Endless's own screen (v20.1: Hardcore starts over, the other modes try the depth again - endlessAgain)
         return;
       }
       // (a custom level is not a run: even on Hardcore it simply offers Try again - v15.0)
@@ -4924,7 +4924,7 @@
   // ================================================================ (v20.0) ENDLESS MODE
   /**
    * ENDLESS: one generated maze after another, harder the deeper you go (js/level.js generateEndless), until you are
-   * caught - one life in every mode. The score is the depth. It opens once level 12 has been cleared in any mode (every
+   * caught (v20.1: on Hardcore that ends the run; elsewhere Try again is the same depth). The score is the depth. It opens once level 12 has been cleared in any mode (every
    * monster the generated levels have has been met by then); before that its button is not there at all. Each mode
    * keeps its own best depth, in Endless's own save (ENDLESS_KEY - the campaign's are never written: levelNum is
    * ENDLESS_LEVEL, so scored() is false). Calm mode, Visual cues, the palettes and touch work as on any level.
@@ -4985,7 +4985,10 @@
     }
     go(() => endlessRun && startLevel(ENDLESS_LEVEL));
   }
-  /** Caught: the run is over. The screen says how deep, the best, and what caught you (the Caught screen's own line). */
+  /**
+   * Caught. The screen says how deep, the best, and what caught you (the Caught screen's own line). On Hardcore the run
+   * is over; anywhere else Try again is this depth again (v20.1).
+   */
   function endlessOver(line) {
     const d = endlessRun.depth;
     const prev = endlessRun.startBest;
@@ -4995,12 +4998,21 @@
     $('eo-best').textContent = `Best on ${MODES[mode].label}: ${best}`;
     $('eo-new').classList.toggle('hidden', !(d > prev));
     $('eo-line').textContent = line;
+    // (v20.1) what Try again will do: Hardcore starts over, every other mode tries this depth again
+    const over = MODES[mode].oneLife;
+    $('eo-again-label').textContent = over ? 'Start again' : 'Try again';
+    $('eo-note').textContent = over ? 'Hardcore: one life. A new run starts at depth 1.' : `Try depth ${d} again - the same maze.`;
   }
-  /** Try again: a new run, instantly - no fade, no screens between. */
+  /**
+   * Try again, instantly - no fade, no screens between. (v20.1, owner's rule) Hardcore: one life, so the run is over and
+   * a new one starts at depth 1. Every other mode: the same depth again - the same maze (its seed is the run's and the
+   * depth's), as Try again on a campaign level.
+   */
   function endlessAgain() {
     if (!endlessRun || state !== 'caught') return;
     showOverlay(null);
-    startEndless();
+    if (MODES[mode].oneLife) startEndless();
+    else startLevel(ENDLESS_LEVEL, true);
   }
 
   /**

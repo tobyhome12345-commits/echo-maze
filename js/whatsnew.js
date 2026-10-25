@@ -34,6 +34,13 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v20.1',
+      title: 'Endless: Try again',
+      lines: [
+        { text: 'Endless on Easy, Normal and Hard: caught? Try again puts you back at the start of the same depth. On Hardcore you still start over from depth 1.', minLevel: 13 },
+      ],
+    },
+    {
       version: 'v20.0',
       title: 'Endless mode',
       lines: [
