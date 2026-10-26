@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v20.1 - endless retries
+**Current version:** v21.0 - cosmetics
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -229,7 +229,7 @@ name and its levels - and only then chooses **Import** or **Cancel**.
 
 ## Settings
 
-A **Settings** button sits on the title screen and in the pause menu (`Esc` or **Back** returns to whichever you came from). It has four tabs.
+A **Settings** button sits on the title screen and in the pause menu (`Esc` or **Back** returns to whichever you came from). It has five tabs.
 
 **Controls.** Every action can be given up to **two keys**: move up / down / left / right, ripple, crouch, use item, pause, mute, calm mode, visual cues. Pick a key cap, press the new key, done. `Esc` cancels the change; `Esc` and `Enter` can never be bound to anything, because they always mean back and confirm. A key the browser owns is refused with a reason (anything held with `Ctrl`, `Alt` or `Cmd`, the function keys, `Tab`). If the key already belongs to another action the game asks whether to **swap** them rather than silently stealing it. **Reset to defaults** puts `WASD` + arrows, `SPACE`, `SHIFT`, `E`, `P`, `M`, `C`, `V` back. Your keys are saved, and the how-to on the title screen and in the pause menu is written from them, so it always matches what the game is listening for. The touch controls are not affected.
 
@@ -246,6 +246,24 @@ Effects can be taken all the way to silence, and the tab says so plainly: *sound
 **Display.** The colour palette (below), **Visual cues**, and **Show timer** — the level time in the corner of the HUD, **off by default**, because medals are not meant to make you rush.
 
 **Stats & Medals.** Your medal board for the selected difficulty and your lifetime numbers (below), with a **Reset stats** button that asks once before it clears anything.
+
+**Cosmetics.** Looks for your own ripple and your own marker, earned by playing (see below).
+
+## Cosmetics
+
+Settings has a **Cosmetics** tab: three rows of looks you unlock by playing, and a small preview of your marker sending a ripple every couple of seconds on a dark background. Tap or click a look to wear it; the one you are wearing is marked. A look you have not unlocked yet is dimmed and says what unlocks it ("Clear level 10") - or just "???" when saying more would give away what is still ahead. When something new unlocks, a small dot appears on the Settings button and on the tab until you have looked.
+
+| | Looks |
+| --- | --- |
+| **Ripple colour** | Classic, Amber, Mint, Rose, Violet, Gold, White-hot |
+| **Ripple shape** | Classic, Double, Dotted, Soft, Heartbeat, Glitch |
+| **Player marker** | Dot, Ring, Diamond, Star, Ember |
+
+- **Purely a look.** A ripple reaches exactly as far, travels exactly as fast and lasts exactly as long in every look, and monsters hear and see exactly what they always did. Nothing about play changes.
+- **Only your own.** It recolours your ripple, the walls your ripple lights and your marker - never a monster, the way out or anything else, so every colour palette still means what it says. A drop of water's ripple, a monster's song and the cutscenes look as they always did, and so do the daylight levels.
+- **Readable.** Every colour was picked to stay clearly apart from everything a ripple can show, in all four palettes, and bright enough on the dark. Calm mode softens the moving shapes (Heartbeat, Glitch, Ember) and Visual cues work as usual.
+- **Worked out from your progress** every time: nothing "unlocked" is stored, only what you are wearing and which looks you have seen (its own small save). If storage is unavailable you get the classic look.
+- Cosmetics never go into a share code.
 
 ## Colour palettes
 

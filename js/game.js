@@ -385,6 +385,7 @@
   let storyDone = false; // the level's way out has been walked through and its last beat played
   let savedPending = false; // a "Progress saved" waiting for the next level's first quiet moment
   // ---- the level editor and custom levels (v15.0)
+  let cosLook = null; // (v21.0) what your own ripple and marker look like now (js/cosmetics.js look()) - drawing only
   let endlessRun = null; // (v20.0) { seed, depth, mode, startBest, passedBest } while an Endless run is being played (levelNum is ENDLESS_LEVEL)
   let customRun = null; // { doc, from: 'editor' | 'mylevels' | 'bonus', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
   let editorScreen = null; // 'gate' | 'unreleased' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
@@ -1846,6 +1847,7 @@
     if (scored()) EchoProfile.bump('ripples');
     glimmerOff = false; // a fresh ripple: the exit's glimmer that crouching wiped can show again
     castRipple(player.x, player.y, rippleRange());
+    ripples[ripples.length - 1].mine = true; // (v21.0) yours: drawn in your cosmetics (drawRipple) - nothing reads it but the drawing
     audio.ping();
     if (level.act2) act2Ping(player.x, player.y); // (v17.0: 18 - the sliding walls in range grind, and move)
     if (level.story) story.onPing(); // (v17.0: 17 - the first one stutters)
@@ -3306,6 +3308,10 @@
     const { x, y, dist, type, R } = rp;
     if (rp.ambient) ctx.globalAlpha = rp.dim; // a drop of water's ripple is fainter than yours (levels 14 and 16)
     const tint = rp.singer ? singerRgb() : null; // a singer's own wave is magenta all through: front, walls, everything it finds
+    // (v21.0) one of YOUR ripples: its front, and the walls it shows you, in your cosmetics (everything else it finds
+    // keeps the palette's colour). Drawing only - the rays, their reach and their timing are the same for every look.
+    const mine = rp.mine && cosLook && !tint ? cosLook : null;
+    const wallRgb = mine ? mine.wall : null;
     for (let k = 1; k < NRAYTYPES; k++) {
       retBuckets[k].length = 0;
       for (let a = 0; a < ALPHA_LEVELS; a++) segBuckets[k][a].length = 0;
@@ -3315,26 +3321,38 @@
     // expanding wavefront - only where the wave has not hit anything yet
     if (r < R) {
       const a = 0.06 + 0.5 * (1 - r / R);
-      ctx.beginPath();
-      let pen = false;
-      for (let i = 0; i <= RAYS; i++) {
-        const j = i % RAYS;
-        if (r < dist[j]) {
-          const px = x + COS[j] * r;
-          const py = y + SIN[j] * r;
-          if (pen) ctx.lineTo(px, py);
-          else {
-            ctx.moveTo(px, py);
-            pen = true;
-          }
-        } else pen = false;
+      // the front's path at the wave's radius (+ off: px, or per ray - null leaves a gap), only where it has not hit anything yet
+      const pathAt = (off) => {
+        ctx.beginPath();
+        let pen = false;
+        let any = false;
+        for (let i = 0; i <= RAYS; i++) {
+          const j = i % RAYS;
+          const o = typeof off === 'function' ? off(j) : off;
+          const rr = o === null ? -1 : r + o;
+          if (rr > 0 && rr < dist[j]) {
+            const px = x + COS[j] * rr;
+            const py = y + SIN[j] * rr;
+            if (pen) ctx.lineTo(px, py);
+            else {
+              ctx.moveTo(px, py);
+              pen = true;
+            }
+            any = true;
+          } else pen = false;
+        }
+        return any;
+      };
+      if (mine) EchoCosmetics.strokeWave(ctx, mine, pathAt, a, rp.t, calm);
+      else {
+        pathAt(0);
+        ctx.strokeStyle = tint ? `rgba(${tint},${a * 0.3})` : `rgba(150,215,255,${a * 0.25})`;
+        ctx.lineWidth = 9;
+        ctx.stroke();
+        ctx.strokeStyle = tint ? `rgba(255,190,255,${a})` : `rgba(190,235,255,${a})`;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
       }
-      ctx.strokeStyle = tint ? `rgba(${tint},${a * 0.3})` : `rgba(150,215,255,${a * 0.25})`;
-      ctx.lineWidth = 9;
-      ctx.stroke();
-      ctx.strokeStyle = tint ? `rgba(255,190,255,${a})` : `rgba(190,235,255,${a})`;
-      ctx.lineWidth = 1.8;
-      ctx.stroke();
     }
 
     // reveal marks (fading) and the reflected wave travelling back
@@ -3372,15 +3390,16 @@
       }
     }
     for (let k = 1; k < NRAYTYPES; k++) {
+      const col = tint || (k === T_WALL && wallRgb) || COLORS[k]; // (v21.0: your ripple's walls in your colour)
       for (let a = 0; a < ALPHA_LEVELS; a++) {
         const al = (a + 0.5) / ALPHA_LEVELS;
-        strokeBucket(segBuckets[k][a], `rgba(${tint || COLORS[k]},${al * 0.2})`, LINE_W[k] * 3.2);
-        strokeBucket(segBuckets[k][a], `rgba(${tint || COLORS[k]},${al})`, LINE_W[k]);
+        strokeBucket(segBuckets[k][a], `rgba(${col},${al * 0.2})`, LINE_W[k] * 3.2);
+        strokeBucket(segBuckets[k][a], `rgba(${col},${al})`, LINE_W[k]);
       }
-      strokeBucket(retBuckets[k], `rgba(${tint || COLORS[k]},${retAlpha * 0.3})`, 6);
-      strokeBucket(retBuckets[k], `rgba(${tint || COLORS[k]},${retAlpha})`, 1.6);
+      strokeBucket(retBuckets[k], `rgba(${col},${retAlpha * 0.3})`, 6);
+      strokeBucket(retBuckets[k], `rgba(${col},${retAlpha})`, 1.6);
     }
-    for (let a = 0; a < ALPHA_LEVELS; a++) strokeBucket(texBuckets[a], `rgba(${tint ? "255,170,255" : EchoArt.CORE.wall},${((a + 0.5) / ALPHA_LEVELS) * 0.6})`, 1.1);
+    for (let a = 0; a < ALPHA_LEVELS; a++) strokeBucket(texBuckets[a], `rgba(${tint ? "255,170,255" : wallRgb ? mine.wallCore : EchoArt.CORE.wall},${((a + 0.5) / ALPHA_LEVELS) * 0.6})`, 1.1);
 
     // the things the wave found, drawn as themselves (the rays above are their true collision outline)
     for (const ob of rp.objs) {
@@ -3600,10 +3619,8 @@
     ctx.beginPath();
     ctx.arc(player.x, player.y, 30, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = low ? 'rgba(200,225,240,0.6)' : 'rgba(235,248,255,0.95)';
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, (low ? 3.2 : 4.5) * (0.3 + 0.7 * fall), 0, TAU);
-    ctx.fill();
+    // (v21.0) your marker: the classic dot, or the one you have equipped (js/cosmetics.js) - the same size, the same halo
+    EchoCosmetics.drawMarker(ctx, cosLook ? cosLook.marker : 'dot', player.x, player.y, (low ? 3.2 : 4.5) * (0.3 + 0.7 * fall), low, artT, calm);
     ctx.globalAlpha = 1;
     if (cooldown > 0) {
       const p = 1 - cooldown / cfg.cooldown;
@@ -4277,6 +4294,7 @@
     }
     loreReader.hide();
     loreBannerBack = null;
+    refreshCosmetics(); // (v21.0) what you wear in this level
     cfg = level.cfg;
     player = {
       x: level.start.x,
@@ -5015,6 +5033,26 @@
     else startLevel(ENDLESS_LEVEL, true);
   }
 
+  // ================================================================ (v21.0) COSMETICS
+  /**
+   * What the cosmetics' unlocks are worked out from (js/cosmetics.js) - read fresh each time, never stored: the best
+   * level reached in any mode, each mode's best, Endless's best depth in any mode, and whether Endless is open.
+   */
+  function cosFacts() {
+    const best = {};
+    for (const m of MODE_ORDER) best[m] = getBest(m);
+    const eb = endlessSave().best;
+    return { furthest: furthestReached(), best, endless: Math.max(0, ...MODE_ORDER.map((m) => eb[m] || 0)), endlessOpen: endlessUnlocked() };
+  }
+  /** What is worn now, for drawing - and the "new" dot on Settings and its Cosmetics tab. */
+  function refreshCosmetics() {
+    const f = cosFacts();
+    cosLook = EchoCosmetics.look(EchoCosmetics.current(f));
+    const fresh = EchoCosmetics.fresh(f).length > 0;
+    for (const id of ['settings-dot', 'cos-dot']) if ($(id)) $(id).classList.toggle('hidden', !fresh);
+    if ($('btn-settings')) $('btn-settings').setAttribute('aria-label', fresh ? 'Settings - something new in Cosmetics' : 'Settings');
+  }
+
   /**
    * (v19.3) DUSK: talking to the Warden in the dark (the interact key, or the Talk button) - its scene, "Nothing
    * Listens", and after it (onTalkDone) Dusk counts as cleared and the end screen comes up.
@@ -5144,6 +5182,7 @@
     });
     $('btn-replay').classList.toggle('hidden', !replayAvailable());
     refreshEndlessButton(); // (v20.0)
+    refreshCosmetics(); // (v21.0: an unlock since last time - the dot)
     $('btn-archive').classList.toggle('hidden', !archiveAvailable()); // only once something has been found
     // a small medal line for the mode that is picked (Settings -> Stats & Medals has the whole board)
     const sum = EchoProfile.medalSummary(mode, MEDAL_LEVELS); // (level 13 has no medals - see MEDAL_LEVELS)
@@ -5968,6 +6007,11 @@
     lightUnlocked, // (v19.1) the daylight interface
     lightUi: () => lightUi,
     setLightUi,
+    // (v21.0) cosmetics: what unlocks them, and the look changed or seen
+    cosFacts,
+    cosmeticsChanged: () => refreshCosmetics(),
+    paletteWall: () => EchoPalette.rgb('wall'),
+    calm: () => calm,
 
     mode: () => mode,
     modeIds: () => MODE_ORDER,
@@ -6884,6 +6928,18 @@
       // v14.0: levels 14-16 (js/story.js). go(14..16) plays them; step() drives them (the beats run inside play).
       story,
       storyState: () => story.state(),
+      // (v21.0) cosmetics
+      cosmetics: {
+        facts: () => cosFacts(),
+        look: () => cosLook && Object.assign({}, cosLook),
+        refresh: () => refreshCosmetics(),
+        ui: () => settings, // (the Settings screen: openSettings, showTab, renderCosmetics, previewRunning)
+        equip: (kind, id) => {
+          const ok = EchoCosmetics.equip(kind, id, cosFacts());
+          refreshCosmetics();
+          return ok;
+        },
+      },
       // (v20.0) Endless: the run, its save, and any depth of any run built again
       endless: {
         state: () => (endlessRun ? { seed: endlessRun.seed, depth: endlessRun.depth, mode: endlessRun.mode, startBest: endlessRun.startBest, passedBest: endlessRun.passedBest, levelOk: !!(level && level.endless && level.endless.ok), attempt: level && level.endless ? level.endless.attempt : null } : null),

@@ -4553,3 +4553,21 @@ body.touch #talk { bottom: auto; top: 58%; min-height: 52px; padding: 10px 26px;
 #endless-over .eo-new.hidden { display: none; }
 #endless-over .eo-best { opacity: 0.8; margin: 0 0 0.6em; }
 #endless-over .eo-note { opacity: 0.75; font-size: 0.92em; margin: 0.4em 0 0.2em; }
+
+/* (v21.0) Cosmetics (Settings): the preview, three rows of tiles, the "new" dot. The canvases show the game's own
+   look, so the daylight interface's filter is undone on them (.cos-true: the same filter twice is no filter). */
+.cos-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; vertical-align: 2px; background: rgb(var(--exit-rgb)); box-shadow: 0 0 6px rgba(var(--exit-rgb), 0.8); }
+.cos-dot.hidden { display: none; }
+.cos-preview-wrap { display: flex; justify-content: center; margin: 4px 0 6px; }
+#cos-preview { width: min(280px, 100%); height: 150px; border-radius: 10px; border: 1px solid rgba(var(--ui-rgb), 0.25); background: #010206; }
+.cos-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; margin: 6px 0 12px; }
+.cos-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 4px 8px; min-height: 44px; font-size: 12px; letter-spacing: 0.04em; text-transform: none; border: 1px solid rgba(var(--ui-rgb), 0.2); background: rgba(var(--ui-rgb), 0.04); color: var(--ink); }
+.cos-tile canvas { border-radius: 6px; display: block; }
+.cos-tile.on { border-color: rgba(var(--exit-rgb), 0.85); box-shadow: 0 0 0 1px rgba(var(--exit-rgb), 0.6), 0 0 14px rgba(var(--exit-rgb), 0.25); }
+.cos-tile.on .cos-name::after { content: ' \2713'; color: rgb(var(--exit-rgb)); }
+.cos-tile.locked { opacity: 0.55; cursor: default; }
+.cos-tile.locked canvas { filter: grayscale(0.85) brightness(0.6); }
+.cos-why { display: block; color: var(--dim); font-size: 11px; line-height: 1.25; text-align: center; }
+.cos-new { position: absolute; top: 4px; right: 5px; font-size: 10px; font-weight: 700; color: rgb(var(--exit-rgb)); letter-spacing: 0.06em; }
+html[data-ui='light'] canvas.cos-true { filter: invert(1) hue-rotate(180deg); }
+html[data-ui='light'] .cos-tile.locked canvas.cos-true { filter: invert(1) hue-rotate(180deg) grayscale(0.85) brightness(0.6); }

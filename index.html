@@ -170,7 +170,7 @@
         <button id="btn-replay" class="quiet hidden">Levels &amp; cutscenes</button>
         <button id="btn-archive" class="quiet hidden">Fragments</button>
         <button id="btn-editor" class="quiet">Level Editor</button>
-        <button id="btn-settings" class="quiet">Settings</button>
+        <button id="btn-settings" class="quiet">Settings<span id="settings-dot" class="cos-dot hidden" aria-hidden="true"></span></button>
       </div>
       <p id="title-medals" class="medal-summary hidden"></p>
     </div>
@@ -456,6 +456,8 @@
         <button type="button" class="tab" role="tab" data-tab="audio" aria-selected="false">Audio</button>
         <button type="button" class="tab" role="tab" data-tab="display" aria-selected="false">Display</button>
         <button type="button" class="tab" role="tab" data-tab="stats" aria-selected="false">Stats &amp; Medals</button>
+        <!-- (v21.0) the dot: something unlocked that has not been seen yet -->
+        <button type="button" class="tab" role="tab" data-tab="cosmetics" aria-selected="false">Cosmetics<span id="cos-dot" class="cos-dot hidden" aria-hidden="true"></span></button>
       </div>
 
       <div class="tabpane" data-pane="controls" role="tabpanel">
@@ -500,6 +502,18 @@
           <input type="checkbox" id="timer-toggle">
           <span><b>Show timer</b> &mdash; the level time in the corner. Off by default: medals are never meant to rush you.</span>
         </label>
+      </div>
+
+      <!-- (v21.0) cosmetics: your ripple and your marker - looks only, unlocked by playing (js/cosmetics.js) -->
+      <div class="tabpane hidden" data-pane="cosmetics" role="tabpanel">
+        <div class="cos-preview-wrap"><canvas id="cos-preview" class="cos-true" aria-label="A preview of your ripple and your marker" role="img"></canvas></div>
+        <p class="fine">Looks only: your ripple reaches as far, as fast, and finds exactly the same things in every one. Not in cutscenes or outside.</p>
+        <h3>Ripple colour</h3>
+        <div id="cos-colors" class="cos-row"></div>
+        <h3>Ripple shape</h3>
+        <div id="cos-shapes" class="cos-row"></div>
+        <h3>Your marker</h3>
+        <div id="cos-markers" class="cos-row"></div>
       </div>
 
       <div class="tabpane hidden" data-pane="stats" role="tabpanel">
@@ -628,6 +642,7 @@
   <script src="js/whatsnew.js"></script>
   <script src="js/profile.js"></script>
   <script src="js/palette.js"></script>
+  <script src="js/cosmetics.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/music.js"></script>
   <script src="js/level.js"></script>

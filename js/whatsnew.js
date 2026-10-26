@@ -34,6 +34,15 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v21.0',
+      title: 'Cosmetics',
+      lines: [
+        'New looks to earn: ripple colours, ripple shapes and player markers. Find them in Settings, under Cosmetics.',
+        'They only change how your own ripple and marker look - every look plays exactly the same.',
+        'A small dot on Settings tells you when something new has unlocked.',
+      ],
+    },
+    {
       version: 'v20.1',
       title: 'Endless: Try again',
       lines: [

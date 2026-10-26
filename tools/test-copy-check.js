@@ -6,7 +6,7 @@
  *   node tools/test-copy-check.js ["C:\Claude\echo game\Test - everything finished"]
  *
  * It checks: the page loads with no console error; "TEST COPY" is on it; every mode says Finished; My Levels holds
- * every sample level in tools/sample-levels.json and the sample folders; the Bonus Levels tab has two ticked; the
+ * every sample level in tools/sample-levels.json and the sample folders; the Bonus Levels tab has two ticked; (v21.0) every cosmetic is unlocked; the
  * Level Editor button goes straight past the spoiler warning (accepted in the test save); and the first sample code
  * in tools/sample-codes.txt reads as a level. Exit code 0 only if all of that holds.
  */
@@ -34,6 +34,8 @@ const expr = `(async () => {
   out.levels = EchoLevelStore.list().length;
   out.folders = EchoLevelStore.listFolders().length;
   out.bonusDone = EchoLevelStore.bonus.doneIds().length;
+  // (v21.0) every cosmetic unlocked (a copy of a version from before cosmetics has none: null)
+  out.cosLocked = typeof EchoCosmetics === 'undefined' ? null : ['color', 'shape', 'marker'].flatMap((k) => EchoCosmetics.LISTS[k].filter((it) => !EchoCosmetics.isUnlocked(it, __echo.cosmetics.facts())).map((it) => it.id));
   document.getElementById('btn-editor').click();
   await sleep(450);
   out.firstScreen = __echo.editorScreen();
@@ -53,6 +55,7 @@ withPage(async (page) => {
     [`My Levels holds the ${samples.length} sample levels`, r.levels >= samples.length, `${r.levels}`],
     [`the ${(folders.folders || []).length} sample folders`, r.folders >= (folders.folders || []).length, `${r.folders}`],
     ['Bonus Levels: two ticked', r.bonusDone === 2, `${r.bonusDone}`],
+    ['every cosmetic unlocked (or a version from before them)', r.cosLocked === null || r.cosLocked.length === 0, r.cosLocked === null ? 'none in this version' : r.cosLocked.join(', ') || 'all 18'],
     ['Level Editor: no spoiler warning (accepted in the test save)', r.firstScreen !== 'gate', r.firstScreen],
     ['a sample code from the READ ME reads', r.codeReads],
   ];

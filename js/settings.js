@@ -334,7 +334,127 @@ const EchoSettings = (() => {
       if (id === 'controls') renderKeys();
       if (id === 'audio') renderAudio();
       if (id === 'display') renderPalettes();
+      if (id === 'cosmetics') renderCosmetics();
+      else stopPreview();
     }
+
+    // ---------------------------------------------------------------- (v21.0) cosmetics
+    /**
+     * Three rows of tiles - your ripple's colour, its shape, your marker - each showing the look; the locked ones dimmed,
+     * with what unlocks them (in plain words, never a spoiler: js/cosmetics.js condition). A tap or a click equips one.
+     * A live preview above them: your marker, your ripple going out every couple of seconds. Opening the tab marks every
+     * unlock as seen, so the "new" dot goes.
+     */
+    const COS_ROWS = [['color', 'cos-colors'], ['shape', 'cos-shapes'], ['marker', 'cos-markers']];
+    let previewRaf = 0;
+    let previewT0 = 0;
+    function cosCanvas(cv, wCss, hCss) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(wCss * dpr);
+      cv.height = Math.round(hCss * dpr);
+      cv.style.width = `${wCss}px`;
+      cv.style.height = `${hCss}px`;
+      const c = cv.getContext('2d');
+      return { c, dpr };
+    }
+    function drawTile(cv, kind, item, cur) {
+      const C = EchoCosmetics;
+      const { c, dpr } = cosCanvas(cv, 64, 44);
+      const lk = C.look(Object.assign({}, cur, { [kind]: item }));
+      c.scale(dpr, dpr);
+      // (drawPreview resets the transform: draw at device pixels instead)
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      const opts = { still: C.RIPPLE_EVERY * 0.6, paletteWall: env.paletteWall(), size: 4.5 * dpr * 1.1, calm: env.calm() };
+      if (kind === 'marker') Object.assign(opts, { wave: false, walls: false, size: 5.2 * dpr });
+      C.drawPreview(c, cv.width, cv.height, lk, opts);
+    }
+    function renderCosmetics() {
+      const C = EchoCosmetics;
+      const f = env.cosFacts();
+      const fresh = new Set(C.fresh(f));
+      const cur = C.current(f);
+      for (const [kind, boxId] of COS_ROWS) {
+        const box = $(boxId);
+        if (!box) continue;
+        box.textContent = '';
+        for (const it of C.LISTS[kind]) {
+          const open = C.isUnlocked(it, f);
+          const on = cur[kind].id === it.id;
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `cos-tile${on ? ' on' : ''}${open ? '' : ' locked'}`;
+          b.dataset.kind = kind;
+          b.dataset.id = it.id;
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          const cond = open ? '' : C.condition(it, f);
+          if (!open) b.setAttribute('aria-disabled', 'true');
+          b.setAttribute('aria-label', `${it.name}${on ? ', equipped' : ''}${open ? '' : `, locked - ${cond}`}`);
+          const cv = document.createElement('canvas');
+          cv.className = 'cos-true';
+          cv.setAttribute('aria-hidden', 'true');
+          b.appendChild(cv);
+          const name = document.createElement('span');
+          name.className = 'cos-name';
+          name.textContent = it.name;
+          b.appendChild(name);
+          if (fresh.has(`${kind}:${it.id}`)) {
+            const tag = document.createElement('span');
+            tag.className = 'cos-new';
+            tag.textContent = 'New';
+            b.appendChild(tag);
+          }
+          if (!open) {
+            const why = document.createElement('small');
+            why.className = 'cos-why';
+            why.textContent = cond;
+            b.appendChild(why);
+          }
+          b.addEventListener('click', () => {
+            if (!open) return;
+            env.click();
+            if (C.equip(kind, it.id, env.cosFacts())) {
+              env.cosmeticsChanged();
+              renderCosmetics();
+              const again = $(boxId).querySelector(`[data-id="${it.id}"]`);
+              if (again) again.focus();
+            }
+          });
+          box.appendChild(b);
+          drawTile(cv, kind, it, cur);
+        }
+      }
+      if (C.markSeen(f)) env.cosmeticsChanged(); // (seen now: the dot goes; the New tags stay until the tab is opened again)
+      startPreview();
+    }
+    function startPreview() {
+      stopPreview();
+      const cv = $('cos-preview');
+      if (!cv) return;
+      previewT0 = performance.now();
+      const frame = (now) => {
+        previewRaf = 0;
+        if (tab !== 'cosmetics' || !isOpen()) return;
+        const C = EchoCosmetics;
+        const cur = C.current(env.cosFacts());
+        const wCss = cv.clientWidth || 240;
+        const hCss = cv.clientHeight || 140;
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        if (cv.width !== Math.round(wCss * dpr)) {
+          cv.width = Math.round(wCss * dpr);
+          cv.height = Math.round(hCss * dpr);
+        }
+        C.drawPreview(cv.getContext('2d'), cv.width, cv.height, C.look(cur), { t: (now - previewT0) / 1000, paletteWall: env.paletteWall(), size: 4.5 * dpr * 1.2, calm: env.calm() });
+        previewRaf = requestAnimationFrame(frame);
+      };
+      previewRaf = requestAnimationFrame(frame);
+      // one frame at once, so it is never blank (a backgrounded page runs no animation frames)
+      frame(performance.now());
+    }
+    function stopPreview() {
+      if (previewRaf) cancelAnimationFrame(previewRaf);
+      previewRaf = 0;
+    }
+    const previewRunning = () => !!previewRaf;
 
     function refresh() {
       renderKeys();
@@ -362,6 +482,7 @@ const EchoSettings = (() => {
     }
 
     function close() {
+      stopPreview(); // (v21.0)
       capturing = null;
       pending = null;
       env.closeSettings(openFrom);
@@ -478,7 +599,7 @@ const EchoSettings = (() => {
       env.medalsChanged();
     });
 
-    return { open, close, isOpen, refresh, showTab, captureKey, renderHowTo, renderStats, medalPip, medalChip, isCapturing: () => !!capturing };
+    return { open, close, isOpen, refresh, showTab, captureKey, renderHowTo, renderStats, medalPip, medalChip, isCapturing: () => !!capturing, renderCosmetics, previewRunning };
   }
 
   return { create };

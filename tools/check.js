@@ -100,6 +100,13 @@ const FULL_EXTRA = [
   { name: 'Endless, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":13}' }, load: ['endless-test.js'], runs: ['unlock', 'run', 'caught', 'bot', 'live'].map((n) => ['EndlessTest', n]) },
   { name: 'Endless on a fresh save: not there', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":12}' }, load: ['endless-test.js'], runs: [['EndlessTest', 'unlock']] },
   { name: 'Endless on a phone, Calm mode and Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.calm': '1', 'echomaze.progress': '{"normal":25}' }, load: ['endless-test.js'], runs: [['EndlessTest', 'screen']] },
+  // (v21.0) cosmetics: Visual cues ON first on a finished save (everything unlocked), then off part of the way through
+  // (Endless not open: "???"), a fresh save, and the screen on phones in the daylight interface and out of it
+  { name: 'Cosmetics, Visual cues ON, finished', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12,"hardcore":3}}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'draw', 'same', 'scope', 'screen', 'storage', 'perf', 'live'].map((n) => ['CosmeticsTest', n]) },
+  { name: 'Cosmetics, Visual cues off, part of the way', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":11}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'screen', 'storage', 'live'].map((n) => ['CosmeticsTest', n]) },
+  { name: 'Cosmetics on a fresh save', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'screen'].map((n) => ['CosmeticsTest', n]) },
+  { name: 'Cosmetics on a phone, daylight interface, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.lightui': '1', 'echomaze.progress': '{"normal":29,"hard":5}', 'echomaze.endless': '{"best":{"normal":6}}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'screen', 'perf', 'live'].map((n) => ['CosmeticsTest', n]) },
+  { name: 'Cosmetics on a phone held upright', size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":29}' }, load: ['cosmetics-test.js'], runs: [['CosmeticsTest', 'screen']] },
 ];
 
 const results = [];

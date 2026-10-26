@@ -16,7 +16,8 @@
                            fragment found (the ids are read from js\lore.js), unlocks the level editor and adds the
                            sample levels in tools\sample-levels.json to My Levels, and the folders in
                            tools\sample-folders.json (once); and (v15.2) ticks the first two bonus levels as done
-                           (once), so the Bonus Levels tab shows what a tick looks like
+                           (once), so the Bonus Levels tab shows what a tick looks like; and (v21.0) raises Endless's
+                           best to depth 10 in every mode, so every cosmetic is unlocked
     * READ ME - test copy.txt - generated; (v15.3) with the sample share codes from tools\sample-codes.txt to paste
                            into My Levels > Enter code (nothing else of sharing goes into the test save)
     * READ ME - test copy.txt - generated
@@ -113,6 +114,8 @@ $oldFormat = @($samples | Where-Object { $_.schemaVersion -eq 1 }).Count
 # v15.2: the bonus levels (js\bonus-levels.js, data only) - the first two already ticked as done, in their own key
 # (js\levelstore.js BONUS_KEY), apart from every campaign save and from My Levels
 if ((Get-Text $storeJs) -notmatch "const BONUS_KEY = 'echomaze\.test\.bonus';") { Fail "js\levelstore.js no longer keeps the bonus levels' ticks under 'echomaze.bonus' - update test-save.js's ticks" }
+# v21.0: Endless's save (raised to depth 10 so every cosmetic is unlocked) must be under the test prefix too
+if ($newGame -notmatch "const ENDLESS_KEY = 'echomaze\.test\.endless';") { Fail "js\game.js no longer keeps Endless under 'echomaze.endless' - update test-save.js's Endless best" }
 $bonusJs = Join-Path $Source 'js\bonus-levels.js'
 if (-not (Test-Path $bonusJs)) { Fail "$leaf has no js\bonus-levels.js - the Bonus Levels need it" }
 $bonusIds = @([regex]::Matches((Get-Text $bonusJs), '"id": "([A-Za-z0-9_-]{1,64})"') | ForEach-Object { $_.Groups[1].Value })
@@ -268,6 +271,22 @@ $save = @"
       localStorage.setItem(P + 'bonus', JSON.stringify({ schemaVersion: 1, done }));
       localStorage.setItem(P + 'bonus2', '1');
     }
+    // (v21.0) Endless's best at least depth 10 in every mode, so every cosmetic is unlocked (White-hot and
+    // Heartbeat come from Endless) - only ever raised, and the last run left as it is
+    try {
+      let en = {};
+      try {
+        en = JSON.parse(localStorage.getItem(P + 'endless')) || {};
+      } catch (e) {
+        en = {};
+      }
+      const best = en && typeof en.best === 'object' && en.best ? en.best : {};
+      for (const m of ['easy', 'normal', 'hard', 'hardcore']) best[m] = Math.max(parseInt(best[m], 10) || 0, 10);
+      en.best = best;
+      localStorage.setItem(P + 'endless', JSON.stringify(en));
+    } catch (e) {
+      /* a damaged value: Endless as it was */
+    }
   } catch (e) {
     /* storage is blocked: this copy then just behaves like a fresh game */
   }
@@ -324,6 +343,9 @@ this copy is rebuilt from it. Right now it is the same game as version $($label.
     unreleased-content warning every time you open it - that is on purpose - and the samples
     "Alarm in a Dead End", "Screecho" and "Chorus" use them (Chorus mixes both with other
     monsters and a Level 15 monster), so you can try them straight away from My Levels.
+  * cosmetics (v21.0): Endless's best is depth 10 in every mode here, so with everything finished every
+    ripple colour, ripple shape and player marker is unlocked - Settings -> Cosmetics (the locked ones
+    and their conditions show only in the real game, part of the way through).
   * the Bonus Levels tab (beside My Levels) has $($bonusIds.Count) levels that come with the game,
     and $doneTitles are already ticked as done (once only, like the samples)
   * level sharing: to try it, open the Level Editor, press "Enter code" in My Levels

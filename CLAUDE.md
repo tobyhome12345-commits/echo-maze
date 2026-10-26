@@ -333,7 +333,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v19.2 | e09b26d | MINOR: **"Fresh Air"** (internal level 27, `kind: 'village'`, the flags of 26): a daylight village after First Breath - cottages, fences, gardens, a washing line, a square with a well, stalls and a bench (solid: the cottages, fences, stalls, the well); twelve villagers drawn like the player, not solid, keeping 34 px off, never looking at you, each on a fixed day of keyframes; every `VILLAGE_LOOP` 40 s all of them start again at once (a soft fade, a half-second hush in the wind); every village sound echoed once, 0.45 s later, at 0.4, at most 14 waiting - never the player's; the gate at the end -> "More to come soon." (moved from 26). `CAMPAIGN_LEVELS` 27; a finished-26 save continues at 27. Levels 0-26 unchanged (`9097b344`) |
 | v19.3 | 3d2d3c3 | MINOR (the owner's "next minor version"): **"Dusk"** (internal level 28, `kind: 'dusk'`, the flags of 26-27 plus a new `interact`): a long meadow on from the village in which the light drains with how far you have walked (never with time, never back) - dusk, night, then black with the ground gone (drawing only; an invisible edge) - the sound with it (wind and birds fade, the village's last murmurs and echoes die, the steps turn the gaol's dry ones); far along, a still, harmless Warden in a faint pale glow (its hum fades in, it turns to you close to); within about two tiles a **Talk** prompt, the only thing on screen (the new rebindable **Interact** action, E by default, sharing E with the item key; a Talk button on touch) -> the new scene **"Nothing Listens"** (the Warden speaks eleven lines as subtitles in a low slow voice, the knocks, one more knock, a cut to black; unskippable the first time, seen only at its end, pausable; in the replay list once seen) -> "More to come soon." (moved from 27). `CAMPAIGN_LEVELS` 28; a finished-27 save continues at 28. Levels 0-27 unchanged (`9097b344`) |
 | v20.0 | 03cbff5 | MAJOR: **ENDLESS MODE** - a title-screen **Endless** button (only once level 12 has been cleared in some mode; not shown before) for generated mazes one after another, harder each depth, until caught (one life in every mode); the score is the depth. Each depth is the campaign's own generator on its own config (`endlessConfig`, js/level.js) from (run seed, depth) - `generateLevel` takes a ready config as a new last argument, and campaign calls never pass one (`9097b344` unchanged); re-rolled until it passes `endlessCheck` (the way out reachable and a real walk away, monsters a safe distance off, nothing still on the only way through). Monsters in the campaign's order, one new kind every 3 depths (`ENDLESS_INTRO`), the Alarm only once met (level 22); sizes grow to depth 30, then monsters and speed rise slowly to caps (all < 170). The usual quick fade between depths; no hints, banners, lore or cutscenes; a soft chime at 5/10/25/50 (`audio.milestone`); "New best!" past your best. Game over: Depth N, the best for the mode, New best!, the Caught line, **Try again** (a new run at once) / **Back to title**. Its own save `echomaze.endless` (best per mode, the last run); `levelNum` = `ENDLESS_LEVEL` (-2), so nothing of the campaign is written. `tools/endless-check.js` (Node, every check run) and `tools/endless-test.js` (a 60-depth bot, the real loop at every depth, cues ON and off, a phone) |
-| v20.1 | PENDING | MINOR (owner's instruction): **Endless's Try again by difficulty** - on **Hardcore** being caught ends the run and **Start again** begins a new one at depth 1 (a new seed); on **Easy / Normal / Hard** **Try again** restarts the SAME depth - the same maze (the run's seed and the depth), `startLevel(ENDLESS_LEVEL, true)` - and the run goes on. The game-over screen says which (`#eo-again-label`, `#eo-note`). Nothing else changed (latest) |
+| v20.1 | 7b3e990 | MINOR (owner's instruction): **Endless's Try again by difficulty** - on **Hardcore** being caught ends the run and **Start again** begins a new one at depth 1 (a new seed); on **Easy / Normal / Hard** **Try again** restarts the SAME depth - the same maze (the run's seed and the depth), `startLevel(ENDLESS_LEVEL, true)` - and the run goes on. The game-over screen says which (`#eo-again-label`, `#eo-note`). Nothing else changed |
+| v21.0 | PENDING | MAJOR: **COSMETICS** - a **Cosmetics** tab in Settings: ripple colours (Classic, Amber, Mint, Rose, Violet, Gold, White-hot), ripple shapes (Classic, Double, Dotted, Soft, Heartbeat, Glitch) and player markers (Dot, Ring, Diamond, Star, Ember), unlocked by progress worked out fresh every time (`js/cosmetics.js`, nothing "unlocked" stored); locked tiles say their condition in plain words, "???" for Endless before it is open and anything past 25; a live preview; a "new" dot on the tab and the title's Settings button. Purely a look - only YOUR ripple (`rp.mine`), the walls it lights and your marker; never a drop's ripple, a song, a cutscene or the daylight levels; ripple reach, speed and timing identical (`CosmeticsTest.same`). Own key `echomaze.cosmetics` (worn + seen). Levels, saves, the editor and share codes unchanged (`9097b344`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2813,6 +2814,54 @@ with a line under the caught line saying what it will do (`#eo-note`). The best 
 v20.0 (the best is how deep you got; a run that goes on keeps its starting best, so "New best!" stays true for it).
 `EndlessTest.caught` (21): Normal - Try again is depth 3 again with the same seed and the same maze hash, Enter the same;
 Hardcore - Start again is depth 1 with a new seed, Enter the same; Visual cues ON and off.
+
+## v21.0: cosmetics (owner's brief, MAJOR)
+
+Owner: unlockable looks for the player's own ripple and marker, chosen on a Cosmetics screen; purely visual (never the
+ripple's radius, speed or timing, noise, hitboxes, what monsters hear or see, or what the player sees); readable on the
+dark with enough contrast and never hiding the player; on the gaol levels, Endless, editor and bonus levels - not the
+cutscenes or the daylight levels; independent of the palettes, working with Calm and Visual cues; unlocks worked out
+from existing progress every time (never stored), spoiler-safe; its own key holding only what is worn and seen;
+defaults without storage; the finished test copy has everything; nothing else changes.
+
+- **`js/cosmetics.js` (`EchoCosmetics`)**, after palette.js: `COLORS` / `SHAPES` / `MARKERS` (each `{ id, name,
+  need }`; colours as rgb strings, Classic = null = the palette's own), `isUnlocked(item, facts)` / `condition` /
+  `current` / `equip` / `fresh` / `markSeen`, `look(cur)` (`{ color, glow, core, wall, wallCore, shape, marker }`),
+  and the drawing: `strokeWave(ctx, look, path, a, t, calm)` (the wavefront in a shape), `drawMarker(ctx, id, x, y,
+  size, low, t, calm)` (Dot draws exactly the old dot) and `drawPreview` (the tab's preview). No `Math.random`.
+  **Facts** (game.js `cosFacts()`): `furthest` = `furthestReached()`, `best` per mode (`getBest`), `endless` =
+  the best depth in any mode, `endlessOpen` = `endlessUnlocked()`. Conditions: `clear: N` = `furthest > N`;
+  `mode: m` = a level cleared on that mode (`best[m] >= 2`); `endless: D` = best depth >= D.
+- **The colours** (picked by scratch scripts with `tools/palette-check.js`: at least 10 CIEDE2000 from every role a
+  ripple lights - all but the wall, which it replaces - in all four palettes, contrast on black >= 9): Amber
+  `252,193,151`, Mint `83,198,159`, Rose `255,189,222`, Violet `220,182,251`, Gold `198,167,83`, White-hot
+  `235,228,241`. The first picks (a strong amber, etc.) sat 1.3 from the obstacle colour - they were moved, not used.
+  Unlocks: Amber 5, Mint 10, Rose 15, Violet 20, Gold 25 (clear level N), White-hot Endless depth 10; Double 8, Dotted 12,
+  Soft 18, Heartbeat Endless depth 5, Glitch 20; Ring 3, Diamond a level on Hard, Star 25, Ember a level on Hardcore.
+  Star and Gold both say "Clear level 25". Past 25, and Endless before it is open (level 13), the condition is "???".
+- **Only yours**: `emitRipple` marks its ripple `mine` (nothing reads it but `drawRipple`); the gasp on 13, drops,
+  a singer's song, cutscene ripples are never `mine`. `drawRipple`: `mine` and no tint -> `EchoCosmetics.strokeWave`
+  over the same wavefront path (`pathAt(off)`), and the wall bucket / stone joints in the colour; everything else the
+  old strokes. `drawWorld`'s dot -> `EchoCosmetics.drawMarker` (the daylight levels draw a walking figure, untouched).
+- **The screen** (js/settings.js `renderCosmetics`, `startPreview` / `stopPreview`): `#cos-colors` / `#cos-shapes` /
+  `#cos-markers` of `button.cos-tile` (`aria-pressed`, `aria-disabled`, a small canvas `canvas.cos-true` drawn
+  in the look, a "New" tag, `small.cos-why` for the condition); opening the tab marks everything shown as seen; the
+  preview runs only while the tab is open. `canvas.cos-true` gets the daylight interface's filter undone (the same
+  filter twice), so the looks are shown as they are in the game. Dots: `#settings-dot` (title) and `#cos-dot` (the tab).
+- **Save**: `echomaze.cosmetics` = `{ color, shape, marker, seen: ['color:amber', ...] }`, read as untrusted (unknown
+  ids -> the default; `seen` entries must match `/^(color|shape|marker):[a-z]+$/`); a look that is not unlocked is
+  never worn (the default instead). Never in share codes. Test copy: Endless best raised to 10 in every mode, so all 18
+  are unlocked (`tools/test-copy-check.js` checks; a copy of an older version reports "none in this version").
+- **Tests** (`tools/cosmetics-test.js`, in `--full`, cues ON first): unlocks (exactly when each condition holds, from
+  the save itself; the words; "???"; nothing "unlocked" stored), dot (shown for unseen, gone once the tab is opened,
+  remembered), draw (all 18 on level 3, the gaol, Endless depth 8 and a bonus level; none harder to see than Classic -
+  at least half its lit ripple, its marker as bright), same (`tools/identity-test.js` on level 9 with mimic reveals and
+  one ripple's every ray, reach, speed and life - identical in six looks to Classic), scope (drops, cutscenes, 26-28
+  never use it), screen (1366x768, 844x390 and 390x844 touch, the daylight interface on and off: rows, locked dimmed,
+  one marked per row, a click equips, a locked click does nothing, the preview runs and stops, nothing wider than the
+  panel, 44 px tiles on touch), storage (junk, not JSON, throwing storage: the defaults, no error), perf (0.13-0.20 ms a
+  frame in the busiest looks, laptop and phone), live (the real loop with every shape and marker, no console error).
+  Generator `9097b344`.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
