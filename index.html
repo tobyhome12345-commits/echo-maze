@@ -458,6 +458,7 @@
         <button type="button" class="tab" role="tab" data-tab="stats" aria-selected="false">Stats &amp; Medals</button>
         <!-- (v21.0) the dot: something unlocked that has not been seen yet -->
         <button type="button" class="tab" role="tab" data-tab="cosmetics" aria-selected="false">Cosmetics<span id="cos-dot" class="cos-dot hidden" aria-hidden="true"></span></button>
+        <button type="button" class="tab" role="tab" data-tab="savecode" aria-selected="false">Save code</button>
       </div>
 
       <div class="tabpane" data-pane="controls" role="tabpanel">
@@ -514,6 +515,41 @@
         <div id="cos-shapes" class="cos-row"></div>
         <h3>Your marker</h3>
         <div id="cos-markers" class="cos-row"></div>
+      </div>
+
+      <!-- (v22.0) save codes: the save as one line of text, to back up, move or send (js/savecode.js) -->
+      <div class="tabpane hidden" data-pane="savecode" role="tabpanel">
+        <div class="sc-halves">
+          <section class="sc-half" aria-labelledby="sc-get-h">
+            <h3 id="sc-get-h">Get my code</h3>
+            <p class="fine">Your progress as one line of text. Keep it as a backup, or load it on another device.</p>
+            <label class="calm">
+              <input type="checkbox" id="sc-settings">
+              <span><b>Include my settings</b> &mdash; keys, sound, palette and options</span>
+            </label>
+            <label class="calm">
+              <input type="checkbox" id="sc-levels">
+              <span><b>Also include my levels and folders</b></span>
+            </label>
+            <textarea id="sc-out" class="sc-box" rows="3" readonly spellcheck="false" aria-label="Your save code"></textarea>
+            <p id="sc-out-info" class="fine sc-info" aria-live="polite"></p>
+            <div class="buttons">
+              <button type="button" id="btn-sc-copy">Copy code</button>
+              <button type="button" id="btn-sc-file">Save as file</button>
+            </div>
+          </section>
+          <section class="sc-half" aria-labelledby="sc-load-h">
+            <h3 id="sc-load-h">Load a code</h3>
+            <textarea id="sc-in" class="sc-box" rows="3" spellcheck="false" placeholder="Paste a save code here (ECHO1S...)" aria-label="A save code to load"></textarea>
+            <div class="buttons">
+              <button type="button" id="btn-sc-load" class="primary">Load code</button>
+              <button type="button" id="btn-sc-fromfile">Load from file</button>
+              <button type="button" id="btn-sc-undo" class="quiet hidden">Undo last load</button>
+            </div>
+            <input type="file" id="sc-file" class="hidden" accept=".txt,text/plain" aria-label="A save code file">
+            <p id="sc-msg" class="keybind-msg hidden" aria-live="polite"></p>
+          </section>
+        </div>
       </div>
 
       <div class="tabpane hidden" data-pane="stats" role="tabpanel">
@@ -662,6 +698,7 @@
   <script src="js/bonus-levels.js"></script>
   <script src="js/levelstore.js"></script>
   <script src="js/sharecode.js"></script>
+  <script src="js/savecode.js"></script>
   <script src="js/dialog.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/editor.js"></script>

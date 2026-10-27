@@ -114,6 +114,9 @@ $oldFormat = @($samples | Where-Object { $_.schemaVersion -eq 1 }).Count
 # v15.2: the bonus levels (js\bonus-levels.js, data only) - the first two already ticked as done, in their own key
 # (js\levelstore.js BONUS_KEY), apart from every campaign save and from My Levels
 if ((Get-Text $storeJs) -notmatch "const BONUS_KEY = 'echomaze\.test\.bonus';") { Fail "js\levelstore.js no longer keeps the bonus levels' ticks under 'echomaze.bonus' - update test-save.js's ticks" }
+# v22.0: save codes read and write only the copy's own slot - js\savecode.js builds every key from its PREFIX
+$saveJs = Join-Path $target 'js\savecode.js'
+if ((Test-Path $saveJs) -and (Get-Text $saveJs) -notmatch "const PREFIX = 'echomaze\.test\.';") { Fail "js\savecode.js no longer builds its keys from PREFIX 'echomaze.' - the test copy's save codes would reach the real save" }
 # v21.0: Endless's save (raised to depth 10 so every cosmetic is unlocked) must be under the test prefix too
 if ($newGame -notmatch "const ENDLESS_KEY = 'echomaze\.test\.endless';") { Fail "js\game.js no longer keeps Endless under 'echomaze.endless' - update test-save.js's Endless best" }
 $bonusJs = Join-Path $Source 'js\bonus-levels.js'

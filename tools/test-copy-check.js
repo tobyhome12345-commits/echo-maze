@@ -35,6 +35,8 @@ const expr = `(async () => {
   out.folders = EchoLevelStore.listFolders().length;
   out.bonusDone = EchoLevelStore.bonus.doneIds().length;
   // (v21.0) every cosmetic unlocked (a copy of a version from before cosmetics has none: null)
+  // (v22.0) save codes: only the copy's own slot (a copy of a version from before them has none: null)
+  out.savePrefix = typeof EchoSave === 'undefined' ? null : EchoSave.PREFIX;
   out.cosLocked = typeof EchoCosmetics === 'undefined' ? null : ['color', 'shape', 'marker'].flatMap((k) => EchoCosmetics.LISTS[k].filter((it) => !EchoCosmetics.isUnlocked(it, __echo.cosmetics.facts())).map((it) => it.id));
   document.getElementById('btn-editor').click();
   await sleep(450);
@@ -55,6 +57,7 @@ withPage(async (page) => {
     [`My Levels holds the ${samples.length} sample levels`, r.levels >= samples.length, `${r.levels}`],
     [`the ${(folders.folders || []).length} sample folders`, r.folders >= (folders.folders || []).length, `${r.folders}`],
     ['Bonus Levels: two ticked', r.bonusDone === 2, `${r.bonusDone}`],
+    ['save codes keep to the test slot (or a version from before them)', r.savePrefix === null || r.savePrefix === 'echomaze.test.', r.savePrefix === null ? 'none in this version' : r.savePrefix],
     ['every cosmetic unlocked (or a version from before them)', r.cosLocked === null || r.cosLocked.length === 0, r.cosLocked === null ? 'none in this version' : r.cosLocked.join(', ') || 'all 18'],
     ['Level Editor: no spoiler warning (accepted in the test save)', r.firstScreen !== 'gate', r.firstScreen],
     ['a sample code from the READ ME reads', r.codeReads],

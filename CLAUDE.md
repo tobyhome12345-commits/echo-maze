@@ -334,7 +334,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v19.3 | 3d2d3c3 | MINOR (the owner's "next minor version"): **"Dusk"** (internal level 28, `kind: 'dusk'`, the flags of 26-27 plus a new `interact`): a long meadow on from the village in which the light drains with how far you have walked (never with time, never back) - dusk, night, then black with the ground gone (drawing only; an invisible edge) - the sound with it (wind and birds fade, the village's last murmurs and echoes die, the steps turn the gaol's dry ones); far along, a still, harmless Warden in a faint pale glow (its hum fades in, it turns to you close to); within about two tiles a **Talk** prompt, the only thing on screen (the new rebindable **Interact** action, E by default, sharing E with the item key; a Talk button on touch) -> the new scene **"Nothing Listens"** (the Warden speaks eleven lines as subtitles in a low slow voice, the knocks, one more knock, a cut to black; unskippable the first time, seen only at its end, pausable; in the replay list once seen) -> "More to come soon." (moved from 27). `CAMPAIGN_LEVELS` 28; a finished-27 save continues at 28. Levels 0-27 unchanged (`9097b344`) |
 | v20.0 | 03cbff5 | MAJOR: **ENDLESS MODE** - a title-screen **Endless** button (only once level 12 has been cleared in some mode; not shown before) for generated mazes one after another, harder each depth, until caught (one life in every mode); the score is the depth. Each depth is the campaign's own generator on its own config (`endlessConfig`, js/level.js) from (run seed, depth) - `generateLevel` takes a ready config as a new last argument, and campaign calls never pass one (`9097b344` unchanged); re-rolled until it passes `endlessCheck` (the way out reachable and a real walk away, monsters a safe distance off, nothing still on the only way through). Monsters in the campaign's order, one new kind every 3 depths (`ENDLESS_INTRO`), the Alarm only once met (level 22); sizes grow to depth 30, then monsters and speed rise slowly to caps (all < 170). The usual quick fade between depths; no hints, banners, lore or cutscenes; a soft chime at 5/10/25/50 (`audio.milestone`); "New best!" past your best. Game over: Depth N, the best for the mode, New best!, the Caught line, **Try again** (a new run at once) / **Back to title**. Its own save `echomaze.endless` (best per mode, the last run); `levelNum` = `ENDLESS_LEVEL` (-2), so nothing of the campaign is written. `tools/endless-check.js` (Node, every check run) and `tools/endless-test.js` (a 60-depth bot, the real loop at every depth, cues ON and off, a phone) |
 | v20.1 | 7b3e990 | MINOR (owner's instruction): **Endless's Try again by difficulty** - on **Hardcore** being caught ends the run and **Start again** begins a new one at depth 1 (a new seed); on **Easy / Normal / Hard** **Try again** restarts the SAME depth - the same maze (the run's seed and the depth), `startLevel(ENDLESS_LEVEL, true)` - and the run goes on. The game-over screen says which (`#eo-again-label`, `#eo-note`). Nothing else changed |
-| v21.0 | PENDING | MAJOR: **COSMETICS** - a **Cosmetics** tab in Settings: ripple colours (Classic, Amber, Mint, Rose, Violet, Gold, White-hot), ripple shapes (Classic, Double, Dotted, Soft, Heartbeat, Glitch) and player markers (Dot, Ring, Diamond, Star, Ember), unlocked by progress worked out fresh every time (`js/cosmetics.js`, nothing "unlocked" stored); locked tiles say their condition in plain words, "???" for Endless before it is open and anything past 25; a live preview; a "new" dot on the tab and the title's Settings button. Purely a look - only YOUR ripple (`rp.mine`), the walls it lights and your marker; never a drop's ripple, a song, a cutscene or the daylight levels; ripple reach, speed and timing identical (`CosmeticsTest.same`). Own key `echomaze.cosmetics` (worn + seen). Levels, saves, the editor and share codes unchanged (`9097b344`) (latest) |
+| v21.0 | 0e6fbd9 | MAJOR: **COSMETICS** - a **Cosmetics** tab in Settings: ripple colours (Classic, Amber, Mint, Rose, Violet, Gold, White-hot), ripple shapes (Classic, Double, Dotted, Soft, Heartbeat, Glitch) and player markers (Dot, Ring, Diamond, Star, Ember), unlocked by progress worked out fresh every time (`js/cosmetics.js`, nothing "unlocked" stored); locked tiles say their condition in plain words, "???" for Endless before it is open and anything past 25; a live preview; a "new" dot on the tab and the title's Settings button. Purely a look - only YOUR ripple (`rp.mine`), the walls it lights and your marker; never a drop's ripple, a song, a cutscene or the daylight levels; ripple reach, speed and timing identical (`CosmeticsTest.same`). Own key `echomaze.cosmetics` (worn + seen). Levels, saves, the editor and share codes unchanged (`9097b344`) |
+| v22.0 | PENDING | MAJOR: **SAVE CODES** - Settings -> **Save code** (`js/savecode.js`, `EchoSave`): the save as one code, `ECHO1S` + base 62 + CRC-32 on the level codes' own machinery (`EchoShare._`; ECHO1L / ECHO1F and the WORDS lists untouched). A WHITELIST of tagged records (progress always; settings and My Levels + folders only if ticked; an unknown tag = a newer version, refused whole); **Get my code** (Copy code, Save as file `echo-maze-save.txt`, a warning over 2,000 characters) and **Load a code** (paste or from the file; read as untrusted - prefix, version, check, size, every value clamped to this game, levels through the loader and checker; a preview in plain words with a heads-up when it is further along; **Merge** the best of both, or **Replace** asked twice; **Undo last load** from a snapshot of every key it touches, until the next load; from the title's Settings only). Each importer names the other's codes. Keys from `EchoSave.PREFIX`, so the test copy's codes stay in its slot. Everything refreshed after a load, no reload (`afterSaveLoad`). Levels, gameplay and the editor unchanged (`9097b344`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2862,6 +2863,65 @@ defaults without storage; the finished test copy has everything; nothing else ch
   panel, 44 px tiles on touch), storage (junk, not JSON, throwing storage: the defaults, no error), perf (0.13-0.20 ms a
   frame in the busiest looks, laptop and phone), live (the real loop with every shape and marker, no console error).
   Generator `9097b344`.
+
+## v22.0: save codes (owner's brief, MAJOR)
+
+Owner: the save as a code (and a file) to load on another device, as a backup or to send to a friend; built on the
+level share codes' machinery, starting ECHO1S; Settings -> "Save code", two halves (Get my code / Load a code), phone and
+desktop, both interface looks; an explicit whitelist of real progress (settings and levels only when asked); the code
+as short as reasonably possible; loading untrusted (prefix, version, check, size, every value), a newer code refused
+politely, each importer naming the other's codes; a preview first with a heads-up when it is further along; Merge
+(default) or Replace (an extra confirmation); Undo last load from a snapshot (none, and said so, if storage is full);
+the copy's own keys only (the test copy's slot); every progress screen refreshed without a reload; levels 1-12, the
+gameplay, the level / folder code formats, WORDS, the editor and old saves unchanged.
+
+- **`js/savecode.js` (`EchoSave`)**, after sharecode.js. `gather(ctx, { settings, levels })` (this device's save,
+  read through the same cleaning as a code; the pre-v3.0 single `best` folded into Normal as `loadProgress` does),
+  `encode`, `decode(text, ctx)`, `preview(save, mine, ctx)`, `merge`, `load(save, ctx, { replace })`, `undoFits`,
+  `canUndo` / `undo`, `clean`. The format is written down in docs/level-format.md ("Save codes"): the save format
+  number, flags (settings / levels asked for), then records - tag, length, bytes - with the tags FROZEN in `RECORDS`
+  (1-12 progress, 20-28 settings, 40 levels); scenes and fragments as bit sets over frozen lists (`SCENES`,
+  `FRAGMENTS`, only ever added to at the end), the levels packed exactly as `EchoShare` packs a level. Lengths: a
+  fresh save 17 characters, part of the way through 184, finished 356, with settings and three levels and a folder ~890.
+- **`js/sharecode.js` - additions only**: `decode` refuses kind `S` by name (`ERR.saveCode`); `wrap` and
+  `decompress` take an optional size limit (the level codes' own limits by default); `_` exports `unpackLevel`,
+  `reader`, `Bad`, `unwrap` and `INVISIBLE`. Level and folder codes are byte for byte as before (share-test).
+- **The whitelist** (`KEY` in js/savecode.js; nothing else is ever read or written): progress, seen, lore, tutorial,
+  medals, endless (the bests; the last run stays on the device), cosmetics, lightui, whatsnew, editor, bonus, stats; with
+  "Include my settings" also mode, calm, visualcues, touch, keys, volumes, palette, showtimer, creator; with "Also
+  include my levels and folders" My Levels and the folder list, through `EchoLevelStore` (new ids and dates on load;
+  on Merge a level already here with the same content and title is not added twice, and a folder of the same name is
+  joined). **Clamps** (`cleanSave`, from `ctx` = `saveCtx()` in js/game.js): progress 1..CAMPAIGN_LEVELS + 1,
+  medals only for levels 1..MEDAL_LEVELS with tiers 0-3, only this game's scenes / fragments / bonus ids / cosmetic ids /
+  actions / palettes, volumes 0-1, keys never Escape or Enter, text through `cleanShown`.
+- **Merge** = per mode the higher level and Endless best; the union of scenes, fragments, bonus ticks and cosmetics seen;
+  medals the higher tier, flawless if either, the LOWER best time and ripples; stats the higher of each (never the sum:
+  loading the same code twice changes nothing); this device's own choices (cosmetics worn, daylight interface) kept;
+  What's new the newer; settings, when the code has them, the code's. **Replace** = the code's sections instead (a
+  section the code does not have - settings or levels not ticked - is left alone).
+- **Undo**: before any write, every key the load can touch (and, with levels, every level key and the folder list) is
+  kept in `echomaze.saveundo` (`EchoSave.UNDO_KEY`); a write that fails puts it all back. `undoFits` asks first: no
+  room -> the preview says the load cannot be undone. `undo()` restores only whitelisted keys and level keys.
+- **The screen** (js/settings.js, the v22.0 block): `renderSaveCode` (made afresh on showing the tab and on every tick;
+  `env.flushSave` first, so the held-back stats are in), `copySaveCode` (the clipboard, else select-by-hand),
+  `saveCodeFile` (a Blob download), `loadSaveText` / `loadSaveFile` (FileReader, at most 4 MB) / `undoSaveLoad`, the
+  questions through `EchoDialog`. **Loading only from the title's Settings** (from the pause menu a code can be made,
+  not loaded - the game holds a run in memory). After a load `env.afterSaveLoad()` = js/game.js `afterSaveLoad`:
+  progress, seen, the tutorial, the daylight interface, `EchoProfile.reload()` (keys, volumes, medals, stats),
+  `EchoLore.reload()`, `EchoCosmetics.reload()`, the difficulty (Normal if none is stored), Calm / Visual cues / touch /
+  palette / volumes / timer re-applied only where they differ, then the title, the how-to, the cosmetics dot, Settings
+  and the What's new dot refreshed.
+- **Test copy**: `EchoSave.PREFIX` is `'echomaze.'`, which the builder makes `'echomaze.test.'` like every key (it
+  fails if not); `tools/test-copy-check.js` checks the copy's prefix (a copy of an older version: "none in this version").
+- **Tests** (`tools/savecode-test.js`, in `--full`, cues ON first): roundTrips 9 (fresh, part of the way, finished,
+  with settings + levels + folders, a pre-v3.0 save: made, wiped, loaded - identical), merge 13 (the best of both, both
+  ways round, nothing counted twice), tamper 30 (13 kinds of bad code, a 9 MB decompression bomb, odd values clamped,
+  1,500 random payloads with a correct check - no throw, nothing out of range, nothing written; through the screen
+  too), importer 4, ui 20 (the code and its length, settings make it longer, 14 levels -> long + the file suggested,
+  Copy, Save as file caught and read back, Load from file -> the preview and heads-up -> Merge -> the title refreshed ->
+  Undo -> back; Replace asked twice; Cancel), pause 4, testCopy 6 (a copy of savecode.js with the test prefix reads and
+  writes only its slot, and the real one only its own), screen 5 (1366x768, 844x390 and 390x844 touch, the daylight
+  interface), live 2. Generator `9097b344`.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

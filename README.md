@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v21.0 - cosmetics
+**Current version:** v22.0 - save codes
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -229,7 +229,7 @@ name and its levels - and only then chooses **Import** or **Cancel**.
 
 ## Settings
 
-A **Settings** button sits on the title screen and in the pause menu (`Esc` or **Back** returns to whichever you came from). It has five tabs.
+A **Settings** button sits on the title screen and in the pause menu (`Esc` or **Back** returns to whichever you came from). It has six tabs.
 
 **Controls.** Every action can be given up to **two keys**: move up / down / left / right, ripple, crouch, use item, pause, mute, calm mode, visual cues. Pick a key cap, press the new key, done. `Esc` cancels the change; `Esc` and `Enter` can never be bound to anything, because they always mean back and confirm. A key the browser owns is refused with a reason (anything held with `Ctrl`, `Alt` or `Cmd`, the function keys, `Tab`). If the key already belongs to another action the game asks whether to **swap** them rather than silently stealing it. **Reset to defaults** puts `WASD` + arrows, `SPACE`, `SHIFT`, `E`, `P`, `M`, `C`, `V` back. Your keys are saved, and the how-to on the title screen and in the pause menu is written from them, so it always matches what the game is listening for. The touch controls are not affected.
 
@@ -248,6 +248,28 @@ Effects can be taken all the way to silence, and the tab says so plainly: *sound
 **Stats & Medals.** Your medal board for the selected difficulty and your lifetime numbers (below), with a **Reset stats** button that asks once before it clears anything.
 
 **Cosmetics.** Looks for your own ripple and your own marker, earned by playing (see below).
+
+**Save code.** Your save as one line of text, and back (see "Save codes" below).
+
+## Save codes
+
+Settings -> **Save code** turns your save into a code - one line of letters and digits starting `ECHO1S` - to keep as a
+backup, to carry your game to another device, or to send to a friend. It has two halves:
+
+- **Get my code** shows your code with **Copy code** and **Save as file** (`echo-maze-save.txt`). It holds your
+  progress: how far you have got in each difficulty, the cutscenes you have seen, the fragments you have found, your
+  medals, your Endless bests, your cosmetics, your stats and the like. Tick **Include my settings** to bring your keys,
+  sound, palette and options too, and **Also include my levels and folders** for your own levels (a code with levels
+  can get long - over about 2,000 characters the screen suggests the file instead).
+- **Load a code**: paste a code, or **Load from file**. Before anything changes you see what the code holds, in plain
+  words - and a heads-up if it is further along than this device, because it will open levels and scenes you may not
+  have played here. Then **Merge** (recommended: the best of both - the furthest level in each difficulty, every scene
+  and fragment either save has, the better medals) or **Replace my save** (asked twice). **Undo last load** puts your
+  save back as it was, until the next load. Codes are loaded from the title screen's Settings, not during a level.
+
+A code is read carefully: a damaged, cut-off or too-big code, or one from a newer version of the game, says so and
+changes nothing. A level code pasted here says to load it in My Levels, and a save code pasted in My Levels says to
+load it here. The finished test copy has a save of its own, and its codes load into that one only.
 
 ## Cosmetics
 

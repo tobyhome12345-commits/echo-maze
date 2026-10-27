@@ -302,3 +302,42 @@ shared with the player's creator name (set once, in the editor's Level settings;
   offline, by this file, for good.
 - **A new monster, object, effect, colour or palette**: add it to the END of its list in `WORDS` (`js/sharecode.js`).
 - **A new level field** that should travel in codes: a new format version.
+
+## Save codes (v22.0, `js/savecode.js`)
+
+A whole save as one code - built on the same machinery as the level codes (packing, base 62, the CRC-32 check, the
+compression), with its own kind letter, so the two are never mistaken for each other:
+
+    ECHO1S<payload><check>
+
+The level importer (`EchoShare.decode`) refuses an `S` code by name ("That's a save code. Load it in Settings ->
+Save code."), and the save loader (`EchoSave.decode`) refuses `L` and `F` codes the same way. The level and folder
+formats and the `WORDS` lists are not touched by any of it.
+
+**The payload**: the save format number (1), a flags number (1: settings were asked for, 2: levels were), then
+**records** - each a tag, a length and its bytes. The tags are FROZEN (`RECORDS` in js/savecode.js: never reused or
+renumbered); **a tag this version does not know means a newer version wrote the code, and the whole code is refused**
+("loads nothing"). Inside a record a list may carry more entries than this version knows (a newer game's stats, mode,
+scene): those are read past and dropped.
+
+| tags | records | from |
+| --- | --- | --- |
+| 1-12 | progress per mode, scenes seen, fragments found, the tutorial, medals, Endless's bests, cosmetics, the daylight interface, What's new seen, the editor unlocked, bonus levels done, stats | always (progress) |
+| 20-28 | the difficulty picked, Calm, Visual cues, touch, keys, volumes, palette, timer, creator name | "Include my settings" |
+| 40 | My Levels (each packed exactly as a level code packs it) and the folders (by name, with the levels in them) | "Also include my levels and folders" |
+
+Scenes and fragments are bit sets over frozen lists (`SCENES`, `FRAGMENTS`), with any id not in the list written as
+a word after them. **Nothing is in a code unless its record is listed**: no device-only state (the undo copy, the
+last Endless run, a level's id or dates) ever is.
+
+**Reading one** is untrusted, like a level code: the prefix, the format version, the check, the size
+(`EchoSave.LIMITS`: 1,500,000 characters, 8 MB unpacked, 500 levels, 50 folders), then every value - levels clamped
+to the real campaign, only this game's scene / fragment / bonus / cosmetic / action / palette ids, numbers in range,
+text cleaned - and the levels through `EchoLevelFormat.normalise` and `EchoLevelCheck` (unfinished ones are kept as
+drafts). Nothing is ever evaluated.
+
+**Loading one**: Merge (the default: the best of both - per mode, per medal, per Endless best; the union of scenes,
+fragments and bonus ticks; stats by the higher of each, never the sum; this device's own choices kept) or Replace (the
+code's sections instead). Before anything is written, every key the load touches is kept (`echomaze.saveundo`) for
+Undo last load, until the next load. Every key is `EchoSave.PREFIX` + a name - `'echomaze.'`, which the test copy's
+builder makes `'echomaze.test.'` - so a copy only ever reads and writes its own save.

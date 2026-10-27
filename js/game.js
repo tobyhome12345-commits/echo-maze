@@ -5976,8 +5976,66 @@
     if (level && state !== 'title' && state !== 'cutscene') updateHud();
   }
 
+  /**
+   * (v22.0) SAVE CODES (js/savecode.js): what the game knows, so a code's values are clamped to THIS game - its
+   * levels, its scenes and fragments, its modes, bonus levels, looks, actions and palettes.
+   */
+  function saveCtx() {
+    return {
+      campaignLevels: CAMPAIGN_LEVELS,
+      medalLevels: MEDAL_LEVELS,
+      modes: MODE_ORDER.slice(),
+      modeLabel: (m) => MODES[m].label,
+      scenes: SCENES.map((s) => s.kind),
+      fragments: EchoLore.FRAGMENTS.map((f) => f.id),
+      bonusIds: EchoLevelStore.bonus.list().map((b) => b.id),
+      cosmetics: { color: EchoCosmetics.COLORS.map((c) => c.id), shape: EchoCosmetics.SHAPES.map((c) => c.id), marker: EchoCosmetics.MARKERS.map((c) => c.id) },
+      actions: EchoProfile.ACTIONS.map((a) => a.id),
+      palettes: EchoPalette.list().map((p) => p.id),
+    };
+  }
+  /** After a code was loaded (or a load undone): everything the game holds in memory read from storage again, and every screen that shows it refreshed - no reload. */
+  function afterSaveLoad() {
+    progress = loadProgress();
+    seen = loadSeen();
+    tutorialDone = store.get(TUTORIAL_KEY) === '1';
+    lightUi = store.get(LIGHTUI_KEY) === '1';
+    EchoProfile.reload();
+    EchoLore.reload();
+    EchoCosmetics.reload();
+    // the settings a code may carry (each changed only if it really differs, so nothing is written that was not)
+    const m = store.get(MODE_KEY);
+    mode = MODES[m] ? m : 'normal'; // (as at start-up: no difficulty stored is Normal)
+    const c = store.get(CALM_KEY) === '1';
+    if (c !== calm) setCalm(c);
+    const v = store.get(VISUALCUES_KEY) === '1';
+    if (v !== visualCues) setVisualCues(v);
+    touchPref = store.get(TOUCH_KEY);
+    refreshTouchMode();
+    if (EchoProfile.getPalette() !== EchoPalette.id) {
+      EchoPalette.set(EchoProfile.getPalette());
+      drawLegend();
+    }
+    const vol = EchoProfile.volumes();
+    for (const bus of Object.keys(vol)) audio.setBusVolume(bus, vol[bus]);
+    showTimer = EchoProfile.getShowTimer();
+    if (!showTimer) $('hud-time').textContent = '';
+    settings.renderHowTo();
+    tutorial.refresh();
+    releaseKeys();
+    applyLightUi();
+    refreshTitle();
+    refreshCosmetics();
+    settings.refresh();
+    refreshWhatsNewDot();
+  }
+
   const settings = EchoSettings.create({
     click: () => audio.uiClick(),
+    // (v22.0) save codes
+    saveCtx,
+    flushSave: () => EchoProfile.flush(),
+    afterSaveLoad,
     showOverlay,
     closeSettings(from) {
       if (from === 'pause') {
@@ -6928,6 +6986,16 @@
       // v14.0: levels 14-16 (js/story.js). go(14..16) plays them; step() drives them (the beats run inside play).
       story,
       storyState: () => story.state(),
+      // (v22.0) save codes: the context, the refresh, and the Settings tab's own calls
+      saveCode: {
+        ctx: () => saveCtx(),
+        afterLoad: () => afterSaveLoad(),
+        ui: () => settings.saveCode,
+        mode: () => mode,
+        progress: () => ({ ...progress }),
+        seen: () => ({ ...seen }),
+        tutorialDone: () => tutorialDone,
+      },
       // (v21.0) cosmetics
       cosmetics: {
         facts: () => cosFacts(),

@@ -309,5 +309,10 @@ const EchoLore = (() => {
     return { show, update, hide, state };
   }
 
-  return { KEY, R, CPS, CHANCE, FRAGMENTS, BONUS, TOTAL, byId, forLevel, place, found, isFound, count, bonusUnlocked, secretUnlocked, markFound, setFound, createReader };
+  /** (v22.0) What is found, read from storage again (a loaded save code may have changed it either way). */
+  function reload() {
+    mem = load();
+  }
+
+  return { reload, KEY, R, CPS, CHANCE, FRAGMENTS, BONUS, TOTAL, byId, forLevel, place, found, isFound, count, bonusUnlocked, secretUnlocked, markFound, setFound, createReader };
 })();

@@ -78,6 +78,7 @@ const EchoShare = (() => {
     newer: 'This code was made in a newer version of Echo Maze. Update the game to open it.',
     tooBig: 'This code is too big to be an Echo Maze level code, so it was not read.',
     folderTooBig: `A folder code can hold at most ${LIMITS.folderLevels} levels.`,
+    saveCode: "That's a save code, not a level code. Load it in Settings -> Save code.", // (v22.0: ECHO1S, js/savecode.js)
   };
   const fail = (code, error) => ({ ok: false, code, error: error || ERR[code] || ERR.damaged });
   class Bad extends Error {
@@ -555,32 +556,32 @@ const EchoShare = (() => {
     }
     return { method: METHOD.stored, data: bytes };
   }
-  async function decompress(method, data) {
+  async function decompress(method, data, cap = LIMITS.inflated) {
     if (method === METHOD.stored) {
-      if (data.length > LIMITS.inflated) throw new Bad('tooBig');
+      if (data.length > cap) throw new Bad('tooBig');
       return data;
     }
     if (method !== METHOD.deflate) throw new Bad('newer');
     if (hasStreams()) {
       try {
-        return await viaStream(new DecompressionStream('deflate-raw'), data, LIMITS.inflated);
+        return await viaStream(new DecompressionStream('deflate-raw'), data, cap);
       } catch (e) {
         if (e instanceof Bad) throw e;
         throw new Bad('damaged');
       }
     }
-    return inflate(data, LIMITS.inflated);
+    return inflate(data, cap);
   }
 
   // ------------------------------------------------------------------ writing a code
-  async function wrap(kindLetter, bytes) {
+  async function wrap(kindLetter, bytes, maxChars = LIMITS.codeChars) {
     const z = await compress(bytes);
     const payload = new Uint8Array(z.data.length + 1);
     payload[0] = z.method;
     payload.set(z.data, 1);
     const head = `${PREFIX}${VERSION}${kindLetter}`;
     const code = head + toBase62(payload) + checkChars(crc32([ascii(head), payload]));
-    if (code.length > LIMITS.codeChars) return fail('tooLong', `It would be ${code.length.toLocaleString('en-GB')} characters long - more than a code can be (${LIMITS.codeChars.toLocaleString('en-GB')}).`);
+    if (code.length > maxChars) return fail('tooLong', `It would be ${code.length.toLocaleString('en-GB')} characters long - more than a code can be (${maxChars.toLocaleString('en-GB')}).`);
     return { ok: true, code, chars: code.length };
   }
   const shareable = (doc) => !!doc && !!doc.size && Array.isArray(doc.walls);
@@ -658,6 +659,18 @@ const EchoShare = (() => {
     return { kind: 'folder', folderName, levels };
   }
 
+  /**
+   * (v22.0) The checked, decompressed payload of a code written by wrap() - for js/savecode.js, whose save codes are
+   * built on the same base 62, check and compression. `cap`: the most it may unpack to.
+   */
+  async function unwrap(code, head, cap = LIMITS.inflated) {
+    const body = code.slice(head.length);
+    if (body.length < CHECK_CHARS + 2) throw new Bad('damaged');
+    const payload = fromBase62(body.slice(0, body.length - CHECK_CHARS));
+    if (!payload.length || checkChars(crc32([ascii(head), payload])) !== body.slice(body.length - CHECK_CHARS)) throw new Bad('damaged');
+    return decompress(payload[0], payload.subarray(1), cap);
+  }
+
   /** The ways of reading codes, by format version (v1 is this file's own; a later one can be registered). */
   const resolvers = [{ id: 'offline-v1', versions: [1], resolve: (code, version, kindLetter, head) => readV1(code, head, kindLetter) }];
   function register(resolver) {
@@ -681,6 +694,7 @@ const EchoShare = (() => {
       const version = Number(m[1]);
       const kindLetter = m[2].toUpperCase();
       const head = `${PREFIX}${m[1]}${kindLetter}`; // (the check covers the header as written: ECHO upper-case)
+      if (kindLetter === 'S') return fail('saveCode'); // (v22.0) a whole save (js/savecode.js) - never a level here
       const resolver = resolvers.find((r) => r.versions.includes(version));
       if (!resolver) return version > VERSION ? fail('newer') : fail('damaged');
       if (!KINDS[kindLetter]) return fail('damaged');
@@ -736,6 +750,19 @@ const EchoShare = (() => {
     register,
     resolvers: () => resolvers.slice(),
     // for tests (tools/share-test.js): the parts on their own
-    _: { packLevel: (d) => packLevel(d).done(), wrap, toBase62, fromBase62, crc32, inflate, compress, decompress, checkChars, useBuiltIn: (on) => (builtIn = !!on), hasStreams: () => hasStreams(), writer },
+    _: {
+      packLevel: (d) => packLevel(d).done(),
+      // (v22.0) for js/savecode.js: a level's bytes back to a plain (untrusted) level, the reader, the error type, unwrap
+      unpackLevel: (bytes) => {
+        const r = reader(bytes);
+        const lv = unpackLevel(r);
+        if (!r.end()) throw new Bad('damaged');
+        return lv;
+      },
+      reader,
+      Bad,
+      unwrap,
+      INVISIBLE,
+      wrap, toBase62, fromBase62, crc32, inflate, compress, decompress, checkChars, useBuiltIn: (on) => (builtIn = !!on), hasStreams: () => hasStreams(), writer },
   };
 })();

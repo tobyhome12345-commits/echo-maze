@@ -4571,3 +4571,39 @@ body.touch #talk { bottom: auto; top: 58%; min-height: 52px; padding: 10px 26px;
 .cos-new { position: absolute; top: 4px; right: 5px; font-size: 10px; font-weight: 700; color: rgb(var(--exit-rgb)); letter-spacing: 0.06em; }
 html[data-ui='light'] canvas.cos-true { filter: invert(1) hue-rotate(180deg); }
 html[data-ui='light'] .cos-tile.locked canvas.cos-true { filter: invert(1) hue-rotate(180deg) grayscale(0.85) brightness(0.6); }
+
+/* ===== v22.0: save codes (Settings -> Save code; js/savecode.js) ===================================================
+   Two halves side by side on a wide panel, one above the other on a narrow one. The boxes are the share-code box's
+   look (#dialog-area). */
+.sc-halves { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.sc-half { min-width: 0; padding: 12px 14px; border: 1px solid rgba(var(--ui-rgb), 0.16); border-radius: 10px; background: rgba(var(--ui-rgb), 0.03); }
+.sc-half h3 { margin-top: 0; }
+.sc-box {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+  max-height: 160px;
+  margin: 8px 0 6px;
+  resize: vertical;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-all;
+  color: var(--ink);
+  background: rgba(var(--ui-rgb), 0.06);
+  border: 1px solid rgba(var(--ui-rgb), 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+  outline: none;
+}
+.sc-box:focus { border-color: var(--accent); box-shadow: 0 0 16px rgba(var(--ui-rgb), 0.25); }
+.sc-box[readonly] { color: var(--dim); }
+.sc-info { min-height: 1.4em; margin: 0 0 6px; }
+.sc-info.warn { color: rgb(var(--danger-rgb)); }
+.sc-half .buttons { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.sc-half .calm { margin: 6px 0; }
+@media (max-width: 760px) {
+  .sc-halves { grid-template-columns: 1fr; gap: 12px; }
+}
+body.touch .sc-box { font-size: 14px; }

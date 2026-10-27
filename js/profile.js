@@ -443,8 +443,18 @@ const EchoProfile = (() => {
     store.remove(STATS_KEY);
   }
 
+  /** (v22.0) Read everything here from storage again - after a save code has been loaded (js/savecode.js). */
+  function reload() {
+    bindings = loadKeys();
+    volumes = loadVolumes();
+    medals = store.json(MEDALS_KEY, {});
+    stats = loadStats();
+    dirty = false;
+  }
+
   return {
     store,
+    reload,
     // keys
     ACTIONS,
     MAX_KEYS,

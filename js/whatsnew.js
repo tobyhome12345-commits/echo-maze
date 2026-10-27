@@ -34,6 +34,15 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v22.0',
+      title: 'Save codes',
+      lines: [
+        'Your save as a code: back it up, or carry it to another device. Find it in Settings, under Save code.',
+        'Copy the code or save it as a file - and load one by pasting it or from the file.',
+        'Merge keeps the best of both saves, and Undo last load puts yours back.',
+      ],
+    },
+    {
       version: 'v21.0',
       title: 'Cosmetics',
       lines: [

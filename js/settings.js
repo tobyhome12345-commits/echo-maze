@@ -336,6 +336,7 @@ const EchoSettings = (() => {
       if (id === 'display') renderPalettes();
       if (id === 'cosmetics') renderCosmetics();
       else stopPreview();
+      if (id === 'savecode') renderSaveCode(); // (v22.0)
     }
 
     // ---------------------------------------------------------------- (v21.0) cosmetics
@@ -476,6 +477,7 @@ const EchoSettings = (() => {
       confirmingReset = false;
       $('stats-confirm').classList.add('hidden');
       message('');
+      scMsg(''); // (v22.0)
       refresh();
       showTab(tab);
       env.showOverlay('settings');
@@ -546,6 +548,207 @@ const EchoSettings = (() => {
       ]);
     }
 
+    // ---------------------------------------------------------------- (v22.0) save codes
+    /**
+     * Two halves. GET MY CODE: the save as a code (progress always; settings and levels only if ticked), made afresh
+     * whenever the tab is shown or a box is ticked, with Copy code and Save as file. LOAD A CODE: paste one, or load
+     * the file; a preview of what it holds in plain words (and a heads-up if it is further along than this device),
+     * then Merge (the default) or Replace (asked twice); Undo last load until the next one. Loading only from the
+     * title's Settings - never mid-level, where the game holds a run in memory.
+     */
+    let scToken = 0;
+    let scCode = '';
+    let scBusy = false;
+    function scMsg(text, kind = '') {
+      const el = $('sc-msg');
+      el.textContent = text || '';
+      el.className = `keybind-msg${kind ? ` ${kind}` : ''}${text ? '' : ' hidden'}`;
+    }
+    const canLoad = () => openFrom === 'title';
+    function refreshSaveLoad() {
+      const can = canLoad();
+      for (const id of ['btn-sc-load', 'btn-sc-fromfile', 'sc-in']) $(id).disabled = !can || scBusy;
+      $('btn-sc-undo').classList.toggle('hidden', !(can && EchoSave.canUndo()));
+      if (!can) scMsg("A code can be loaded from the title screen's Settings - not during a level.");
+    }
+    async function renderSaveCode() {
+      const my = ++scToken;
+      if (env.flushSave) env.flushSave(); // (the stats are held back while playing: the code has them up to now)
+      const info = $('sc-out-info');
+      refreshSaveLoad();
+      const s = EchoSave.gather(env.saveCtx(), { settings: $('sc-settings').checked, levels: $('sc-levels').checked });
+      const res = await EchoSave.encode(s);
+      if (my !== scToken) return; // (a newer one was asked for meanwhile)
+      if (!res.ok) {
+        scCode = '';
+        $('sc-out').value = '';
+        info.textContent = res.error;
+        info.className = 'fine sc-info warn';
+        return;
+      }
+      scCode = res.code;
+      $('sc-out').value = res.code;
+      const n = res.chars.toLocaleString('en-GB');
+      info.textContent = res.long ? `${n} characters - a long code. Save as file is easier than copying it.` : `${n} characters.`;
+      info.className = `fine sc-info${res.long ? ' warn' : ''}`;
+    }
+    async function copySaveCode() {
+      if (!scCode) return false;
+      const info = $('sc-out-info');
+      let ok = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(scCode);
+          ok = true;
+        }
+      } catch (e) {
+        ok = false;
+      }
+      if (!ok) {
+        const box = $('sc-out');
+        box.focus();
+        box.select();
+        try {
+          ok = document.execCommand('copy');
+        } catch (e) {
+          ok = false;
+        }
+      }
+      info.textContent = ok ? 'Copied.' : 'Select the code in the box and copy it.';
+      info.className = 'fine sc-info';
+      return ok;
+    }
+    /** "Save as file": a small text file holding the code. */
+    function saveCodeFile() {
+      if (!scCode) return false;
+      const info = $('sc-out-info');
+      try {
+        const url = URL.createObjectURL(new Blob([`${scCode}\n`], { type: 'text/plain' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'echo-maze-save.txt';
+        a.className = 'hidden';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        info.textContent = 'Saved as echo-maze-save.txt (look in your downloads).';
+        info.className = 'fine sc-info';
+        return true;
+      } catch (e) {
+        info.textContent = 'This browser would not save the file. Copy the code instead.';
+        info.className = 'fine sc-info warn';
+        return false;
+      }
+    }
+    /** Read a pasted code (or a file's text): preview, ask, load. -> { ok, how } | { ok: false, error | cancelled } */
+    async function loadSaveText(text) {
+      if (!canLoad() || scBusy) return { ok: false, error: 'not now' };
+      scBusy = true;
+      refreshSaveLoad();
+      try {
+        const ctx = env.saveCtx();
+        scMsg('Reading the code...');
+        const res = await EchoSave.decode(text, ctx);
+        if (!res.ok) {
+          scMsg(res.error, 'warn');
+          return { ok: false, error: res.error, code: res.code };
+        }
+        if (env.flushSave) env.flushSave();
+        const mine = EchoSave.gather(ctx, {});
+        const pv = EchoSave.preview(res.save, mine, ctx);
+        const fits = EchoSave.undoFits(res.save, ctx);
+        let body = `This code holds:\n${pv.lines.join('\n')}`;
+        if (pv.ahead) body += '\n\nHeads up: this code is further along than the save on this device. Loading it will unlock levels and scenes you may not have played here yet.';
+        body += '\n\nMerge keeps the best of both: the furthest level in each difficulty, every scene and fragment either save has, the better medals and bests.';
+        if (!fits) body += '\n\nThere is not enough room in storage to keep a copy for Undo, so this load cannot be undone.';
+        const r = await EchoDialog.open({
+          title: 'Load this save?',
+          text: body,
+          buttons: [
+            { id: 'merge', label: 'Merge (recommended)', primary: true },
+            { id: 'replace', label: 'Replace my save', danger: true },
+            { id: 'cancel', label: 'Cancel' },
+          ],
+          cancel: 'cancel',
+        });
+        if (r.id !== 'merge' && r.id !== 'replace') {
+          scMsg('Nothing was changed.');
+          return { ok: false, cancelled: true };
+        }
+        if (r.id === 'replace') {
+          const what = `Your progress on this device will be replaced by the code's${res.save.settings ? ', your settings by its settings' : ''}${res.save.levels ? ', and your levels and folders by its levels' : ''}.`;
+          const sure = await EchoDialog.open({
+            title: 'Replace your save?',
+            text: `${what}${fits ? ' Undo last load can put it back.' : ' This cannot be undone.'}`,
+            buttons: [
+              { id: 'replace', label: 'Yes, replace it', primary: true, danger: true },
+              { id: 'cancel', label: 'Cancel' },
+            ],
+            cancel: 'cancel',
+          });
+          if (sure.id !== 'replace') {
+            scMsg('Nothing was changed.');
+            return { ok: false, cancelled: true };
+          }
+        }
+        const out = EchoSave.load(res.save, ctx, { replace: r.id === 'replace' });
+        if (!out.ok) {
+          scMsg(out.error, 'warn');
+          return { ok: false, error: out.error };
+        }
+        env.afterSaveLoad();
+        $('sc-in').value = '';
+        scMsg(`${r.id === 'replace' ? 'Loaded: your save was replaced.' : 'Loaded: merged into your save.'}${out.undo ? ' Undo last load puts it back.' : ''}`, 'live');
+        return { ok: true, how: r.id, undo: out.undo };
+      } finally {
+        scBusy = false;
+        refreshSaveLoad();
+        renderSaveCode();
+      }
+    }
+    async function loadSaveFile(file) {
+      if (!file) return { ok: false };
+      if (file.size > EchoSave.LIMITS.fileBytes) {
+        scMsg(EchoSave.ERR.tooBig, 'warn');
+        return { ok: false, error: EchoSave.ERR.tooBig };
+      }
+      const text = await new Promise((resolve) => {
+        try {
+          const fr = new FileReader();
+          fr.onload = () => resolve(typeof fr.result === 'string' ? fr.result : '');
+          fr.onerror = () => resolve('');
+          fr.readAsText(file);
+        } catch (e) {
+          resolve('');
+        }
+      });
+      if (!text) {
+        scMsg("That file couldn't be read. Nothing was changed.", 'warn');
+        return { ok: false };
+      }
+      return loadSaveText(text);
+    }
+    async function undoSaveLoad() {
+      if (!canLoad() || !EchoSave.canUndo()) return { ok: false };
+      const r = await EchoDialog.open({
+        title: 'Undo the last load?',
+        text: 'Your save goes back to exactly how it was just before the last code was loaded.',
+        buttons: [
+          { id: 'undo', label: 'Undo it', primary: true },
+          { id: 'cancel', label: 'Cancel' },
+        ],
+        cancel: 'cancel',
+      });
+      if (r.id !== 'undo') return { ok: false, cancelled: true };
+      const out = EchoSave.undo();
+      env.afterSaveLoad();
+      scMsg(out.ok ? 'Done: your save is back to how it was before the last load.' : out.error, out.ok ? 'live' : 'warn');
+      refreshSaveLoad();
+      renderSaveCode();
+      return out;
+    }
+
     // ------------------------------------------------------------- wiring
     document.querySelectorAll('#settings .tab').forEach((b) => {
       b.addEventListener('click', () => {
@@ -571,6 +774,34 @@ const EchoSettings = (() => {
         const out = document.querySelector(`[data-vol-out="${bus}"]`);
         if (out) out.textContent = `${sl.value}%`;
       });
+    });
+    // (v22.0) save codes
+    $('sc-settings').addEventListener('change', () => renderSaveCode());
+    $('sc-levels').addEventListener('change', () => renderSaveCode());
+    $('btn-sc-copy').addEventListener('click', () => {
+      env.click();
+      copySaveCode();
+    });
+    $('btn-sc-file').addEventListener('click', () => {
+      env.click();
+      saveCodeFile();
+    });
+    $('btn-sc-load').addEventListener('click', () => {
+      env.click();
+      loadSaveText($('sc-in').value);
+    });
+    $('btn-sc-fromfile').addEventListener('click', () => {
+      env.click();
+      $('sc-file').value = '';
+      $('sc-file').click();
+    });
+    $('sc-file').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) loadSaveFile(f);
+    });
+    $('btn-sc-undo').addEventListener('click', () => {
+      env.click();
+      undoSaveLoad();
     });
     $('lightui-toggle').addEventListener('change', (e) => {
       if (env.lightUnlocked && env.lightUnlocked()) env.setLightUi(e.target.checked);
@@ -599,7 +830,7 @@ const EchoSettings = (() => {
       env.medalsChanged();
     });
 
-    return { open, close, isOpen, refresh, showTab, captureKey, renderHowTo, renderStats, medalPip, medalChip, isCapturing: () => !!capturing, renderCosmetics, previewRunning };
+    return { open, close, isOpen, refresh, showTab, captureKey, renderHowTo, renderStats, medalPip, medalChip, isCapturing: () => !!capturing, renderCosmetics, previewRunning, saveCode: { render: renderSaveCode, code: () => scCode, copy: copySaveCode, file: saveCodeFile, load: loadSaveText, loadFile: loadSaveFile, undo: undoSaveLoad, busy: () => scBusy } };
   }
 
   return { create };
