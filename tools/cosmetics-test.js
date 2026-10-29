@@ -221,6 +221,98 @@ window.CosmeticsTest = (() => {
     return T.done();
   }
 
+  // ------------------------------------------------------------------------------------------ (v22.1) every look SEEN to differ
+  /** How many pixels of two images differ by a clear step of brightness (luminance > 24 apart). */
+  function differ(a, b) {
+    let n = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      const la = 0.2126 * a[i] + 0.7152 * a[i + 1] + 0.0722 * a[i + 2];
+      const lb = 0.2126 * b[i] + 0.7152 * b[i + 1] + 0.0722 * b[i + 2];
+      if (Math.abs(la - lb) > 24) n++;
+    }
+    return n;
+  }
+  /** The wavefront as it really is on screen: the game's canvas round you, with one of your ripples `secs` old. */
+  async function gameShot(look, secs) {
+    equipAll(look[0], look[1], look[2]);
+    info().enemies.length = 0;
+    E().step(2.2);
+    E().ripples().length = 0;
+    ping();
+    E().step(secs);
+    const rs = E().ripples();
+    for (let i = rs.length - 1; i >= 0; i--) if (!rs[i].mine) rs.splice(i, 1);
+    E().snapCamera();
+    E().draw();
+    const cv = $('game');
+    return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+  }
+  function previewShot(look, age) {
+    const cv = document.createElement('canvas');
+    cv.width = 240;
+    cv.height = 150;
+    const c = cv.getContext('2d');
+    C().drawPreview(c, cv.width, cv.height, C().look({ color: C().COLORS.find((x) => x.id === look[0]), shape: C().SHAPES.find((x) => x.id === look[1]), marker: C().MARKERS.find((x) => x.id === look[2]) }), { still: age, paletteWall: '95,212,255', size: 5, calm: !!E().settings().calm });
+    return c.getImageData(0, 0, cv.width, cv.height).data;
+  }
+  async function visible() {
+    const T = suite('visible');
+    const shapes = C().SHAPES.map((s) => s.id);
+    // the preview: the wave at seven moments of its way out
+    const ages = [0.35, 0.6, 0.85, 1.1, 1.35, 1.6, 1.85].map((k) => (k / 2.2) * C().RIPPLE_EVERY);
+    const pv = {};
+    for (const s of shapes) pv[s] = ages.map((a) => previewShot(['classic', s, 'dot'], a));
+    const pvDiff = {};
+    for (const s of shapes) pvDiff[s] = ages.reduce((sum, _, i) => sum + differ(pv.classic[i], pv[s][i]), 0);
+    T.note({ preview: pvDiff });
+    // the game, level 3: the wave at three moments (lub, dub, and later)
+    await toTitle();
+    E().go(3);
+    E().step(0.1);
+    const moments = [0.19, 0.29, 0.45];
+    const gm = {};
+    for (const s of shapes) gm[s] = [];
+    for (const m of moments) for (const s of shapes) gm[s].push(await gameShot(['classic', s, 'dot'], m));
+    const gmDiff = {};
+    for (const s of shapes) gmDiff[s] = moments.reduce((sum, _, i) => sum + differ(gm.classic[i], gm[s][i]), 0);
+    T.note({ game: gmDiff });
+    const pairs = [];
+    for (let i = 0; i < shapes.length; i++) for (let j = i + 1; j < shapes.length; j++) {
+      const a = shapes[i];
+      const b = shapes[j];
+      const g = moments.reduce((sum, _, k) => sum + differ(gm[a][k], gm[b][k]), 0);
+      const p = ages.reduce((sum, _, k) => sum + differ(pv[a][k], pv[b][k]), 0);
+      if (g < VISIBLE_MIN || p < VISIBLE_MIN) pairs.push(`${a}/${b}: game ${g}, preview ${p}`);
+    }
+    T.check(`every two ripple shapes look plainly different on screen - in a level and in the preview (at least ${VISIBLE_MIN} pixels apart)`, pairs.length === 0, pairs);
+    const hb = gmDiff.heartbeat;
+    T.check(`the Heartbeat stands out from Classic as much as any other shape does (${hb} pixels in the level)`, hb >= Math.min(...shapes.filter((s) => s !== 'classic' && s !== 'heartbeat').map((s) => gmDiff[s])) * 0.6 && hb >= VISIBLE_MIN * 3, gmDiff);
+    // the Heartbeat everywhere it is worn - the gaol, Endless, an editor level - in other colours and with other markers
+    const weak = [];
+    for (const L of LEVELS) {
+      await toTitle();
+      L.go();
+      for (let i = 0; i < 40 && E().scriptLock().locked; i++) E().step(0.25);
+      if (info().state === 'card') key('Enter', true), key('Enter', false);
+      E().step(0.1);
+      for (const [col, mk] of [['gold', 'star'], ['mint', 'ring'], ['whitehot', 'ember']]) {
+        let d = 0;
+        for (const m of [0.19, 0.29]) {
+          const a = await gameShot([col, 'classic', mk], m);
+          const b = await gameShot([col, 'heartbeat', mk], m);
+          d += differ(a, b);
+        }
+        if (d < VISIBLE_MIN * 2) weak.push(`${L.name} ${col}/${mk}: ${d}`);
+        else T.note(`${L.name} ${col}/${mk}: ${d}`);
+      }
+    }
+    T.check(`the Heartbeat plainly different from Classic on ${LEVELS.map((l) => l.name).join(', ')}, in three colours with three markers`, weak.length === 0, weak);
+    equipAll('classic', 'classic', 'dot');
+    await toTitle();
+    return T.done();
+  }
+  const VISIBLE_MIN = 400;
+
   // ------------------------------------------------------------------------------------------ the game is the same
   async function same() {
     const T = suite('same');
@@ -545,5 +637,5 @@ window.CosmeticsTest = (() => {
     return T.done();
   }
 
-  return { unlocks, draw, same, scope, screen, dot, storage, perf, live };
+  return { unlocks, draw, visible, same, scope, screen, dot, storage, perf, live };
 })();

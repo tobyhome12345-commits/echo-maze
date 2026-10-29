@@ -34,6 +34,13 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v22.1',
+      title: 'Heartbeat fixed',
+      lines: [
+        'Heartbeat now shows: a thick ripple that beats twice. Every ripple shape now shows on the walls too.',
+      ],
+    },
+    {
       version: 'v22.0',
       title: 'Save codes',
       lines: [

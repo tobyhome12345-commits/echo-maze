@@ -102,7 +102,8 @@ const FULL_EXTRA = [
   { name: 'Endless on a phone, Calm mode and Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.calm': '1', 'echomaze.progress': '{"normal":25}' }, load: ['endless-test.js'], runs: [['EndlessTest', 'screen']] },
   // (v21.0) cosmetics: Visual cues ON first on a finished save (everything unlocked), then off part of the way through
   // (Endless not open: "???"), a fresh save, and the screen on phones in the daylight interface and out of it
-  { name: 'Cosmetics, Visual cues ON, finished', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12,"hardcore":3}}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'draw', 'same', 'scope', 'screen', 'storage', 'perf', 'live'].map((n) => ['CosmeticsTest', n]) },
+  { name: 'Cosmetics, Visual cues ON, finished', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12,"hardcore":3}}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'draw', 'visible', 'same', 'scope', 'screen', 'storage', 'perf', 'live'].map((n) => ['CosmeticsTest', n]) },
+  { name: 'Cosmetics, Visual cues off, finished, daylight interface (v22.1: every shape seen)', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.lightui': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12,"hardcore":3}}' }, load: ['cosmetics-test.js'], runs: ['visible', 'draw', 'same', 'screen', 'live'].map((n) => ['CosmeticsTest', n]) },
   { name: 'Cosmetics, Visual cues off, part of the way', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":11}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'screen', 'storage', 'live'].map((n) => ['CosmeticsTest', n]) },
   { name: 'Cosmetics on a fresh save', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'dot', 'screen'].map((n) => ['CosmeticsTest', n]) },
   { name: 'Cosmetics on a phone, daylight interface, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.lightui': '1', 'echomaze.progress': '{"normal":29,"hard":5}', 'echomaze.endless': '{"best":{"normal":6}}' }, load: ['cosmetics-test.js'], runs: ['unlocks', 'screen', 'perf', 'live'].map((n) => ['CosmeticsTest', n]) },
@@ -153,9 +154,21 @@ function staticChecks() {
   versionCheck();
   act2Check();
   endlessNodeCheck();
+  cosmeticsNodeCheck();
 }
 
 /** (v20.0) Endless mode's mazes: depths 1-60 of several runs in every mode, built and checked in Node (tools/endless-check.js). */
+/** (v22.1) Every ripple shape, colour and marker draws what it says - none the same as another (tools/cosmetics-check.js, in Node). */
+function cosmeticsNodeCheck() {
+  try {
+    const out = execFileSync(process.execPath, [path.join(__dirname, 'cosmetics-check.js'), '--quiet'], { stdio: 'pipe' }).toString();
+    ok(`Cosmetics: every shape, colour and marker draws differently; the Heartbeat thick and beating twice (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
+  } catch (e) {
+    const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
+    ok('Cosmetics: every shape, colour and marker draws differently', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
+  }
+}
+
 function endlessNodeCheck() {
   try {
     const out = execFileSync(process.execPath, [path.join(__dirname, 'endless-check.js'), '--quiet'], { stdio: 'pipe' }).toString();

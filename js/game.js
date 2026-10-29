@@ -3301,6 +3301,39 @@
     ctx.stroke();
   }
 
+  /**
+   * (v22.1) For your cosmetics: the path along the walls where this ripple is landing right now (the rays that met a
+   * wall within the last LANDING_BAND px behind its shown front), `off` px along each ray (or per ray, null = a gap).
+   * Walls only - never a monster, an object or a way out - and only where the game is lighting the wall anyway.
+   */
+  function landingAt(rp, rr) {
+    const { x, y, dist, type, R } = rp;
+    const band = EchoCosmetics.LANDING_BAND;
+    return (off) => {
+      ctx.beginPath();
+      let pen = false;
+      let any = false;
+      let last = 0;
+      for (let i = 0; i <= RAYS; i++) {
+        const j = i % RAYS;
+        const d = dist[j];
+        const o = typeof off === 'function' ? off(j) : off;
+        if (o === null || type[j] !== T_WALL || d >= R - 0.5 || d > rr || d < rr - band) {
+          pen = false;
+          continue;
+        }
+        const px = x + COS[j] * (d + o);
+        const py = y + SIN[j] * (d + o);
+        if (pen && Math.abs(d - last) < 12) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+        pen = true;
+        any = true;
+        last = d;
+      }
+      return any;
+    };
+  }
+
   function drawRipple(rp) {
     const v = rp.v || RIPPLE_SPEED;
     const r = rp.t * v;
@@ -3343,7 +3376,7 @@
         }
         return any;
       };
-      if (mine) EchoCosmetics.strokeWave(ctx, mine, pathAt, a, rp.t, calm);
+      if (mine) EchoCosmetics.strokeWave(ctx, mine, pathAt, a, rp.t, calm, r / R, landingAt(rp, rr)); // (v22.1: how far it has spread, and where it lands)
       else {
         pathAt(0);
         ctx.strokeStyle = tint ? `rgba(${tint},${a * 0.3})` : `rgba(150,215,255,${a * 0.25})`;

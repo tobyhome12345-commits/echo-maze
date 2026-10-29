@@ -151,20 +151,86 @@ const EchoCosmetics = (() => {
       marker: cur.marker.id,
     };
   }
+  // (v22.1) the Heartbeat's two beats: where on the wave's way out they come (0..1), how wide, and how big the second is
+  const HEART_LUB = 0.3;
+  const HEART_DUB = 0.5;
+  const HEART_WIDTH = 0.06;
+  const HEART_DUB_SIZE = 0.8;
+  // (v22.1) where the wave lands on the walls: how wide a band behind the front is marked (px), and how bright
+  const LANDING_BAND = 40;
+  const LANDING_MIN = 0.16;
+  const LANDING_GAIN = 1.3;
   const hash = (n) => (Math.imul(n | 0, 2654435761) >>> 0) / 4294967296; // a fixed function: never Math.random
 
   /**
    * The wavefront in a shape. `path(off)` draws the ring's path: `off` a number (px added to the radius) or a function
-   * (ray index -> px, or null for a gap). `a` is its brightness now, `t` the ripple's age (s). The classic one is
-   * exactly the game's own two strokes; every other keeps a solid glow under what it does to the core line.
+   * (ray index -> px, or null for a gap). `a` is its brightness now, `t` the ripple's age (s), `u` how far it has
+   * spread (0 just sent .. 1 at its reach - v22.1, for the Heartbeat). The classic one is exactly the game's own two
+   * strokes; every other keeps a solid glow under what it does to the core line. The game (drawRipple) and the Cosmetics
+   * tab's preview (drawPreview) both draw through this one function, so the two can never disagree.
    */
-  function strokeWave(ctx, lk, path, a, t, calm) {
+  function strokeWave(ctx, lk, path, a, t, calm, u = 0, hit = null) {
+    ring(ctx, lk, path, a, t, calm, u);
+    // (v22.1) In a maze the open ring is gone within a few hundredths of a second - the wave has reached the walls, and
+    // from then on what you see of it is the walls lighting up. So every shape but Classic also marks the line where the
+    // wave is landing on the walls right now (`hit(off)` draws it: `off` px along each ray, or a function like path's).
+    // It is drawn ON the wall light the game draws anyway, so it shows nothing and hides nothing.
+    if (hit && lk.shape !== 'classic') landing(ctx, lk, hit, a, t, calm, u);
+  }
+  const strokeLine = (ctx, rgb, alpha, w) => {
+    ctx.strokeStyle = `rgba(${rgb},${Math.min(1, alpha)})`;
+    ctx.lineWidth = w;
+    ctx.stroke();
+  };
+  /** The Heartbeat's beat now: 0 between beats, about 1 at the lub and 0.8 at the dub (by how far the wave has spread). */
+  function heartPulse(u) {
+    const beat = (at) => Math.exp(-(((u - at) / HEART_WIDTH) ** 2));
+    return beat(HEART_LUB) + HEART_DUB_SIZE * beat(HEART_DUB);
+  }
+  /** The shape where the wave is landing on the walls. */
+  function landing(ctx, lk, hit, a, t, calm, u) {
     const s = lk.shape;
-    const line = (rgb, alpha, w) => {
-      ctx.strokeStyle = `rgba(${rgb},${Math.min(1, alpha)})`;
-      ctx.lineWidth = w;
-      ctx.stroke();
-    };
+    const line = (rgb, alpha, w) => strokeLine(ctx, rgb, alpha, w);
+    const b = Math.max(a, LANDING_MIN) * LANDING_GAIN;
+    if (s === 'heartbeat') {
+      const p = heartPulse(u);
+      const k = 1 + (calm ? 0.45 : 1.1) * p;
+      if (!hit(0)) return;
+      line(lk.glow, b * (0.3 + 0.15 * p), 14 * k);
+      line(lk.core, b * (0.85 + 0.3 * p), 3.4 * k);
+    } else if (s === 'soft') {
+      if (!hit(0)) return;
+      line(lk.glow, b * 0.3, 20);
+      line(lk.glow, b * 0.45, 8);
+    } else if (s === 'dotted') {
+      // a row of dots just in front of the stone (round ends on a short dash make dots)
+      if (!hit(-7)) return;
+      const cap = ctx.lineCap;
+      ctx.lineCap = 'round';
+      ctx.setLineDash([0.5, 8]);
+      line(lk.core, b * 1.5, 6);
+      ctx.setLineDash([]);
+      ctx.lineCap = cap;
+    } else if (s === 'glitch') {
+      const frame = Math.floor(t * (calm ? 4 : 9));
+      const any = hit((j) => {
+        const seg = j >> 3;
+        const v = hash(seg * 197 + frame * 613);
+        if (v < 0.2) return null;
+        return -4 - hash(seg * 53 + frame * 29) * 9; // stuttering bars just off the stone
+      });
+      if (any) line(lk.core, b * 1.4, 4.2);
+    } else if (s === 'double') {
+      // the wave's second line, just in front of the stone
+      if (!hit(-11)) return;
+      line(lk.glow, b * 0.35, 7);
+      line(lk.core, b * 1.1, 2.4);
+    }
+  }
+  /** The open ring. */
+  function ring(ctx, lk, path, a, t, calm, u) {
+    const s = lk.shape;
+    const line = (rgb, alpha, w) => strokeLine(ctx, rgb, alpha, w);
     if (s === 'soft') {
       path(0);
       line(lk.glow, a * 0.2, 18);
@@ -173,10 +239,13 @@ const EchoCosmetics = (() => {
       return;
     }
     if (s === 'heartbeat') {
-      const k = 1 + (calm ? 0.25 : 0.6) * (0.5 + 0.5 * Math.sin(t * 13));
+      // (v22.1) a thicker ring that beats twice as it spreads - lub, then dub - by how far it has gone (`u`), so every
+      // ripple shows both beats whatever its speed. Even between the beats it is nearly twice Classic's line.
+      const p = heartPulse(u);
+      const k = 1 + (calm ? 0.45 : 1.1) * p; // (calm: a softer swell - the thicker ring stays)
       path(0);
-      line(lk.glow, a * 0.28, 11 * k);
-      line(lk.core, a, 2.6 * k);
+      line(lk.glow, a * (0.3 + 0.15 * p), 14 * k);
+      line(lk.core, a * (1 + 0.3 * p), 3.4 * k);
       return;
     }
     path(0);
@@ -299,7 +368,7 @@ const EchoCosmetics = (() => {
       }
     }
     // the wavefront: the same strokes as in the game, on a circle clipped to the room
-    if (opts.wave !== false && r > 1 && r < half * 1.42) {
+    if (opts.wave !== false && r > 1 && r < half * 1.5) {
       const a = 0.06 + 0.5 * (1 - r / (half * 1.42)) * 1.4;
       const N = 160;
       const inRoom = (px, py) => Math.abs(px - cx) <= half && Math.abs(py - cy) <= half;
@@ -333,7 +402,34 @@ const EchoCosmetics = (() => {
         }
         return any;
       };
-      strokeWave(ctx, lk, path, a, age, calm);
+      // where the wave is landing on the room's walls: each ray's distance to the square, as the game's rays have theirs
+      const wallAt = (j) => {
+        const ang = (j / N) * Math.PI * 2;
+        return half / Math.max(Math.abs(Math.cos(ang)), Math.abs(Math.sin(ang)));
+      };
+      const hit = (off) => {
+        ctx.beginPath();
+        let pen = false;
+        let any = false;
+        for (let i = 0; i <= N; i++) {
+          const j = i % N;
+          const d = wallAt(j);
+          const o = typeof off === 'function' ? off(Math.floor((j * 640) / N)) : off;
+          if (o === null || d > r || d < r - LANDING_BAND) {
+            pen = false;
+            continue;
+          }
+          const ang = (j / N) * Math.PI * 2;
+          const px = cx + Math.cos(ang) * (d + o);
+          const py = cy + Math.sin(ang) * (d + o);
+          if (pen) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+          pen = true;
+          any = true;
+        }
+        return any;
+      };
+      strokeWave(ctx, lk, path, a, age, calm, r / (half * 1.42), hit);
     }
     // you, with the game's halo
     if (opts.marker !== false) {
@@ -357,6 +453,7 @@ const EchoCosmetics = (() => {
     LISTS,
     DEFAULTS,
     RIPPLE_EVERY,
+    LANDING_BAND,
     isUnlocked,
     condition,
     current,

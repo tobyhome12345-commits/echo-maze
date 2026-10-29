@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v22.0 - save codes
+**Current version:** v22.1 - heartbeat fix
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -281,6 +281,7 @@ Settings has a **Cosmetics** tab: three rows of looks you unlock by playing, and
 | **Ripple shape** | Classic, Double, Dotted, Soft, Heartbeat, Glitch |
 | **Player marker** | Dot, Ring, Diamond, Star, Ember |
 
+- **The shapes** show on the open ring as it spreads and, in the maze, where the wave lands on the walls: **Heartbeat** is a thick ring that beats twice as it goes - lub, dub - **Double** has a second line, **Dotted** is a row of dots, **Soft** a wide soft glow and **Glitch** stutters. The walls themselves are lit exactly as with Classic.
 - **Purely a look.** A ripple reaches exactly as far, travels exactly as fast and lasts exactly as long in every look, and monsters hear and see exactly what they always did. Nothing about play changes.
 - **Only your own.** It recolours your ripple, the walls your ripple lights and your marker - never a monster, the way out or anything else, so every colour palette still means what it says. A drop of water's ripple, a monster's song and the cutscenes look as they always did, and so do the daylight levels.
 - **Readable.** Every colour was picked to stay clearly apart from everything a ripple can show, in all four palettes, and bright enough on the dark. Calm mode softens the moving shapes (Heartbeat, Glitch, Ember) and Visual cues work as usual.
