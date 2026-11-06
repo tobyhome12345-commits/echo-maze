@@ -38,6 +38,8 @@ const expr = `(async () => {
   // (v22.0) save codes: only the copy's own slot (a copy of a version from before them has none: null)
   out.savePrefix = typeof EchoSave === 'undefined' ? null : EchoSave.PREFIX;
   out.cosLocked = typeof EchoCosmetics === 'undefined' ? null : ['color', 'shape', 'marker'].flatMap((k) => EchoCosmetics.LISTS[k].filter((it) => !EchoCosmetics.isUnlocked(it, __echo.cosmetics.facts())).map((it) => it.id));
+  // (v23.0) ghost runs keep to the copy's own slot (a copy of a version from before them has none: null)
+  out.ghostKey = typeof EchoGhosts === 'undefined' ? null : EchoGhosts.GHOSTS_KEY;
   // (v22.2) Endless's Twists toggle beside Endless (a copy of a version from before twists has none: null)
   const tw = document.getElementById('btn-twists');
   out.twists = tw ? !tw.classList.contains('hidden') : null;
@@ -62,6 +64,7 @@ withPage(async (page) => {
     ['Bonus Levels: two ticked', r.bonusDone === 2, `${r.bonusDone}`],
     ['save codes keep to the test slot (or a version from before them)', r.savePrefix === null || r.savePrefix === 'echomaze.test.', r.savePrefix === null ? 'none in this version' : r.savePrefix],
     ['every cosmetic unlocked (or a version from before them)', r.cosLocked === null || r.cosLocked.length === 0, r.cosLocked === null ? 'none in this version' : r.cosLocked.join(', ') || 'all 18'],
+    ['ghost runs keep to the test slot (or a version from before them)', r.ghostKey === null || r.ghostKey === 'echomaze.test.ghosts', r.ghostKey === null ? 'none in this version' : r.ghostKey],
     ["Endless's Twists toggle shown (or a version from before them)", r.twists !== false, r.twists === null ? 'none in this version' : r.twists ? 'shown' : 'hidden'],
     ['Level Editor: no spoiler warning (accepted in the test save)', r.firstScreen !== 'gate', r.firstScreen],
     ['a sample code from the READ ME reads', r.codeReads],

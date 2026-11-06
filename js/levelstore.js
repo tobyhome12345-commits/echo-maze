@@ -291,11 +291,13 @@ const EchoLevelStore = (() => {
       if (!ls.set(LEVEL_PREFIX + d.id, EchoLevelFormat.serialise(d))) {
         return { ok: false, error: `The level could not be saved: ${storageError.charAt(0).toLowerCase()}${storageError.slice(1)}` };
       }
+      if (typeof EchoGhosts !== 'undefined') EchoGhosts.levelChanged('mylevels', d); // (v23.0: its maze changed - its ghosts go)
       return { ok: true, doc: d };
     },
     delete(id) {
       if (!EchoLevelFormat.validId(id)) return false;
       const gone = ls.remove(LEVEL_PREFIX + id);
+      if (gone && typeof EchoGhosts !== 'undefined') EchoGhosts.forgetLevel('mylevels', id); // (v23.0: and its ghosts)
       if (gone) {
         const data = readFolders();
         if (data.levels[id]) {

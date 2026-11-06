@@ -388,6 +388,11 @@
   let cosLook = null; // (v21.0) what your own ripple and marker look like now (js/cosmetics.js look()) - drawing only
   let endlessRun = null; // (v20.0) { seed, depth, mode, startBest, passedBest } while an Endless run is being played (levelNum is ENDLESS_LEVEL)
   let customRun = null; // { doc, from: 'editor' | 'mylevels' | 'bonus', queue } while a custom level is being played (levelNum is CUSTOM_LEVEL)
+  // (v23.0) GHOST RUNS (js/ghosts.js): on a bonus level or one of My Levels only - this run's recording, the best run's
+  // ghost being shown, and that run's time (ms, 0 = none yet). Drawing and the time only: nothing in the game reads them.
+  let ghostRec = null;
+  let ghostPb = null;
+  let ghostBestMs = 0;
   let editorScreen = null; // 'gate' | 'unreleased' | 'touch' | 'list' | 'editor': which of the editor's screens is up (state 'editor')
   // ---- custom levels, v15.1
   let fxZones = []; // the level's light / glow zones, ready to draw (js/effects.js)
@@ -2979,6 +2984,7 @@
   // ----------------------------------------------------------------- update
   function updatePlay(dt) {
     levelTime += dt;
+    if (ghostRec) EchoGhosts.sample(ghostRec, levelTime - dt, player.x, player.y); // (v23.0: it only reads where you are)
     if (scored()) EchoProfile.bump('playTime', dt); // stats: written out at the end of the level, not every frame (never in the tutorial)
     cooldown = Math.max(0, cooldown - dt);
     player.bumpCd = Math.max(0, player.bumpCd - dt);
@@ -3641,6 +3647,16 @@
       }
     }
 
+    // (v23.0) your ghost: a faint, cool copy of your marker where your best run was at this moment - drawn in the dark
+    // as well, never lit by or lighting anything; it fades at the way out
+    if (ghostPb && EchoGhosts.enabled()) {
+      const gp = EchoGhosts.at(ghostPb, levelTime);
+      if (gp) {
+        ctx.globalAlpha = GHOST_ALPHA * gp.a;
+        EchoCosmetics.drawMarker(ctx, cosLook ? cosLook.marker : 'dot', gp.x, gp.y, 4.5, false, artT, calm, GHOST_RGB);
+        ctx.globalAlpha = 1;
+      }
+    }
     // the player: a small pale dot with a faint halo (smaller and dimmer while crouching)
     const low = !!player.crouching;
     const fall = a2Falling ? Math.max(0, 1 - a2Falling.t / FALL_SECONDS) : 1; // (v18.0: falling away into the void)
@@ -4229,7 +4245,7 @@
     $('hud-twist').classList.toggle('hidden', !(endlessRun && level && level.twist)); // (v22.2) a twist level: the mark beside the depth
     hudNumber('hud-level', inTutorial() ? 'Tutorial' : endlessRun ? `Depth ${endlessRun.depth} · ${MODES[mode].label}` : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `${levelName(levelNum)} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
-    hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
+    hudNumber('hud-time', (showTimer && scored()) || ghostEligible() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse (v23.0: always on a ghost run)
     $('hud-item').textContent = player && player.hasDecoy ? (touchOn ? 'Sonar decoy · ITEM' : 'Sonar decoy · E') : player && player.hasKey ? 'Key' : '';
     $('hud-item').classList.toggle('key', !!(player && player.hasKey)); // (level 14: in the key's own colour)
     $('hud-crouch').textContent = player && player.crouching ? 'Crouching' : '';
@@ -4371,6 +4387,16 @@
     cooldown = 0;
     levelTime = 0;
     ripplesUsed = 0;
+    // (v23.0) a ghost run: record this one from the start, and bring back the best one to race (shown if Ghost is on)
+    ghostRec = null;
+    ghostPb = null;
+    ghostBestMs = 0;
+    if (ghostEligible()) {
+      const g = EchoGhosts.best(ghostSource(), customRun.doc);
+      ghostBestMs = g ? g.t : 0;
+      ghostPb = EchoGhosts.playback(g);
+      ghostRec = EchoGhosts.recorder(player.x, player.y);
+    }
     beaconTimer = 1;
     heartTimer = 0;
     cueBeatTimer = 0;
@@ -4445,6 +4471,10 @@
     $('card-line').textContent = c.card || '';
     $('card-line').classList.toggle('hidden', !c.card);
     $('card-diff').textContent = `Difficulty: ${EchoLevelFormat.ratingLabel(c.rating)}`;
+    // (v23.0) your ghost: there to race, or there once you have finished it
+    const gl = ghostEligible() && EchoGhosts.enabled() ? (ghostPb ? `Race my ghost · Best ${mmss(ghostBestMs / 1000)}` : 'Finish it once, then race your ghost') : '';
+    $('card-ghost').textContent = gl;
+    $('card-ghost').classList.toggle('hidden', !gl);
     $('card-hint').textContent = touchOn ? 'Tap to begin' : 'Press any key to begin';
     const el = $('card');
     el.classList.remove('hidden');
@@ -4858,6 +4888,25 @@
 
   /** The Level cleared screen's buttons: the campaign's Next level, or (v15.0) a custom level's own two. */
   const COMPLETE_NOTE = 'Nothing here counts towards your progress, medals or stats.'; // (a custom level's Complete screen)
+  /**
+   * (v23.0) A ghost run finished: kept as the ghost if it is the fastest at this difficulty; the screen says the time,
+   * the best and "New best!" with how much faster - and Play again becomes Race my ghost. Anything else: as before.
+   */
+  function ghostComplete() {
+    $('btn-custom-again').textContent = 'Play again';
+    if (!ghostEligible() || !ghostRec) return;
+    const r = EchoGhosts.offer(ghostSource(), customRun.doc, ghostRec, levelTime, player.x, player.y);
+    ghostRec = null;
+    const ms = Math.round(levelTime * 1000);
+    const best = r.kept ? ms : r.best;
+    const diff = r.best - ms;
+    const less = diff >= 1000 ? mmss(diff / 1000) : `${(diff / 1000).toFixed(1)} s`;
+    let text = best ? `Time ${mmss(levelTime)}  ·  Best ${mmss(best / 1000)}` : `Time ${mmss(levelTime)}`;
+    if (r.newBest) text += `  ·  New best! -${less}`;
+    else if (r.kept) text += '  ·  Your ghost is ready to race';
+    $('complete-stats').textContent = `${text}  ·  Ripples ${ripplesUsed}`;
+    if (best && EchoGhosts.enabled()) $('btn-custom-again').textContent = 'Race my ghost';
+  }
   function completeButtons(custom) {
     $('btn-next').classList.toggle('hidden', custom);
     const onward = custom && !!queueAfter(); // (v15.1: a folder played in order - then Next level is the main button)
@@ -4900,6 +4949,7 @@
         $('complete-note').textContent = first && ticked ? `Ticked off in Bonus Levels. ${COMPLETE_NOTE}` : COMPLETE_NOTE;
       }
       $('complete-stats').textContent = `Time ${mmss(levelTime)}  ·  Ripples ${ripplesUsed}`;
+      ghostComplete();
       $('custom-back-label').textContent = customBackLabel();
       completeButtons(true);
       setTimeout(() => state === 'complete' && showOverlay('complete'), 700);
@@ -5656,6 +5706,11 @@
   const ALL_MONSTERS_MET_AFTER = 16;
   const editorUnlocked = () => store.get(EDITOR_KEY) === '1' || MODE_ORDER.some((m) => getBest(m) > ALL_MONSTERS_MET_AFTER);
   const customTitle = () => (customRun && customRun.doc ? customRun.doc.title : 'Custom level');
+  /** (v23.0) A ghost is kept and shown only for a bonus level or one of My Levels played from there - never Test play. */
+  const ghostEligible = () => levelNum === CUSTOM_LEVEL && !!customRun && (customRun.from === 'bonus' || customRun.from === 'mylevels') && typeof EchoGhosts !== 'undefined';
+  const ghostSource = () => (customRun && customRun.from === 'bonus' ? 'bonus' : 'mylevels');
+  const GHOST_RGB = '150,200,255'; // a cool tint of your own marker
+  const GHOST_ALPHA = 0.42; // faint: there, not a distraction
   const customBackLabel = () => (customRun && customRun.from === 'editor' ? 'Back to the editor' : customRun && customRun.from === 'bonus' ? 'Back to Bonus Levels' : 'Back to My Levels');
 
   /**
@@ -6049,7 +6104,7 @@
   function setShowTimer(on) {
     showTimer = !!on;
     EchoProfile.setShowTimer(showTimer);
-    if (!showTimer) $('hud-time').textContent = '';
+    if (!showTimer && !ghostEligible()) $('hud-time').textContent = '';
     if (level && state !== 'title' && state !== 'cutscene') updateHud();
   }
 
@@ -6080,6 +6135,7 @@
     EchoProfile.reload();
     EchoLore.reload();
     EchoCosmetics.reload();
+    EchoGhosts.sweep('mylevels', EchoLevelStore.list().map((l) => l.id)); // (v23.0: ghosts of levels no longer there go)
     // the settings a code may carry (each changed only if it really differs, so nothing is written that was not)
     const m = store.get(MODE_KEY);
     mode = MODES[m] ? m : 'normal'; // (as at start-up: no difficulty stored is Normal)
@@ -6641,7 +6697,7 @@
       camY += (ty - camY) * k;
       if (state === 'play') {
         hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
-        if (showTimer && scored()) hudNumber('hud-time', mmss(levelTime), false);
+        if ((showTimer && scored()) || ghostEligible()) hudNumber('hud-time', mmss(levelTime), false);
       }
     }
 
@@ -7090,6 +7146,14 @@
           refreshCosmetics();
           return ok;
         },
+      },
+      // (v23.0) ghost runs: this run's recording, the ghost shown, where it is now
+      ghost: {
+        eligible: () => ghostEligible(),
+        state: () => ({ recording: !!ghostRec, samples: ghostRec ? ghostRec.n : 0, shown: !!ghostPb && EchoGhosts.enabled(), bestMs: ghostBestMs, total: ghostPb ? ghostPb.total : 0 }),
+        at: (t) => (ghostPb ? EchoGhosts.at(ghostPb, t === undefined ? levelTime : t) : null),
+        rgb: GHOST_RGB,
+        alpha: GHOST_ALPHA,
       },
       // (v20.0) Endless: the run, its save, and any depth of any run built again
       endless: {

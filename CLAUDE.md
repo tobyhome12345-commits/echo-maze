@@ -336,7 +336,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v21.0 | 0e6fbd9 | MAJOR: **COSMETICS** - a **Cosmetics** tab in Settings: ripple colours (Classic, Amber, Mint, Rose, Violet, Gold, White-hot), ripple shapes (Classic, Double, Dotted, Soft, Heartbeat, Glitch) and player markers (Dot, Ring, Diamond, Star, Ember), unlocked by progress worked out fresh every time (`js/cosmetics.js`, nothing "unlocked" stored); locked tiles say their condition in plain words, "???" for Endless before it is open and anything past 25; a live preview; a "new" dot on the tab and the title's Settings button. Purely a look - only YOUR ripple (`rp.mine`), the walls it lights and your marker; never a drop's ripple, a song, a cutscene or the daylight levels; ripple reach, speed and timing identical (`CosmeticsTest.same`). Own key `echomaze.cosmetics` (worn + seen). Levels, saves, the editor and share codes unchanged (`9097b344`) |
 | v22.0 | ad12321 | MAJOR: **SAVE CODES** - Settings -> **Save code** (`js/savecode.js`, `EchoSave`): the save as one code, `ECHO1S` + base 62 + CRC-32 on the level codes' own machinery (`EchoShare._`; ECHO1L / ECHO1F and the WORDS lists untouched). A WHITELIST of tagged records (progress always; settings and My Levels + folders only if ticked; an unknown tag = a newer version, refused whole); **Get my code** (Copy code, Save as file `echo-maze-save.txt`, a warning over 2,000 characters) and **Load a code** (paste or from the file; read as untrusted - prefix, version, check, size, every value clamped to this game, levels through the loader and checker; a preview in plain words with a heads-up when it is further along; **Merge** the best of both, or **Replace** asked twice; **Undo last load** from a snapshot of every key it touches, until the next load; from the title's Settings only). Each importer names the other's codes. Keys from `EchoSave.PREFIX`, so the test copy's codes stay in its slot. Everything refreshed after a load, no reload (`afterSaveLoad`). Levels, gameplay and the editor unchanged (`9097b344`) |
 | v22.1 | edf7a89 | MINOR, a fix: **the Heartbeat ripple shape changed nothing you could see** - and in a real maze Soft, Glitch and Dotted hardly showed either (0 / 0 / 11 pixels different from Classic; Double 164), because every shape only restyled the OPEN ring, which in a maze is gone within hundredths of a second (the wave has reached the walls). Now every shape but Classic also marks **where the wave is landing on the walls** (`landing()` in js/cosmetics.js, `landingAt(rp, rr)` in js/game.js: walls only, drawn on the wall light the game draws anyway), and the **Heartbeat** is a thick ring (3.4 px, Classic 1.8) that beats twice - lub, dub - by how far the wave has spread (`u`), on the ring and where it lands. The game and the Cosmetics preview draw through the one `strokeWave`. `tools/cosmetics-check.js` (Node, every check run) fails if two shapes / colours / markers draw the same, if a shape moves the ring, or if the Heartbeat is not thick and beating; `CosmeticsTest.visible` measures every shape on real pixels in a level and in the preview. Ripple reach and timing unchanged (`CosmeticsTest.same`); levels, saves, the editor and share codes unchanged (`9097b344`) |
-| v22.2 | PENDING | MINOR: **ENDLESS TWISTS** - a **Twists: Off / On** toggle beside Endless on the title (only once level 25 has been reached; off by default; `twists` in `echomaze.endless`): every 5th depth to 50 is a twist level - the broken gaol's rules laid over THAT depth's generated maze, on a FIXED schedule (`SCHEDULE` in `js/twists.js`: 5 late echo, 10 liar, 15 dead air, 20 crumble, 25 creeping edge, then pairs and threes to 50; none after `LAST` 50). The campaign's own code runs them (`level.act2`, built by `EchoTwists.apply` in story.js's shape; story.js's void drawing shared as `EchoStory.drawVoidTiles`); each is checked WITH its twist (`EchoTwists.check`: through crumble, ahead of the creep with >= 50% spare, nothing under the start) and the maze re-rolled if not. A low sting (the void sound) and a small HUD diamond, nothing named. Bests kept apart (`bestTwists`); the game-over screen says "Twists on". Never in the editor, codes or WORDS. With Twists off Endless is unchanged (`tools/twists-check.js` fingerprint `804295ea` = v22.1). Levels, the campaign, saves and share codes unchanged (`9097b344`) (latest) |
+| v22.2 | f4060b3 | MINOR: **ENDLESS TWISTS** - a **Twists: Off / On** toggle beside Endless on the title (only once level 25 has been reached; off by default; `twists` in `echomaze.endless`): every 5th depth to 50 is a twist level - the broken gaol's rules laid over THAT depth's generated maze, on a FIXED schedule (`SCHEDULE` in `js/twists.js`: 5 late echo, 10 liar, 15 dead air, 20 crumble, 25 creeping edge, then pairs and threes to 50; none after `LAST` 50). The campaign's own code runs them (`level.act2`, built by `EchoTwists.apply` in story.js's shape; story.js's void drawing shared as `EchoStory.drawVoidTiles`); each is checked WITH its twist (`EchoTwists.check`: through crumble, ahead of the creep with >= 50% spare, nothing under the start) and the maze re-rolled if not. A low sting (the void sound) and a small HUD diamond, nothing named. Bests kept apart (`bestTwists`); the game-over screen says "Twists on". Never in the editor, codes or WORDS. With Twists off Endless is unchanged (`tools/twists-check.js` fingerprint `804295ea` = v22.1). Levels, the campaign, saves and share codes unchanged (`9097b344`) |
+| v23.0 | PENDING | MAJOR: **GHOST RUNS** - on a bonus level or one of My Levels (imported ones too), played from there (never Test play, the campaign, Endless, the tutorial, cutscenes or daylight levels: `ghostEligible`), your fastest FINISHED run is kept as the level's ghost (`js/ghosts.js`, `EchoGhosts`) and later attempts show it: a faint (`GHOST_ALPHA` 0.42), cool-tinted (`GHOST_RGB`) copy of your equipped marker (`drawMarker`'s new `tint`) where you were at that moment, drawn in the dark too, fading at the way out - drawing only, read by nothing. A quiet HUD clock on these levels; the cleared screen "Time 0:42 · Best 0:38 · New best! -0:04"; "Race my ghost" on the title card and as the Play again button; Settings -> Display **Ghost** (on by default, `echomaze.ghost`). Kept in `echomaze.ghosts`: per level (source + id + a hash of the LAYOUT) and per difficulty (the level's own), 10 samples a second as one-character moves, runs over 5 min not kept, at most 40 (oldest first); a changed maze drops its ghosts (on save and on play), a deleted level its ghosts (js/levelstore.js), a save-code load sweeps ghosts of levels gone; quiet without storage. Not in share, folder or save codes. `tools/ghosts-check.js` (Node) and `tools/ghosts-test.js` (browser). Levels 1-12 unchanged (`9097b344`); the campaign, Endless, the editor, codes, WORDS and saves unchanged (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -3000,6 +3001,54 @@ or the schema; levels 1-12, the campaign, saves and Endless with Twists off exac
   each with its caption when cues are on), `bests` (apart per toggle, the game-over screen, a loaded save code keeps
   them), `bot(mode, on)` (60 depths with the real keys on every difficulty, Twists on and off: 60/60 each), `perf`
   (twist levels at 844x390). Visual cues ON then off. `tools/test-copy-check.js` checks the test copy shows the toggle.
+
+## v23.0: ghost runs (owner's brief, MAJOR)
+
+Owner: on a bonus level or a custom level (My Levels, imported ones included) the player races a faint ghost of their
+own best run; nowhere else, and nothing recorded elsewhere. The fastest completed run becomes the ghost (caught, quit
+or restarted: nothing); it is a picture only - no sound, no collision, monsters ignore it, it changes nothing the
+player can see on the map; drawn in the dark too, dim; fades at the way out. A quiet timer, "Time" / "Best" / "New
+best!" with the difference on the complete screen; a Settings "Ghost" toggle (on); "Race my ghost" on the start and
+complete screens. Per level AND difficulty, keyed by id + a hash of the contents (an edit discards, a delete deletes);
+compact (10 Hz, delta-encoded, ~5 min cap), the best per level and mode, a cap on the count (oldest out), quiet when
+storage fails; not in share, folder or save codes; editor Test play never records or shows one.
+
+- **`js/ghosts.js` (`EchoGhosts`)**, loaded before js/levelstore.js: everything about what is kept. One key
+  `echomaze.ghosts` = `{ schemaVersion: 1, ghosts: [{ s, id, h, m, t, at, x, y, d }] }` - `s` the source (`bonus` /
+  `mylevels`), `h` the FNV-1a hash of the level's layout (`hashOf`: size, walls, start, ways out, monsters, objects -
+  not its title, card, colours or difficulty, so a rename keeps the ghost), `m` the difficulty it is played at
+  (`modeOf`: the level's rating, and for a Custom one its three scales - **a custom level's difficulty is its own**
+  (v15.1), the player's title-screen mode never reaches it, so this is what "per difficulty mode" means here), `t`
+  ms, `at` when kept, `x, y` the start, `d` the path: a sample every `STEP` 0.1 s, each the move since the last in
+  whole px, one character for -31..31 (`ALPH`) and `_n.` for anything bigger (`pack` / `unpack`; a 5-minute run is
+  ~6 KB). `MAX_SECONDS` 300 (a longer run is not kept), `MAX_GHOSTS` 40 (the oldest kept goes), `FADE` 0.6 s. Read as
+  untrusted (`okEntry`); every storage call in try/catch - full or off, nothing is kept and nothing is said.
+  `best(source, doc)` also drops that level's ghosts whose hash no longer matches; `levelChanged` (from
+  `EchoLevelStore` save) the same on save; `forgetLevel` (from delete, so a folder deleted with its levels too);
+  `sweep` (from `afterSaveLoad`: a save code that replaced My Levels). `offer` keeps a run only if it is faster (the
+  same time does not replace). `playback` / `at(pb, t)`: straight lines between samples (at a corner it cuts across by
+  at most half a step's walk, 8.5 px), at the way out at the run's own time, then fading.
+- **js/game.js**: `ghostEligible()` = `levelNum === CUSTOM_LEVEL` and `customRun.from` is `bonus` or `mylevels` (Test
+  play is `editor`). `startLevel` resets `ghostRec` / `ghostPb` / `ghostBestMs` for every level and, on a ghost run,
+  loads the ghost and starts the recording (every start - a Try again or a restart begins a new one and the old one is
+  simply dropped). `updatePlay` samples where you were at the end of the last frame (it only READS `player`).
+  `ghostComplete()` (the custom branch of `onLevelComplete`) offers the run and writes the cleared line and the
+  button. The ghost is drawn in `drawWorld` just before your marker, at `GHOST_ALPHA` in `GHOST_RGB`, with Ghost on.
+  The HUD clock shows on a ghost run whatever Show timer says. The title card's `#card-ghost`.
+- **js/cosmetics.js** `drawMarker(..., tint)`: with a tint every marker is drawn in that colour (the Ember's glow too);
+  without one it is exactly as before (`tools/cosmetics-check.js` unchanged).
+- **Tests**: `tools/ghosts-check.js` (Node, every check run - 32): packing exact, playback within a frame's walk,
+  slower / equal never replace, faster does with the old best, per difficulty (Custom scales apart), bonus and My
+  Levels apart, rename keeps, edit drops (save and play), delete, sweep, the 5-minute cap, the 40 cap with the oldest
+  out, storage full / off / damaged. `tools/ghosts-test.js` (browser): `race` (the real keys: first run no ghost, the
+  ghost then, on the first run's line - mean < 2 px, at most 8.5 at a corner - New best! -n, slower kept out, card,
+  clock), `bonus`, `nothing` (caught, quit, restart), `never` (level 3, the tutorial, 26, Endless, Test play run to the
+  end), `store` (rename, difficulty, edit, duplicate, delete, an imported level and its share code unchanged, the cap,
+  storage full and off, save codes hold none and load fine), `same` (a level with monsters scripted twice with the
+  same random numbers, without and with its ghost: every snapshot and all 747 sound calls identical), `looks` (every
+  marker, tinted and faint; Ghost off draws none; the Settings switch), `screen`, `perf`, `live` (the real loop).
+  Visual cues ON and off, 1366x768 and 844x390 (daylight interface); the test copy keeps ghosts in its own slot
+  (`tools/test-copy-check.js`) and plays them. Generator `9097b344`.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 

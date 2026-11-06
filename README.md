@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v22.2 - endless twists
+**Current version:** v23.0 - ghost runs
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -228,6 +228,21 @@ name and its levels - and only then chooses **Import** or **Cancel**.
   from a newer version of the game says so. Spaces, line breaks and quotes that chat apps add are ignored. Nothing
   is ever saved from a code that is not right, and nothing in a shared level counts towards your progress.
 - **Bonus levels** cannot be shared - everyone has them - but a copy made with Copy to My Levels can.
+
+### Ghost runs
+
+On a **bonus level** or one of **My Levels** (imported ones too), you race yourself. Finish a level and that run
+becomes its **ghost**; every time you play it after that, a faint, cool-tinted copy of your marker walks the way your
+best run went, where you were at that moment - so you can see whether you are ahead or behind. It is only a picture:
+it makes no sound, nothing can touch it, monsters never notice it and it lights nothing. It fades out at the way out.
+
+- A small clock in the corner while you play these levels; the cleared screen says your **Time** and your **Best**,
+  and **New best!** with how much faster when you beat it. Only a faster finished run replaces the ghost - being
+  caught, quitting or starting again records nothing. **Race my ghost** on the title card and the cleared screen.
+- One ghost per level and per difficulty (the level's own difficulty). Change a level's maze in the editor and its
+  old ghost goes; rename it and the ghost stays; delete it and its ghosts go too.
+- Never on the story levels, Endless, the tutorial or the editor's **Test play**. Ghosts are not in share codes or
+  save codes. Settings -> Display -> **Ghost** turns it off (your times are still kept).
 
 ## Settings
 
@@ -711,6 +726,7 @@ js/touch.js     on-screen touch controls: the virtual joystick and buttons
 js/settings.js  the Settings screen: Controls, Audio, Display, Stats & Medals
 js/levelformat.js  custom levels as plain, versioned data (the format: docs/level-format.md) - reads anything as untrusted
 js/levelcheck.js   is a custom level playable? (start, exit, a way between them) - the one rule, in words
+js/ghosts.js       (v23.0) ghost runs: your best run of a bonus level or one of My Levels, kept compactly (per level and difficulty, capped) and played back as a picture
 js/levelstore.js   where custom levels are kept: list / get / save / delete / duplicate, and folders (kept apart from the levels); two sources: this browser (My Levels) and the bonus levels (read-only), and the bonus levels' Done ticks
 js/bonus-levels.js the bonus levels - data only, in the level format (add one by adding an entry)
 js/sharecode.js    share codes: a level or a folder as one line of text and back (no UI; the format: docs/level-format.md)

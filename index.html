@@ -91,6 +91,7 @@
     <h2 id="card-title"></h2>
     <p id="card-line" class="card-line"></p>
     <p id="card-diff" class="card-diff"></p>
+    <p id="card-ghost" class="card-ghost hidden"></p>
     <p id="card-hint" class="card-hint"></p>
   </div>
 
@@ -509,6 +510,11 @@
           <input type="checkbox" id="timer-toggle">
           <span><b>Show timer</b> &mdash; the level time in the corner. Off by default: medals are never meant to rush you.</span>
         </label>
+        <!-- (v23.0) ghost runs: on bonus levels and My Levels, your best run as a faint ghost to race (js/ghosts.js) -->
+        <label class="calm">
+          <input type="checkbox" id="ghost-toggle">
+          <span><b>Ghost</b> &mdash; on bonus levels and My Levels, race a faint ghost of your own best run.</span>
+        </label>
       </div>
 
       <!-- (v21.0) cosmetics: your ripple and your marker - looks only, unlocked by playing (js/cosmetics.js) -->
@@ -704,6 +710,7 @@
   <script src="js/levelformat.js"></script>
   <script src="js/levelcheck.js"></script>
   <script src="js/bonus-levels.js"></script>
+  <script src="js/ghosts.js"></script>
   <script src="js/levelstore.js"></script>
   <script src="js/sharecode.js"></script>
   <script src="js/savecode.js"></script>

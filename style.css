@@ -4631,3 +4631,11 @@ html[data-calm='1'] .hud-twist { animation: none; opacity: 0.85; }
 .twists-toggle.on #twists-state { color: rgb(var(--exit-rgb)); }
 #endless-over .eo-twists { margin: 0 0 0.2em; font-size: 0.86em; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
 #endless-over .eo-twists.hidden { display: none; }
+
+/* (v23.0) ghost runs: the title card's line about your ghost - quiet, in the ghost's own cool tint */
+.card-ghost {
+  margin: 6px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: rgba(150, 200, 255, 0.85);
+}

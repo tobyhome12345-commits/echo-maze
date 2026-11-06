@@ -113,6 +113,10 @@ const FULL_EXTRA = [
   { name: 'Save codes on a phone, daylight interface, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.lightui': '1' }, load: ['savecode-test.js'], runs: ['screen', 'ui', 'live'].map((n) => ['SaveCodeTest', n]) },
   { name: 'Save codes on a phone held upright', size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['savecode-test.js'], runs: [['SaveCodeTest', 'screen']] },
   { name: 'Cosmetics on a phone held upright', size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":29}' }, load: ['cosmetics-test.js'], runs: [['CosmeticsTest', 'screen']] },
+  // (v23.0) ghost runs: on bonus levels and My Levels only, the fastest kept, the ghost where you were, nothing changed by it
+  { name: 'Ghost runs, Visual cues ON', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.editor': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12}}', 'echomaze.visualcues': '1' }, load: ['ghosts-test.js'], runs: ['race', 'bonus', 'nothing', 'never', 'store', 'same', 'looks', 'screen', 'perf', 'live'].map((n) => ['GhostsTest', n]) },
+  { name: 'Ghost runs, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.editor': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12}}' }, load: ['ghosts-test.js'], runs: ['race', 'bonus', 'nothing', 'never', 'store', 'same', 'looks', 'screen', 'live'].map((n) => ['GhostsTest', n]) },
+  { name: 'Ghost runs on a phone, daylight interface, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.editor': '1', 'echomaze.progress': '{"easy":29,"normal":29,"hard":29,"hardcore":29}', 'echomaze.endless': '{"best":{"normal":12}}', 'echomaze.visualcues': '1', 'echomaze.lightui': '1' }, load: ['ghosts-test.js'], runs: ['screen', 'looks', 'perf', 'live'].map((n) => ['GhostsTest', n]) },
   // (v22.2) Endless's twists: the toggle (not there before level 25), every twist level at work with the real loop, the bests apart, a 60-depth bot on every difficulty with Twists on and off
   { name: 'Endless twists, Visual cues ON', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"normal":29}' }, load: ['twists-test.js'], runs: [['TwistsTest', 'gate'], ['TwistsTest', 'mechanics'], ['TwistsTest', 'bests'], ['TwistsTest', "bot('easy', true)"], ['TwistsTest', "bot('easy', false)"], ['TwistsTest', "bot('normal', true)"], ['TwistsTest', "bot('normal', false)"], ['TwistsTest', "bot('hard', true)"], ['TwistsTest', "bot('hard', false)"], ['TwistsTest', "bot('hardcore', true)"], ['TwistsTest', "bot('hardcore', false)"], ['TwistsTest', 'perf']] },
   { name: 'Endless twists, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":29}' }, load: ['twists-test.js'], runs: [['TwistsTest', 'gate'], ['TwistsTest', 'mechanics'], ['TwistsTest', 'bests'], ['TwistsTest', "bot('normal', true)"]] },
@@ -161,6 +165,7 @@ function staticChecks() {
   endlessNodeCheck();
   cosmeticsNodeCheck();
   twistsNodeCheck();
+  ghostsNodeCheck();
 }
 
 /** (v20.0) Endless mode's mazes: depths 1-60 of several runs in every mode, built and checked in Node (tools/endless-check.js). */
@@ -183,6 +188,17 @@ function twistsNodeCheck() {
   } catch (e) {
     const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
     ok('Endless twists: the fixed schedule, every twist level fair, Twists off unchanged', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
+  }
+}
+
+/** (v23.0) Ghost runs' store: the path kept and played back exactly, only the fastest kept, per level and difficulty, the caps, storage off (tools/ghosts-check.js, in Node). */
+function ghostsNodeCheck() {
+  try {
+    const out = execFileSync(process.execPath, [path.join(__dirname, 'ghosts-check.js'), '--quiet'], { stdio: 'pipe' }).toString();
+    ok(`Ghost runs: kept and played back exactly, only the fastest, per level and difficulty, capped, quiet without storage (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
+  } catch (e) {
+    const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
+    ok('Ghost runs: the store', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
   }
 }
 

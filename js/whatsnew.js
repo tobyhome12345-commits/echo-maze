@@ -34,6 +34,13 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v23.0',
+      title: 'Ghost runs',
+      lines: [
+        { text: 'Race a ghost of your best run on bonus levels and My Levels.', tag: EDITOR },
+      ],
+    },
+    {
       version: 'v22.2',
       title: 'Endless twists',
       lines: [

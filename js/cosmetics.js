@@ -276,9 +276,10 @@ const EchoCosmetics = (() => {
   /**
    * Your marker in the dark, at (x, y): `size` the classic dot's radius (4.5, or 3.2 crouching, smaller as you fall),
    * `low` crouching (dimmer). Every one is a pale shape at least the dot's size; the halo round it is the game's.
+   * (v23.0) `tint` ('r,g,b'): the same shape all in that colour - your ghost on a ghost run. Without it: as ever.
    */
-  function drawMarker(ctx, id, x, y, size, low, t, calm) {
-    const fill = low ? 'rgba(200,225,240,0.6)' : 'rgba(235,248,255,0.95)';
+  function drawMarker(ctx, id, x, y, size, low, t, calm, tint) {
+    const fill = tint ? `rgba(${tint},0.95)` : low ? 'rgba(200,225,240,0.6)' : 'rgba(235,248,255,0.95)';
     ctx.fillStyle = fill;
     ctx.beginPath();
     if (id === 'ring') {
@@ -316,13 +317,14 @@ const EchoCosmetics = (() => {
       const f = (0.6 * Math.sin(t * 5.3) + 0.4 * Math.sin(t * 8.9 + 1)) * (calm ? 0.4 : 1);
       const R = size * 5;
       const g = ctx.createRadialGradient(x, y, 0, x, y, R);
-      g.addColorStop(0, `rgba(255,170,90,${(low ? 0.12 : 0.24) + 0.07 * f})`);
-      g.addColorStop(1, 'rgba(255,170,90,0)');
+      const warm = tint || '255,170,90';
+      g.addColorStop(0, `rgba(${warm},${(low ? 0.12 : 0.24) + 0.07 * f})`);
+      g.addColorStop(1, `rgba(${warm},0)`);
       ctx.fillStyle = g;
       ctx.arc(x, y, R, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.fillStyle = low ? 'rgba(255,215,180,0.65)' : 'rgba(255,232,205,0.97)';
+      ctx.fillStyle = tint ? fill : low ? 'rgba(255,215,180,0.65)' : 'rgba(255,232,205,0.97)';
       ctx.arc(x, y, size * (1.05 + 0.08 * f), 0, Math.PI * 2);
       ctx.fill();
       return;
