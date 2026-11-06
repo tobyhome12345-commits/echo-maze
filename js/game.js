@@ -3691,7 +3691,8 @@
     if (level.act2) {
       act2Draw();
       voidDraw(); // (v18.0)
-      story.drawVoid(ctx, artT, levelTime);
+      if (level.story) story.drawVoid(ctx, artT, levelTime);
+      else EchoStory.drawVoidTiles(ctx, level, artT, levelTime, calm); // (v22.2: an Endless twist level's void - crumbled floor, the creep)
     }
     // Visual cues (accessibility): small glyphs on a ring about 45px (on screen) around you, one per audible sound
     if (visualCues) cues.draw(player.x, player.y, 1 / viewScale);
@@ -4225,6 +4226,7 @@
 
   function updateHud() {
     // the tutorial is not a level and is the same in every mode, so it says neither; a custom level says its name
+    $('hud-twist').classList.toggle('hidden', !(endlessRun && level && level.twist)); // (v22.2) a twist level: the mark beside the depth
     hudNumber('hud-level', inTutorial() ? 'Tutorial' : endlessRun ? `Depth ${endlessRun.depth} · ${MODES[mode].label}` : customRun ? `${customRun.from === 'editor' ? 'Test play' : customTitle()} · ${modeLabel()}` : `${levelName(levelNum)} · ${MODES[mode].label}`);
     hudNumber('hud-ripples', `Ripples ${ripplesUsed}`);
     hudNumber('hud-time', showTimer && scored() ? mmss(levelTime) : '', false); // the clock ticks; it does not pulse
@@ -4315,7 +4317,7 @@
       // re-rolled until it passes the fairness rules (generateEndless, js/level.js). No lore, no hints, no story.
       fxZones = [];
       returnPalette();
-      level = generateEndless(endlessRun.seed, endlessRun.depth, mode, { alarm: alarmMet() });
+      level = generateEndless(endlessRun.seed, endlessRun.depth, mode, { alarm: alarmMet(), twists: endlessRun.twists }); // (v22.2: and its twists, if on)
       level.fragment = null;
     } else {
       fxZones = [];
@@ -4406,6 +4408,13 @@
       // (v20.0) Endless: no banner, no hint - the HUD says the depth
       clearTimeout(bannerTimer);
       $('banner').classList.remove('show');
+      // (v22.2) a twist level: told without words - the campaign's void sound, low, as it begins (and the mark on the HUD).
+      // Which twist it is, you find out by playing it.
+      if (level.twist) {
+        audio.voidFall(0, 0.55, EchoTwists.VOID_DEPTH);
+        cues.pulse('muffler', player.x, player.y, 0.6, { key: 'twist', big: true });
+        cues.caption('[a low sting]');
+      }
     } else showBanner(n);
     // Level 13: the dread starts with the level, and the capture plays IN FULL every time it is finished.
     // It is the one cutscene in the game that is not once-only (owner's instruction): the other seven are
@@ -4993,33 +5002,64 @@
     }
     const best = {};
     if (v && v.best && typeof v.best === 'object') for (const m of MODE_ORDER) if (Number.isFinite(v.best[m]) && v.best[m] > 0) best[m] = Math.min(Math.floor(v.best[m]), 99999);
-    const last = v && v.last && typeof v.last === 'object' && MODE_ORDER.includes(v.last.mode) && Number.isFinite(v.last.depth) ? { mode: v.last.mode, depth: Math.floor(v.last.depth), line: String(v.last.line || '').slice(0, 120), at: String(v.last.at || '').slice(0, 40) } : null;
-    return { best, last };
+    const last = v && v.last && typeof v.last === 'object' && MODE_ORDER.includes(v.last.mode) && Number.isFinite(v.last.depth) ? { mode: v.last.mode, depth: Math.floor(v.last.depth), line: String(v.last.line || '').slice(0, 120), at: String(v.last.at || '').slice(0, 40), twists: v.last.twists === true } : null;
+    if (last && !last.twists) delete last.twists; // (a Twists-off run's record is exactly what it always was)
+    // (v22.2) Twists: their own best per difficulty, and whether the toggle is on (fields of their own: an old save has neither)
+    const bestTwists = {};
+    if (v && v.bestTwists && typeof v.bestTwists === 'object') for (const m of MODE_ORDER) if (Number.isFinite(v.bestTwists[m]) && v.bestTwists[m] > 0) bestTwists[m] = Math.min(Math.floor(v.bestTwists[m]), 99999);
+    const out = { best, last };
+    if (Object.keys(bestTwists).length) out.bestTwists = bestTwists;
+    if (v && v.twists === true) out.twists = true;
+    return out;
   }
-  const endlessBest = (m = mode) => endlessSave().best[m] || 0;
+  const endlessBest = (m = mode, tw = false) => (tw ? endlessSave().bestTwists || {} : endlessSave().best)[m] || 0;
   function endlessWrite(patch) {
     const s = endlessSave();
-    if (patch.depth && patch.depth > (s.best[mode] || 0)) s.best[mode] = patch.depth;
+    const tw = !!patch.twists;
+    const bests = tw ? (s.bestTwists = s.bestTwists || {}) : s.best;
+    if (patch.depth && patch.depth > (bests[mode] || 0)) bests[mode] = patch.depth;
     if (patch.last) s.last = patch.last;
     return store.set(ENDLESS_KEY, JSON.stringify(s)); // (storage off: the mode still works, it just forgets)
+  }
+  /**
+   * (v22.2) TWISTS (js/twists.js): offered only once level 25 has been reached in some mode, so nothing of the campaign's
+   * broken rules is shown early; off by default; kept in Endless's own save (`twists`). Before 25 a stored "on" does nothing.
+   */
+  const TWISTS_FROM = 25;
+  const twistsUnlocked = () => endlessUnlocked() && furthestReached() >= TWISTS_FROM;
+  const twistsOn = () => twistsUnlocked() && endlessSave().twists === true;
+  function setTwists(on) {
+    const s = endlessSave();
+    if (on) s.twists = true;
+    else delete s.twists;
+    store.set(ENDLESS_KEY, JSON.stringify(s));
+    refreshEndlessButton();
   }
   function refreshEndlessButton() {
     const b = $('btn-endless');
     if (!b) return;
     const on = endlessUnlocked();
     b.classList.toggle('hidden', !on);
-    const best = on ? endlessBest() : 0;
+    const tw = twistsOn();
+    const best = on ? endlessBest(mode, tw) : 0;
     $('endless-best').textContent = best ? `Best ${best}` : '';
     $('endless-best').classList.toggle('hidden', !best);
-    b.setAttribute('aria-label', best ? `Endless - best depth on ${MODES[mode].label}: ${best}` : 'Endless');
+    b.setAttribute('aria-label', best ? `Endless${tw ? ', twists on' : ''} - best depth on ${MODES[mode].label}: ${best}` : `Endless${tw ? ', twists on' : ''}`);
+    // (v22.2) the Twists toggle beside it - not there at all before level 25
+    const t = $('btn-twists');
+    t.classList.toggle('hidden', !twistsUnlocked());
+    t.setAttribute('aria-pressed', tw ? 'true' : 'false');
+    t.classList.toggle('on', tw);
+    $('twists-state').textContent = tw ? 'On' : 'Off';
   }
   /** A new run: a new random seed, depth 1, at once. */
   function startEndless() {
     if (!endlessUnlocked()) return;
     audio.init();
     $('title-notice').classList.add('hidden');
-    const startBest = endlessBest();
-    endlessRun = { seed: (Math.random() * 0xffffffff) >>> 0, depth: 1, mode, startBest, passedBest: false };
+    const twists = twistsOn(); // (v22.2) the run keeps the toggle it started with
+    const startBest = endlessBest(mode, twists);
+    endlessRun = { seed: (Math.random() * 0xffffffff) >>> 0, depth: 1, mode, startBest, passedBest: false, twists };
     customRun = null;
     startLevel(ENDLESS_LEVEL);
   }
@@ -5028,7 +5068,7 @@
     audio.levelComplete();
     endlessRun.depth++;
     const d = endlessRun.depth;
-    endlessWrite({ depth: d }); // (the best is how deep you got: kept the moment you get there)
+    endlessWrite({ depth: d, twists: endlessRun.twists }); // (the best is how deep you got: kept the moment you get there - with Twists on, in its own)
     if (ENDLESS_MILESTONES.includes(d)) setTimeout(() => audio.milestone(), 420);
     if (endlessRun.startBest > 0 && d > endlessRun.startBest && !endlessRun.passedBest) {
       endlessRun.passedBest = true;
@@ -5043,10 +5083,14 @@
   function endlessOver(line) {
     const d = endlessRun.depth;
     const prev = endlessRun.startBest;
-    endlessWrite({ depth: d, last: { mode, depth: d, line, at: new Date().toISOString() } });
-    const best = Math.max(prev, d, endlessBest());
+    const tw = endlessRun.twists;
+    const last = { mode, depth: d, line, at: new Date().toISOString() };
+    if (tw) last.twists = true;
+    endlessWrite({ depth: d, twists: tw, last });
+    const best = Math.max(prev, d, endlessBest(mode, tw));
     $('eo-depth').textContent = `Depth ${d}`;
-    $('eo-best').textContent = `Best on ${MODES[mode].label}: ${best}`;
+    $('eo-twists').classList.toggle('hidden', !tw); // (v22.2) "Twists on" when it was
+    $('eo-best').textContent = `Best on ${MODES[mode].label}${tw ? ' with twists' : ''}: ${best}`;
     $('eo-new').classList.toggle('hidden', !(d > prev));
     $('eo-line').textContent = line;
     // (v20.1) what Try again will do: Hardcore starts over, every other mode tries this depth again
@@ -6430,6 +6474,12 @@
     click();
     go(() => startEndless());
   });
+  // (v22.2) Twists: Off / On, beside Endless - only once level 25 has been reached
+  $('btn-twists').addEventListener('click', () => {
+    if (state !== 'title' || !twistsUnlocked()) return;
+    click();
+    setTwists(!twistsOn());
+  });
   $('btn-endless-again').addEventListener('click', () => {
     click();
     endlessAgain();
@@ -7043,7 +7093,11 @@
       },
       // (v20.0) Endless: the run, its save, and any depth of any run built again
       endless: {
-        state: () => (endlessRun ? { seed: endlessRun.seed, depth: endlessRun.depth, mode: endlessRun.mode, startBest: endlessRun.startBest, passedBest: endlessRun.passedBest, levelOk: !!(level && level.endless && level.endless.ok), attempt: level && level.endless ? level.endless.attempt : null } : null),
+        state: () => (endlessRun ? { seed: endlessRun.seed, depth: endlessRun.depth, mode: endlessRun.mode, startBest: endlessRun.startBest, passedBest: endlessRun.passedBest, twists: endlessRun.twists, twist: level && level.twist ? level.twist.kinds.slice() : null, levelOk: !!(level && level.endless && level.endless.ok), attempt: level && level.endless ? level.endless.attempt : null } : null),
+        twistsUnlocked: () => twistsUnlocked(), // (v22.2)
+        twistsOn: () => twistsOn(),
+        setTwists: (on) => setTwists(on),
+        best: (m = mode, tw = false) => endlessBest(m, tw),
         unlocked: () => endlessUnlocked(),
         alarmMet: () => alarmMet(),
         save: () => endlessSave(),
@@ -7061,7 +7115,7 @@
           startLevel(ENDLESS_LEVEL);
           return true;
         },
-        build: (seed, depth, m = mode, opts) => generateEndless(seed >>> 0, depth, m, opts || { alarm: alarmMet() }),
+        build: (seed, depth, m = mode, opts) => generateEndless(seed >>> 0, depth, m, opts || { alarm: alarmMet(), twists: twistsOn() }),
         again: () => endlessAgain(),
       },
       dusk: () => story.dusk(), // (v19.3)

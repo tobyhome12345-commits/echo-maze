@@ -4607,3 +4607,27 @@ html[data-ui='light'] .cos-tile.locked canvas.cos-true { filter: invert(1) hue-r
   .sc-halves { grid-template-columns: 1fr; gap: 12px; }
 }
 body.touch .sc-box { font-size: 14px; }
+
+/* ===== v22.2: Endless twists ======================================================================================
+   The toggle beside Endless (only once level 25 is reached), the mark beside the depth on a twist level, and the
+   game-over screen's "Twists on". The mark is a small diamond of the void's static grey with a soft pulse - no words. */
+#hud-left { display: flex; align-items: center; gap: 10px; }
+.hud-twist {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  transform: rotate(45deg);
+  border: 1.5px solid rgba(190, 200, 222, 0.85);
+  background: rgba(150, 160, 185, 0.25);
+  box-shadow: 0 0 8px rgba(170, 180, 210, 0.6);
+  animation: twist-pulse 2.4s ease-in-out infinite;
+}
+.hud-twist.hidden { display: none; }
+@keyframes twist-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+html[data-calm='1'] .hud-twist { animation: none; opacity: 0.85; }
+@media (prefers-reduced-motion: reduce) { .hud-twist { animation: none; opacity: 0.85; } }
+.twists-toggle { font-size: 0.86em; letter-spacing: 0.05em; }
+.twists-toggle.on { border-color: rgba(var(--ui-rgb), 0.7); box-shadow: 0 0 14px rgba(var(--ui-rgb), 0.3); }
+.twists-toggle.on #twists-state { color: rgb(var(--exit-rgb)); }
+#endless-over .eo-twists { margin: 0 0 0.2em; font-size: 0.86em; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+#endless-over .eo-twists.hidden { display: none; }

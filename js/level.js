@@ -692,9 +692,15 @@ function generateEndless(runSeed, depth, modeId = 'normal', opts = {}) {
     const cfg = endlessConfig(depth, modeId, opts, mulberry32((seed ^ 0x51ed27) >>> 0));
     lv = generateLevel(cfg.n, seed, modeId, 1, cfg);
     check = endlessCheck(lv, depth);
+    // (v22.2) Twists on, and a twist at this depth (js/twists.js): laid on this maze if it fits fairly - if not, the
+    // next seed. Twists off (or no twist here): nothing below runs, so the depth is exactly what it always was.
+    if (check.ok && opts.twists && typeof EchoTwists !== 'undefined' && EchoTwists.at(depth)) {
+      const tw = EchoTwists.apply(lv, depth, modeId, seed);
+      if (!tw.ok) check = { ok: false, why: `twist: ${tw.why}` };
+    }
     if (check.ok) break;
   }
-  lv.endless = { depth, runSeed: runSeed >>> 0, attempt: Math.min(attempt, ENDLESS_TRIES - 1), ok: check.ok, why: check.why, kinds: lv.enemies.map((m) => m.kind) };
+  lv.endless = { depth, runSeed: runSeed >>> 0, attempt: Math.min(attempt, ENDLESS_TRIES - 1), ok: check.ok, why: check.why, kinds: lv.enemies.map((m) => m.kind), twist: lv.twist ? lv.twist.kinds.slice() : null };
   return lv;
 }
 

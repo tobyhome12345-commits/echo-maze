@@ -113,6 +113,11 @@ const FULL_EXTRA = [
   { name: 'Save codes on a phone, daylight interface, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.lightui': '1' }, load: ['savecode-test.js'], runs: ['screen', 'ui', 'live'].map((n) => ['SaveCodeTest', n]) },
   { name: 'Save codes on a phone held upright', size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0' }, load: ['savecode-test.js'], runs: [['SaveCodeTest', 'screen']] },
   { name: 'Cosmetics on a phone held upright', size: { w: 390, h: 844, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":29}' }, load: ['cosmetics-test.js'], runs: [['CosmeticsTest', 'screen']] },
+  // (v22.2) Endless's twists: the toggle (not there before level 25), every twist level at work with the real loop, the bests apart, a 60-depth bot on every difficulty with Twists on and off
+  { name: 'Endless twists, Visual cues ON', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"normal":29}' }, load: ['twists-test.js'], runs: [['TwistsTest', 'gate'], ['TwistsTest', 'mechanics'], ['TwistsTest', 'bests'], ['TwistsTest', "bot('easy', true)"], ['TwistsTest', "bot('easy', false)"], ['TwistsTest', "bot('normal', true)"], ['TwistsTest', "bot('normal', false)"], ['TwistsTest', "bot('hard', true)"], ['TwistsTest', "bot('hard', false)"], ['TwistsTest', "bot('hardcore', true)"], ['TwistsTest', "bot('hardcore', false)"], ['TwistsTest', 'perf']] },
+  { name: 'Endless twists, Visual cues off', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.progress': '{"normal":29}' }, load: ['twists-test.js'], runs: [['TwistsTest', 'gate'], ['TwistsTest', 'mechanics'], ['TwistsTest', 'bests'], ['TwistsTest', "bot('normal', true)"]] },
+  { name: 'Endless twists before level 25: no toggle', save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"normal":20}' }, load: ['twists-test.js'], runs: [['TwistsTest', 'gate']] },
+  { name: 'Endless twists on a phone, Visual cues ON', size: { w: 844, h: 390, mobile: true }, save: { 'echomaze.tutorial': '1', 'echomaze.whatsnew': 'v99.0', 'echomaze.visualcues': '1', 'echomaze.progress': '{"normal":29}' }, load: ['twists-test.js'], runs: [['TwistsTest', 'mechanics'], ['TwistsTest', 'perf']] },
 ];
 
 const results = [];
@@ -155,6 +160,7 @@ function staticChecks() {
   act2Check();
   endlessNodeCheck();
   cosmeticsNodeCheck();
+  twistsNodeCheck();
 }
 
 /** (v20.0) Endless mode's mazes: depths 1-60 of several runs in every mode, built and checked in Node (tools/endless-check.js). */
@@ -166,6 +172,17 @@ function cosmeticsNodeCheck() {
   } catch (e) {
     const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
     ok('Cosmetics: every shape, colour and marker draws differently', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
+  }
+}
+
+/** (v22.2) Endless's twists: the schedule, every twist level fair with its twists, Twists off unchanged (tools/twists-check.js, in Node). */
+function twistsNodeCheck() {
+  try {
+    const out = execFileSync(process.execPath, [path.join(__dirname, 'twists-check.js'), '--quiet'], { stdio: 'pipe' }).toString();
+    ok(`Endless twists: the fixed schedule, every twist level fair, Twists off unchanged (${(out.match(/(\d+) passed/) || [])[1] || '?'} checks)`, true);
+  } catch (e) {
+    const lines = String(e.stdout || e).split('\n').filter((l) => l.startsWith('FAILED'));
+    ok('Endless twists: the fixed schedule, every twist level fair, Twists off unchanged', false, lines.join(' / ') || String(e.message || e).slice(0, 300));
   }
 }
 
@@ -297,7 +314,7 @@ function judgeFingerprint(g, where) {
 }
 
 const loadScripts = (files) => `(async () => { for (const f of ${JSON.stringify(files)}) await new Promise((r, j) => { const s = document.createElement('script'); s.src = '/tools/' + f + '?' + Date.now(); s.onload = r; s.onerror = () => j(new Error('could not load ' + f)); document.head.appendChild(s); }); return true; })()`;
-const runSuite = (obj, name) => `(async () => { const r = await window.${obj}.${name}(); const pass = r.pass !== undefined ? r.pass : r.passed; const fail = r.fail !== undefined ? r.fail : (r.failed || []).length; return { pass, fail, failed: JSON.stringify(r.failed || []).slice(0, 600) }; })()`;
+const runSuite = (obj, name) => `(async () => { const r = await window.${obj}.${name.includes('(') ? name : name + '()'}; const pass = r.pass !== undefined ? r.pass : r.passed; const fail = r.fail !== undefined ? r.fail : (r.failed || []).length; return { pass, fail, failed: JSON.stringify(r.failed || []).slice(0, 600) }; })()`;
 
 async function main() {
   const t0 = Date.now();

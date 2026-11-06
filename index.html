@@ -43,7 +43,11 @@
   <canvas id="game"></canvas>
 
   <div id="hud" class="hidden">
-    <div id="hud-level"></div>
+    <div id="hud-left">
+      <div id="hud-level"></div>
+      <!-- (v22.2) an Endless twist level: a small mark beside the depth (no words) -->
+      <span id="hud-twist" class="hud-twist hidden" role="img" aria-label="Twist level"></span>
+    </div>
     <div id="hud-right">
       <span id="hud-time"></span>
       <span id="hud-crouch"></span>
@@ -160,6 +164,8 @@
         <button id="btn-start" class="primary">Begin</button>
         <!-- (v20.0) Endless: only there once level 12 has been cleared in some mode -->
         <button id="btn-endless" class="hidden">Endless <span id="endless-best" class="endless-best hidden"></span></button>
+        <!-- (v22.2) Endless's twists: Off / On - only there once level 25 has been reached -->
+        <button id="btn-twists" type="button" class="twists-toggle hidden" aria-pressed="false">Twists: <span id="twists-state">Off</span></button>
       </div>
       <p id="title-first" class="title-first hidden">First time? Begin starts with a short tutorial.</p>
       <p class="sound-note"><span aria-hidden="true">&#127911;</span> Headphones recommended &mdash; the sound starts with the game.</p>
@@ -597,6 +603,7 @@
     <div class="panel small">
       <h2>Caught</h2>
       <p id="eo-depth" class="eo-depth">Depth 1</p>
+      <p id="eo-twists" class="eo-twists hidden">Twists on</p>
       <p id="eo-new" class="eo-new hidden">New best!</p>
       <p id="eo-best" class="eo-best"></p>
       <p id="eo-line"></p>
@@ -685,6 +692,7 @@
   <script src="js/tutorial.js"></script>
   <script src="js/warden.js"></script>
   <script src="js/story.js"></script>
+  <script src="js/twists.js"></script>
   <script src="js/lore.js"></script>
   <script src="js/wordmark.js"></script>
   <script src="js/feedback.js"></script>

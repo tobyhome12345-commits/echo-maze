@@ -849,8 +849,11 @@ const EchoSave = (() => {
     v.editor = s.editor ? '1' : null;
     v.medals = Object.keys(s.medals).length ? JSON.stringify(s.medals) : null;
     const en = ls.json(K(KEY.endless));
-    const last = isObj(en) && isObj(en.last) ? en.last : undefined;
-    v.endless = Object.keys(s.endless).length || last ? JSON.stringify(last ? { best: s.endless, last } : { best: s.endless }) : null;
+    // everything of this device's Endless save but its bests stays as it was (the last run - and, v22.2, the twists' own
+    // bests and toggle, which a code does not carry)
+    const rest = {};
+    if (isObj(en)) for (const k of Object.keys(en)) if (k !== 'best' && k !== '__proto__') rest[k] = en[k];
+    v.endless = Object.keys(s.endless).length || Object.keys(rest).length ? JSON.stringify(Object.assign({ best: s.endless }, rest)) : null;
     v.cosmetics = s.cosmetics ? JSON.stringify(s.cosmetics) : null;
     v.lightui = s.lightui;
     v.whatsnew = s.whatsnew;

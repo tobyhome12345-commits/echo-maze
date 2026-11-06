@@ -34,6 +34,13 @@ const EchoWhatsNew = (() => {
 
   const NOTES = [
     {
+      version: 'v22.2',
+      title: 'Endless twists',
+      lines: [
+        { text: 'Endless Twists: turn them on beside Endless, and every fifth depth to 50 brings back a rule from the broken gaol.', minLevel: 25 },
+      ],
+    },
+    {
       version: 'v22.1',
       title: 'Heartbeat fixed',
       lines: [

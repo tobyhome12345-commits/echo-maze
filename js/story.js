@@ -2206,79 +2206,9 @@ const EchoStory = (() => {
       ctx.restore();
     }
 
-    /**
-     * (v18.0) The void INSIDE the map: every tile whose floor is gone, black with the same slow static - always shown,
-     * like the void at the edges (it is not something a ripple finds: it is where there is nothing to find). On 23 the
-     * next ring to go shows a thin static over it for the last 2 s before it goes. Drawing only.
-     */
-    const CREEP_WARN = 2.0;
+    /** (v18.0) The void INSIDE the map (v22.2: the drawing itself is drawVoidTilesOf, below create - Endless's twists draw it too). */
     function drawVoidTiles(ctx, artT, now) {
-      const a2 = lv.act2;
-      if (!a2 || !a2.voidGrid) return;
-      const W = lv.W;
-      const g = a2.voidGrid;
-      let any = false;
-      const path = new Path2D();
-      for (let i = 0; i < g.length; i++) {
-        if (!g[i]) continue;
-        any = true;
-        path.rect((i % W) * TILE, Math.floor(i / W) * TILE, TILE, TILE);
-      }
-      const warn = [];
-      if (a2.creep) {
-        for (const L of a2.creep.layers) {
-          const left = L.t + (a2.creep.relative ? a2.creep.base : 0) - now; // (v18.2: 25's counts from the release)
-          if (left > 0 && left < CREEP_WARN) warn.push({ L, k: 1 - left / CREEP_WARN });
-        }
-      }
-      if (!any && !warn.length) return;
-      ensureStatic();
-      const V = VOID[S.spec.void] || VOID[1];
-      const step = Math.floor(artT * (calm() ? 3 : 6));
-      ctx.save();
-      if (any) {
-        ctx.fillStyle = 'rgba(0,0,0,0.94)';
-        ctx.fill(path);
-        const pat = ctx.createPattern(staticCanvas, 'repeat');
-        if (pat) {
-          try {
-            pat.setTransform(new DOMMatrix([1, 0, 0, 1, -((step * 37) % 96), -((step * 61) % 96)])); // the static moves; the void does not
-          } catch (e) {
-            /* an old browser: the static simply stands still */
-          }
-          ctx.globalAlpha = Math.min(0.5, V.staticA * 2.2) * (calm() ? 0.6 : 1);
-          ctx.fillStyle = pat;
-          ctx.fill(path);
-        }
-      }
-      // 23: the next ring, about to go - a faint static over it, thickening (never a flash)
-      for (const w of warn) {
-        const wp = new Path2D();
-        for (const i of w.L.tiles) if (!g[i]) wp.rect((i % W) * TILE, Math.floor(i / W) * TILE, TILE, TILE);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = `rgba(0,0,0,${0.45 * w.k})`;
-        ctx.fill(wp);
-        const pat = ctx.createPattern(staticCanvas, 'repeat');
-        if (pat) {
-          ctx.globalAlpha = 0.35 * w.k * (calm() ? 0.6 : 1);
-          ctx.fillStyle = pat;
-          ctx.fill(wp);
-        }
-      }
-      ctx.restore();
-    }
-    function ensureStatic() {
-      if (staticCanvas) return;
-      staticCanvas = document.createElement('canvas');
-      staticCanvas.width = 96;
-      staticCanvas.height = 96;
-      const g = staticCanvas.getContext('2d');
-      const r = rng(0x5747);
-      for (let i = 0; i < 420; i++) {
-        const v = 120 + Math.floor(r() * 120);
-        g.fillStyle = `rgba(${v},${v + 10},${v + 20},${0.25 + r() * 0.6})`;
-        g.fillRect(Math.floor(r() * 96), Math.floor(r() * 96), 1 + Math.floor(r() * 2), 1);
-      }
+      drawVoidTilesOf(ctx, lv, artT, now, calm());
     }
 
     // ===================================================== the way out of each
@@ -2548,5 +2478,90 @@ const EchoStory = (() => {
     };
   }
 
-  return { LEVELS, BAR_R, DOOR_R, KEY_R, DRIP_R, LIGHT_RGB, build, create, solve, isAct2, creepSchedule };
+  /**
+   * (v18.0) The void INSIDE the map: every tile whose floor is gone, black with the same slow static - always shown,
+   * like the void at the edges (it is not something a ripple finds: it is where there is nothing to find). On 23 the
+   * next ring to go shows a thin static over it for the last 2 s before it goes. Drawing only.
+   * (v22.2) Out here, by the level it is given, so Endless's twist levels (js/twists.js) draw their void exactly as
+   * 21-24 do; the story's own drawVoidTiles calls it for the level being played.
+   */
+  const CREEP_WARN = 2.0;
+  let voidStaticCanvas = null; // the void's static: drawn once (the same specks as ever: a fixed xorshift from 0x5747)
+  function voidStatic() {
+    if (voidStaticCanvas) return voidStaticCanvas;
+    voidStaticCanvas = document.createElement('canvas');
+    voidStaticCanvas.width = 96;
+    voidStaticCanvas.height = 96;
+    const g = voidStaticCanvas.getContext('2d');
+    let s = 0x5747;
+    const r = () => {
+      s ^= s << 13;
+      s ^= s >>> 17;
+      s ^= s << 5;
+      return (s >>> 0) / 4294967296;
+    };
+    for (let i = 0; i < 420; i++) {
+      const v = 120 + Math.floor(r() * 120);
+      g.fillStyle = `rgba(${v},${v + 10},${v + 20},${0.25 + r() * 0.6})`;
+      g.fillRect(Math.floor(r() * 96), Math.floor(r() * 96), 1 + Math.floor(r() * 2), 1);
+    }
+    return voidStaticCanvas;
+  }
+  function drawVoidTilesOf(ctx, lv, artT, now, calm) {
+    const a2 = lv && lv.act2;
+    if (!a2 || !a2.voidGrid) return;
+    const W = lv.W;
+    const g = a2.voidGrid;
+    let any = false;
+    const path = new Path2D();
+    for (let i = 0; i < g.length; i++) {
+      if (!g[i]) continue;
+      any = true;
+      path.rect((i % W) * TILE, Math.floor(i / W) * TILE, TILE, TILE);
+    }
+    const warn = [];
+    if (a2.creep) {
+      for (const L of a2.creep.layers) {
+        const left = L.t + (a2.creep.relative ? a2.creep.base : 0) - now; // (v18.2: 25's counts from the release)
+        if (left > 0 && left < CREEP_WARN) warn.push({ L, k: 1 - left / CREEP_WARN });
+      }
+    }
+    if (!any && !warn.length) return;
+    const staticCanvas = voidStatic();
+    const V = VOID[a2.void] || VOID[1];
+    const step = Math.floor(artT * (calm ? 3 : 6));
+    ctx.save();
+    if (any) {
+      ctx.fillStyle = 'rgba(0,0,0,0.94)';
+      ctx.fill(path);
+      const pat = ctx.createPattern(staticCanvas, 'repeat');
+      if (pat) {
+        try {
+          pat.setTransform(new DOMMatrix([1, 0, 0, 1, -((step * 37) % 96), -((step * 61) % 96)])); // the static moves; the void does not
+        } catch (e) {
+          /* an old browser: the static simply stands still */
+        }
+        ctx.globalAlpha = Math.min(0.5, V.staticA * 2.2) * (calm ? 0.6 : 1);
+        ctx.fillStyle = pat;
+        ctx.fill(path);
+      }
+    }
+    // 23: the next ring, about to go - a faint static over it, thickening (never a flash)
+    for (const w of warn) {
+      const wp = new Path2D();
+      for (const i of w.L.tiles) if (!g[i]) wp.rect((i % W) * TILE, Math.floor(i / W) * TILE, TILE, TILE);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(0,0,0,${0.45 * w.k})`;
+      ctx.fill(wp);
+      const pat = ctx.createPattern(staticCanvas, 'repeat');
+      if (pat) {
+        ctx.globalAlpha = 0.35 * w.k * (calm ? 0.6 : 1);
+        ctx.fillStyle = pat;
+        ctx.fill(wp);
+      }
+    }
+    ctx.restore();
+  }
+
+  return { LEVELS, BAR_R, DOOR_R, KEY_R, DRIP_R, LIGHT_RGB, build, create, solve, isAct2, creepSchedule, drawVoidTiles: drawVoidTilesOf };
 })();

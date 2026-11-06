@@ -1,6 +1,6 @@
 # Echo Maze
 
-**Current version:** v22.1 - heartbeat fix
+**Current version:** v22.2 - endless twists
 
 A 2D browser game played in **pitch black**. You can't see the maze — you have to *hear* it.
 
@@ -145,6 +145,8 @@ Once you have cleared level 12 in any mode, an **Endless** button appears on the
 - A soft chime at depths 5, 10, 25 and 50, and "New best!" in the corner when you pass your best mid-run. No hints, banners, lore or cutscenes - the HUD shows the depth.
 - Each difficulty keeps its own best depth (shown on the button). Calm mode, Visual cues, the palettes and touch controls all work as usual.
 - Endless never touches the campaign: no progress, medals, stats or fragments. It keeps its own small save, and if storage is unavailable it still works - it just won't remember your best.
+
+**Twists.** Once you have reached level 25 in the story, a **Twists: Off / On** switch appears beside the Endless button (before that it is not there). With Twists on, every fifth depth up to depth 50 is a twist level: one or more of the rules you met in the broken gaol, laid over that depth's maze - always the same twists at the same depths, so you can learn them. After depth 50 there are no more. A low sting as a twist level begins and a small mark beside the depth tell you it is one; which twist it is, you find out. Every twist level is checked with its twist before you get it, and the maze is made again if it would not be fair. Twists on and off keep separate bests for each difficulty, and the game-over screen says "Twists on" when they were. With Twists off, Endless is exactly as before.
 
 ## Replaying levels and cutscenes
 

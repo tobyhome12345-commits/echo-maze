@@ -6,13 +6,13 @@
 session - Claude Code on the web or in the Claude app, on a fresh clone with no access to the owner's PC). The session:
 
 1. does the work, and **updates the version everywhere** (see "Releasing: the version" below);
-2. **runs the release gate**, `node tools/check.js --release` (every check and suite, the version check, a headless
-   browser load and three screenshots - see "The release gate");
-3. **if EVERY check passed** (the gate prints `RELEASE GATE: PASSED` and exits 0): commits and **pushes straight to
-   `main`** - GitHub Pages republishes the website from `main` in about a minute, and the installed phone app picks it
-   up the next time it is opened;
-   **if ANY check failed** (or could not run): it **must not touch `main`**. It pushes a branch, opens a pull request,
-   and tells the owner exactly what failed (see "When the gate fails");
+2. **tests the new or changed feature itself** as the brief asks (its own harness, Visual cues ON then off - see "THE
+   STANDING TEST RULE") - but **does NOT run the full release gate** (`node tools/check.js --release`): **the owner's
+   instruction of 2026-11-07, from v22.3 on** ("in the future just skip it" - a broken update is fine by them, because
+   any release can be undone back to the one before, see "Undoing a release"). Run the gate only if the owner asks;
+3. commits and **pushes straight to `main`** - GitHub Pages republishes the website from `main` in about a minute, and
+   the installed phone app picks it up the next time it is opened. If the push is refused, a branch and a pull request
+   instead (see "When the gate fails");
 4. **never force-pushes and never rewrites history** - not on `main`, not anywhere that has been pushed. No
    `push --force`, no `reset` of a pushed branch, no amending or rebasing pushed commits. To take something back, add a
    new commit (see "Undoing a release").
@@ -22,13 +22,13 @@ task, see "The PC updater") notices the new version on `main` within 10 minutes,
 `C:\Claude\echo game\Echo Maze\vX.Y - title`, points "Play Echo Maze" at it, and rebuilds and checks the
 "Test - everything finished" copy - exactly the steps local sessions used to do by hand.
 
-**A LOCAL session** (on the owner's Windows PC: `C:\Claude\echo game` exists) follows the same flow: the same gate, the
-same push-to-`main`-only-if-it-passed rule. It does NOT make the version folder, the shortcut or the test copy by hand
+**A LOCAL session** (on the owner's Windows PC: `C:\Claude\echo game` exists) follows the same flow (no gate, then
+the push). It does NOT make the version folder, the shortcut or the test copy by hand
 any more - the PC updater does, from `main`, a few minutes after the push (run it by hand to have it at once:
 `powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Claude\echo game\Updater\pc-updater.ps1"`).
 
-**Why it matters: `main` IS the public game.** Anything pushed to `main` is live for everyone at once - which is why
-nothing reaches it that has not passed every check.
+**`main` IS the public game.** Anything pushed to `main` is live for everyone at once. Since 2026-11-07 the owner
+accepts that a broken update may reach it now and then (it is undone with a new commit), rather than wait for the gate.
 
 ## The website (GitHub Pages, since 2026-10-17)
 
@@ -90,7 +90,7 @@ makes the updater do them right: VERSION.json, the version table row, the README
    (`Co-Authored-By: ...` - whatever the session's attribution reminder says). Write the message to a file and commit
    with `git commit -F`. Keep README.md and docs/ current, as always.
 
-### The release gate
+### The release gate (NOT run before a release since 2026-11-07 - only when the owner asks)
 
 ```
 node tools/check.js --release
@@ -101,17 +101,16 @@ headless browser with no console error or exception**; the **generator fingerpri
 git): the title on a laptop, the title on a phone, level 1 lit by a ripple - each also has to load with no error. Plus
 whatever tests the brief itself asks for (identity games, story-bot, a new harness - see "Testing"), which the session
 runs and must also pass. The last line says `RELEASE GATE: PASSED - main may be pushed` or `RELEASE GATE: FAILED`.
-**PASSED is the only thing that allows a push to `main`.** A check reported as NOT RUN (no browser found) counts as a
+(Until 2026-11-07 PASSED was the only thing that allowed a push to `main`; the owner dropped that rule - see the top of this file.) A check reported as NOT RUN (no browser found) counts as a
 failure here. Screenshots are taken because the release needs them; look at them only if something looks wrong in the
 numbers (the owner does not want screenshot passes otherwise, to save usage).
 
-Then, if it passed:
+Then:
 ```
 git fetch origin && git status          # main must not have moved on meanwhile
 git push origin HEAD:main               # a plain fast-forward push - never --force
 ```
-If `main` moved on while the session worked: merge `origin/main` into the work (never rebase pushed commits), **run the
-gate again**, and push only if it passes again. If GitHub refuses the push for any reason (branch protection, a rule,
+If `main` moved on while the session worked: merge `origin/main` into the work (never rebase pushed commits), then push. If GitHub refuses the push for any reason (branch protection, a rule,
 the cloud environment only allowing its own branch): do not try to get round it - fall back to the pull request below
 and say why.
 
@@ -336,7 +335,8 @@ It rebuilds the test copy from the newest version folder (nothing is deleted, th
 | v20.1 | 7b3e990 | MINOR (owner's instruction): **Endless's Try again by difficulty** - on **Hardcore** being caught ends the run and **Start again** begins a new one at depth 1 (a new seed); on **Easy / Normal / Hard** **Try again** restarts the SAME depth - the same maze (the run's seed and the depth), `startLevel(ENDLESS_LEVEL, true)` - and the run goes on. The game-over screen says which (`#eo-again-label`, `#eo-note`). Nothing else changed |
 | v21.0 | 0e6fbd9 | MAJOR: **COSMETICS** - a **Cosmetics** tab in Settings: ripple colours (Classic, Amber, Mint, Rose, Violet, Gold, White-hot), ripple shapes (Classic, Double, Dotted, Soft, Heartbeat, Glitch) and player markers (Dot, Ring, Diamond, Star, Ember), unlocked by progress worked out fresh every time (`js/cosmetics.js`, nothing "unlocked" stored); locked tiles say their condition in plain words, "???" for Endless before it is open and anything past 25; a live preview; a "new" dot on the tab and the title's Settings button. Purely a look - only YOUR ripple (`rp.mine`), the walls it lights and your marker; never a drop's ripple, a song, a cutscene or the daylight levels; ripple reach, speed and timing identical (`CosmeticsTest.same`). Own key `echomaze.cosmetics` (worn + seen). Levels, saves, the editor and share codes unchanged (`9097b344`) |
 | v22.0 | ad12321 | MAJOR: **SAVE CODES** - Settings -> **Save code** (`js/savecode.js`, `EchoSave`): the save as one code, `ECHO1S` + base 62 + CRC-32 on the level codes' own machinery (`EchoShare._`; ECHO1L / ECHO1F and the WORDS lists untouched). A WHITELIST of tagged records (progress always; settings and My Levels + folders only if ticked; an unknown tag = a newer version, refused whole); **Get my code** (Copy code, Save as file `echo-maze-save.txt`, a warning over 2,000 characters) and **Load a code** (paste or from the file; read as untrusted - prefix, version, check, size, every value clamped to this game, levels through the loader and checker; a preview in plain words with a heads-up when it is further along; **Merge** the best of both, or **Replace** asked twice; **Undo last load** from a snapshot of every key it touches, until the next load; from the title's Settings only). Each importer names the other's codes. Keys from `EchoSave.PREFIX`, so the test copy's codes stay in its slot. Everything refreshed after a load, no reload (`afterSaveLoad`). Levels, gameplay and the editor unchanged (`9097b344`) |
-| v22.1 | PENDING | MINOR, a fix: **the Heartbeat ripple shape changed nothing you could see** - and in a real maze Soft, Glitch and Dotted hardly showed either (0 / 0 / 11 pixels different from Classic; Double 164), because every shape only restyled the OPEN ring, which in a maze is gone within hundredths of a second (the wave has reached the walls). Now every shape but Classic also marks **where the wave is landing on the walls** (`landing()` in js/cosmetics.js, `landingAt(rp, rr)` in js/game.js: walls only, drawn on the wall light the game draws anyway), and the **Heartbeat** is a thick ring (3.4 px, Classic 1.8) that beats twice - lub, dub - by how far the wave has spread (`u`), on the ring and where it lands. The game and the Cosmetics preview draw through the one `strokeWave`. `tools/cosmetics-check.js` (Node, every check run) fails if two shapes / colours / markers draw the same, if a shape moves the ring, or if the Heartbeat is not thick and beating; `CosmeticsTest.visible` measures every shape on real pixels in a level and in the preview. Ripple reach and timing unchanged (`CosmeticsTest.same`); levels, saves, the editor and share codes unchanged (`9097b344`) (latest) |
+| v22.1 | edf7a89 | MINOR, a fix: **the Heartbeat ripple shape changed nothing you could see** - and in a real maze Soft, Glitch and Dotted hardly showed either (0 / 0 / 11 pixels different from Classic; Double 164), because every shape only restyled the OPEN ring, which in a maze is gone within hundredths of a second (the wave has reached the walls). Now every shape but Classic also marks **where the wave is landing on the walls** (`landing()` in js/cosmetics.js, `landingAt(rp, rr)` in js/game.js: walls only, drawn on the wall light the game draws anyway), and the **Heartbeat** is a thick ring (3.4 px, Classic 1.8) that beats twice - lub, dub - by how far the wave has spread (`u`), on the ring and where it lands. The game and the Cosmetics preview draw through the one `strokeWave`. `tools/cosmetics-check.js` (Node, every check run) fails if two shapes / colours / markers draw the same, if a shape moves the ring, or if the Heartbeat is not thick and beating; `CosmeticsTest.visible` measures every shape on real pixels in a level and in the preview. Ripple reach and timing unchanged (`CosmeticsTest.same`); levels, saves, the editor and share codes unchanged (`9097b344`) |
+| v22.2 | PENDING | MINOR: **ENDLESS TWISTS** - a **Twists: Off / On** toggle beside Endless on the title (only once level 25 has been reached; off by default; `twists` in `echomaze.endless`): every 5th depth to 50 is a twist level - the broken gaol's rules laid over THAT depth's generated maze, on a FIXED schedule (`SCHEDULE` in `js/twists.js`: 5 late echo, 10 liar, 15 dead air, 20 crumble, 25 creeping edge, then pairs and threes to 50; none after `LAST` 50). The campaign's own code runs them (`level.act2`, built by `EchoTwists.apply` in story.js's shape; story.js's void drawing shared as `EchoStory.drawVoidTiles`); each is checked WITH its twist (`EchoTwists.check`: through crumble, ahead of the creep with >= 50% spare, nothing under the start) and the maze re-rolled if not. A low sting (the void sound) and a small HUD diamond, nothing named. Bests kept apart (`bestTwists`); the game-over screen says "Twists on". Never in the editor, codes or WORDS. With Twists off Endless is unchanged (`tools/twists-check.js` fingerprint `804295ea` = v22.1). Levels, the campaign, saves and share codes unchanged (`9097b344`) (latest) |
 
 These replace the old plain `v1`..`v13` folder names (the same 13 versions, renamed; the file contents were not touched). The old number -> new number order is 1->1.0, 2->1.1, 3->1.2, 4->1.3, 5->1.4, 6->2.0, 7->3.0, 8->3.1, 9->4.0, 10->5.0, 11->5.1, 12->5.2, 13->5.3.
 
@@ -2960,6 +2960,46 @@ fails if two shapes draw the same, and that radius and timing never change.
   against Classic on level 3, the gaol, Endless depth 8 and a bonus level in gold / mint / white-hot with star / ring /
   ember (4,700-15,700). `CosmeticsTest.same`: rays, reach, speed and life identical in every look. Visual cues ON and off,
   the daylight interface. Generator `9097b344`.
+
+## v22.2: Endless twists (owner's brief, MINOR)
+
+Owner: optional twist levels in Endless - with a toggle on, every 5th depth uses the broken gaol's rules for that one
+level, on a FIXED schedule (the same twist at the same depth every run), none after depth 50; the toggle only once
+level 25 is reached; separate bests; reuse the campaign's mechanics and sounds on top of the generated maze; every twist
+level fair WITH its twist or re-rolled; a low sting and a HUD marker, the twist never named; never in the editor, codes
+or the schema; levels 1-12, the campaign, saves and Endless with Twists off exactly as they were.
+
+- **`js/twists.js` (`EchoTwists`)**: `SCHEDULE` (one table) and `LAST` 50; `at(depth)`; `apply(lv, depth, mode, seed)`
+  builds `lv.act2` (and `rayWalls`, `rippleScale` / `rippleLag`) in exactly the shape js/story.js builds it for 17-23,
+  from its OWN stream (`mulberry32(seed ^ 0x7a157e55)` - never the generator's numbers, never Math.random) and changes
+  `lv` only if `check` passes. The twists: **late** (level 20's ripple: x0.42, 0.45 s late), **liar** (3 ghost walls on
+  the route's corridors, 4 hidden real walls beside it), **dead** (4 patches of dead air on the route), **crumble** (3
+  bridges of 3-4 crumbling tiles on the route, added to `blocked` as 21 does), **creep** (`EchoStory.creepSchedule`, 8
+  rings from 10 s; the pace slowed - `every` 6..16 s, x1.35 on Easy - until a clean walk has >= 50% spare; the 6 path
+  tiles before the way out and the way out itself never go). Nothing within 4 tiles of the start.
+- **`check(lv)`**: a search over (tile, crumbled floor) with the creep's timing at walking speed (from 0.7 s, as 23):
+  the way out reachable, nothing under the start, the creep never taking the way out, spare >= `CREEP.minSpare`;
+  returns the proved route (`lv.twist.route`). `generateEndless` (js/level.js) runs it after `endlessCheck` only when
+  `opts.twists` and the depth has a twist - a failure re-rolls that depth like any other check. Measured: 240 twist
+  levels (4 modes x 6 runs), first try 224, second 7, third 9; least creep spare 51%. **No combination needed changing.**
+- **The game** (js/game.js): the same act2 code as 17-23 (`act2Touch`, `voidTouch` / `voidUpdate`, `castRipple`); the
+  void tiles drawn by `EchoStory.drawVoidTiles` (story.js's drawing, moved to module level and shared - the story levels
+  draw exactly as before). As a twist level begins: `audio.voidFall` (the void's sound, a low sting), a big muffler-cue
+  pulse and `[a low sting]` with Visual cues; `#hud-twist`, a small diamond beside the depth (no pulse in Calm mode or
+  reduced motion). Toggle: `#btn-twists` beside `#btn-endless` (`TWISTS_FROM` 25, `twistsUnlocked` / `twistsOn` /
+  `setTwists`; a stored "on" before 25 does nothing); a run keeps what it started with (`endlessRun.twists`). Save:
+  `bestTwists` and `twists` in `echomaze.endless`, `last.twists`; a Twists-off run writes exactly what it always did.
+  Game over: `#eo-twists` "Twists on", "Best on X with twists: N". Save codes do not carry the twists' fields but a
+  loaded code now keeps them (js/savecode.js keeps every non-`best` field of the device's endless save).
+- **Tests**: `tools/twists-check.js` (Node, every check run): 4 modes x 6 runs x depths 1-60 with Twists on and off -
+  the schedule exact and identical on every run, none after 50, every twist level fair with its twist, every depth
+  without a twist the very same maze, Twists off never a twist, and Twists off's fingerprint `804295ea` = v22.1's.
+  `tools/twists-test.js` (browser): `gate` (no toggle before 25 even with "on" stored; there after, Off, On by a click,
+  kept), `mechanics` (every scheduled depth with the real loop: the sting and its caption, the mark; the late ripple,
+  a ghost wall coming apart, a hidden wall's thunk, dead air, crumble cracking and falling, the creep's ring going -
+  each with its caption when cues are on), `bests` (apart per toggle, the game-over screen, a loaded save code keeps
+  them), `bot(mode, on)` (60 depths with the real keys on every difficulty, Twists on and off: 60/60 each), `perf`
+  (twist levels at 844x390). Visual cues ON then off. `tools/test-copy-check.js` checks the test copy shows the toggle.
 
 ## Mimic (level 8+) and sonar decoy (level 9+) (owner's design)
 
